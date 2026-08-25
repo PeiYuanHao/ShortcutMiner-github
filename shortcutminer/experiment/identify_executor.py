@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Protocol
 
 from pydantic import ValidationError
@@ -10,17 +11,12 @@ from shortcutminer.protocol.identify import (
     CandidateReport,
     IdentifyRequest,
 )
-
-from pathlib import Path
-
+from shortcutminer.storage.events import append_event
 from shortcutminer.storage.identify_artifacts import (
     save_identify_input,
     save_identify_output,
 )
 
-from shortcutminer.storage.events import (
-    append_event,
-)
 
 class AgentClient(Protocol):
     """
@@ -69,10 +65,7 @@ def validate_candidate_report(
             "CandidateReport run_id does not match IdentifyRequest."
         )
 
-    if (
-        report.dataset_summary.dataset
-        != request.dataset.name
-    ):
+    if report.dataset_summary.dataset != request.dataset.name:
         raise IdentifyExecutionError(
             "CandidateReport dataset does not match IdentifyRequest."
         )
@@ -85,10 +78,7 @@ def validate_candidate_report(
             "CandidateReport exceeds max_samples budget."
         )
 
-    if (
-        len(report.candidates)
-        > request.budget.max_candidates
-    ):
+    if len(report.candidates) > request.budget.max_candidates:
         raise IdentifyExecutionError(
             "CandidateReport exceeds max_candidates budget."
         )
@@ -110,6 +100,12 @@ def execute_identify(
     client: AgentClient,
     runs_root: str | Path | None = None,
 ) -> CandidateReport:
+    """
+    Execute one Identify stage.
+
+    When run storage is enabled, the input, output, and
+    stage-level execution events are persisted.
+    """
 
     if runs_root is not None:
         save_identify_input(
@@ -178,9 +174,7 @@ def execute_identify(
                         report.candidates
                     ),
                     "samples_inspected": (
-                        report
-                        .dataset_summary
-                        .samples_inspected
+                        report.dataset_summary.samples_inspected
                     ),
                 },
             )
@@ -196,14 +190,13 @@ def execute_identify(
                     event="AGENT_FAILED",
                     stage="identify",
                     details={
-                        "error_type": (
-                            type(exc).__name__
-                        ),
+                        "error_type": type(exc).__name__,
                         "message": str(exc),
                     },
                 )
+
             except Exception:
-                # Never hide the original execution failure
+                # Never hide the original Identify failure
                 # because failure logging also failed.
                 pass
 

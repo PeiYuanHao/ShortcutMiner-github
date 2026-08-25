@@ -416,3 +416,108 @@ def test_failed_identify_does_not_persist_output(
         identify_dir
         / "output.json"
     ).exists()
+
+
+def test_success_events_are_persisted(
+    tmp_path: Path,
+):
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    _create_test_dataset(
+        dataset_root
+    )
+
+    request = _create_request(
+        dataset_root
+    )
+
+    client = MockIdentifyClient(
+        _valid_output()
+    )
+
+    runs_root = tmp_path / "runs"
+
+    execute_identify(
+        request=request,
+        seed=42,
+        client=client,
+        runs_root=runs_root,
+    )
+
+    events_path = (
+        runs_root
+        / request.run_id
+        / "events.jsonl"
+    )
+
+    events = [
+        json.loads(line)
+        for line in events_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+
+    assert [
+        event["event"]
+        for event in events
+    ] == [
+        "IDENTIFY_STARTED",
+        "IDENTIFY_COMPLETED",
+    ]
+
+
+def test_failure_event_is_persisted(
+    tmp_path: Path,
+):
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    _create_test_dataset(
+        dataset_root
+    )
+
+    request = _create_request(
+        dataset_root
+    )
+
+    client = MockIdentifyClient(
+        {
+            "invalid": "output"
+        }
+    )
+
+    runs_root = tmp_path / "runs"
+
+    with pytest.raises(
+        IdentifyExecutionError
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=client,
+            runs_root=runs_root,
+        )
+
+    events_path = (
+        runs_root
+        / request.run_id
+        / "events.jsonl"
+    )
+
+    events = [
+        json.loads(line)
+        for line in events_path.read_text(
+            encoding="utf-8"
+        ).splitlines()
+    ]
+
+    assert (
+        events[0]["event"]
+        == "IDENTIFY_STARTED"
+    )
+
+    assert (
+        events[-1]["event"]
+        == "AGENT_FAILED"
+    )
