@@ -156,4 +156,4 @@ class OpenClawClient:
         agent_name: str,
         run_id: str,
     ) -> str:
-        return f"shortcutminer:{agent_name}:{run_id}"
+        return f"shortcutminer:{run_id}"

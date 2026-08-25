@@ -87,7 +87,7 @@ def test_invoke_agent():
     assert call["agent_name"] == "identify"
 
     assert call["session_key"] == (
-        "shortcutminer:identify:"
+        "shortcutminer:"
         "waterbirds__model-a__seed42__r01"
     )
 
