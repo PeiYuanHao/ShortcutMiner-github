@@ -2,6 +2,8 @@ from pathlib import Path
 
 import pytest
 
+import json
+
 from shortcutminer.experiment.identify_executor import (
     IdentifyExecutionError,
     execute_identify,
@@ -295,3 +297,122 @@ def test_duplicate_candidate_ids(
             seed=42,
             client=client,
         )
+
+
+def test_execute_identify_persists_artifacts(
+    tmp_path: Path,
+):
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    _create_test_dataset(dataset_root)
+
+    request = _create_request(
+        dataset_root
+    )
+
+    client = MockIdentifyClient(
+        _valid_output()
+    )
+
+    runs_root = tmp_path / "runs"
+
+    report = execute_identify(
+        request=request,
+        seed=42,
+        client=client,
+        runs_root=runs_root,
+    )
+
+    identify_dir = (
+        runs_root
+        / request.run_id
+        / "identify"
+    )
+
+    input_path = (
+        identify_dir
+        / "input.json"
+    )
+
+    output_path = (
+        identify_dir
+        / "output.json"
+    )
+
+    assert input_path.exists()
+    assert output_path.exists()
+
+    input_data = json.loads(
+        input_path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    output_data = json.loads(
+        output_path.read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert (
+        input_data["run_id"]
+        == request.run_id
+    )
+
+    assert (
+        output_data["run_id"]
+        == report.run_id
+    )
+
+    assert (
+        output_data["message_type"]
+        == "candidate_report"
+    )
+
+
+def test_failed_identify_does_not_persist_output(
+    tmp_path: Path,
+):
+    dataset_root = tmp_path / "dataset"
+    dataset_root.mkdir()
+
+    _create_test_dataset(dataset_root)
+
+    request = _create_request(
+        dataset_root
+    )
+
+    client = MockIdentifyClient(
+        {
+            "invalid": "agent output"
+        }
+    )
+
+    runs_root = tmp_path / "runs"
+
+    with pytest.raises(
+        IdentifyExecutionError
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=client,
+            runs_root=runs_root,
+        )
+
+    identify_dir = (
+        runs_root
+        / request.run_id
+        / "identify"
+    )
+
+    assert (
+        identify_dir
+        / "input.json"
+    ).exists()
+
+    assert not (
+        identify_dir
+        / "output.json"
+    ).exists()

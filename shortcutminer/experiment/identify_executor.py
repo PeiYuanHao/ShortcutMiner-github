@@ -11,6 +11,12 @@ from shortcutminer.protocol.identify import (
     IdentifyRequest,
 )
 
+from pathlib import Path
+
+from shortcutminer.storage.identify_artifacts import (
+    save_identify_input,
+    save_identify_output,
+)
 
 class AgentClient(Protocol):
     """
@@ -98,18 +104,25 @@ def execute_identify(
     request: IdentifyRequest,
     seed: int,
     client: AgentClient,
+    runs_root: str | Path | None = None,
 ) -> CandidateReport:
     """
     Execute one Identify stage.
 
     Steps:
-    1. Build deterministic discovery context.
-    2. Send structured evidence to the Identify Agent.
-    3. Parse the returned output as CandidateReport.
-    4. Validate run-level invariants.
-
-    This function does not perform shortcut reasoning itself.
+    1. Persist IdentifyRequest when run storage is enabled.
+    2. Build deterministic discovery context.
+    3. Send structured evidence to the Identify Agent.
+    4. Parse the returned output as CandidateReport.
+    5. Validate run-level invariants.
+    6. Persist the validated CandidateReport.
     """
+
+    if runs_root is not None:
+        save_identify_input(
+            runs_root=runs_root,
+            request=request,
+        )
 
     context = build_identify_context(
         request=request,
@@ -146,5 +159,11 @@ def execute_identify(
         report=report,
         request=request,
     )
+
+    if runs_root is not None:
+        save_identify_output(
+            runs_root=runs_root,
+            report=report,
+        )
 
     return report
