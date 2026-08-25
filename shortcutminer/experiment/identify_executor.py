@@ -18,6 +18,10 @@ from shortcutminer.storage.identify_artifacts import (
     save_identify_output,
 )
 
+from shortcutminer.storage.events import (
+    append_event,
+)
+
 class AgentClient(Protocol):
     """
     Minimal client contract required by IdentifyExecutor.
@@ -106,17 +110,6 @@ def execute_identify(
     client: AgentClient,
     runs_root: str | Path | None = None,
 ) -> CandidateReport:
-    """
-    Execute one Identify stage.
-
-    Steps:
-    1. Persist IdentifyRequest when run storage is enabled.
-    2. Build deterministic discovery context.
-    3. Send structured evidence to the Identify Agent.
-    4. Parse the returned output as CandidateReport.
-    5. Validate run-level invariants.
-    6. Persist the validated CandidateReport.
-    """
 
     if runs_root is not None:
         save_identify_input(
@@ -124,46 +117,94 @@ def execute_identify(
             request=request,
         )
 
-    context = build_identify_context(
-        request=request,
-        seed=seed,
-    )
-
-    payload = build_identify_agent_payload(
-        request=request,
-        context=context,
-    )
+        append_event(
+            runs_root=runs_root,
+            run_id=request.run_id,
+            event="IDENTIFY_STARTED",
+            stage="identify",
+        )
 
     try:
-        raw_output = client.invoke_agent(
-            agent_name="identify",
-            payload=payload,
+        context = build_identify_context(
+            request=request,
+            seed=seed,
         )
+
+        payload = build_identify_agent_payload(
+            request=request,
+            context=context,
+        )
+
+        try:
+            raw_output = client.invoke_agent(
+                agent_name="identify",
+                payload=payload,
+            )
+
+        except Exception as exc:
+            raise IdentifyExecutionError(
+                f"Identify agent invocation failed: {exc}"
+            ) from exc
+
+        try:
+            report = CandidateReport.model_validate(
+                raw_output
+            )
+
+        except ValidationError as exc:
+            raise IdentifyExecutionError(
+                "Identify agent returned an invalid "
+                "CandidateReport."
+            ) from exc
+
+        validate_candidate_report(
+            report=report,
+            request=request,
+        )
+
+        if runs_root is not None:
+            save_identify_output(
+                runs_root=runs_root,
+                report=report,
+            )
+
+            append_event(
+                runs_root=runs_root,
+                run_id=request.run_id,
+                event="IDENTIFY_COMPLETED",
+                stage="identify",
+                details={
+                    "candidate_count": len(
+                        report.candidates
+                    ),
+                    "samples_inspected": (
+                        report
+                        .dataset_summary
+                        .samples_inspected
+                    ),
+                },
+            )
+
+        return report
 
     except Exception as exc:
-        raise IdentifyExecutionError(
-            f"Identify agent invocation failed: {exc}"
-        ) from exc
+        if runs_root is not None:
+            try:
+                append_event(
+                    runs_root=runs_root,
+                    run_id=request.run_id,
+                    event="AGENT_FAILED",
+                    stage="identify",
+                    details={
+                        "error_type": (
+                            type(exc).__name__
+                        ),
+                        "message": str(exc),
+                    },
+                )
+            except Exception:
+                # Never hide the original execution failure
+                # because failure logging also failed.
+                pass
 
-    try:
-        report = CandidateReport.model_validate(
-            raw_output
-        )
-
-    except ValidationError as exc:
-        raise IdentifyExecutionError(
-            "Identify agent returned an invalid CandidateReport."
-        ) from exc
-
-    validate_candidate_report(
-        report=report,
-        request=request,
-    )
-
-    if runs_root is not None:
-        save_identify_output(
-            runs_root=runs_root,
-            report=report,
-        )
-
-    return report
+        raise
