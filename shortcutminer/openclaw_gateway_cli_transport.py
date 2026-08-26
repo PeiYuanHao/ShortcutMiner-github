@@ -38,7 +38,10 @@ class OpenClawGatewayCliTransport:
         payload: dict,
         timeout_seconds: int,
     ) -> dict:
-        message = self._build_message(payload)
+        message = self._build_message(
+            payload,
+            agent_name=agent_name,
+        )
 
         message_path = self._write_message_file(
             message
@@ -108,6 +111,7 @@ class OpenClawGatewayCliTransport:
     @staticmethod
     def _build_message(
         payload: dict,
+        agent_name: str = "identify",
     ) -> str:
         """
         Build the structured message sent to the configured agent.
@@ -119,16 +123,39 @@ class OpenClawGatewayCliTransport:
             indent=2,
         )
 
+        if agent_name == "identify":
+            instructions = (
+                "Execute the current ShortcutMiner Identify task "
+                "according to your workspace instructions.\n\n"
+                "The INPUT object has two required fields: "
+                "request is the authoritative IdentifyRequest, and "
+                "discovery_context is deterministic, read-only evidence "
+                "prepared for this run. Selected metadata records are "
+                "not inspected dataset samples. Use the context's "
+                "samples_inspected value exactly.\n\n"
+                "Return exactly one CandidateReport JSON object."
+            )
+        elif agent_name == "executive":
+            instructions = (
+                "Execute the current ShortcutMiner Executive routing task "
+                "according to your workspace instructions.\n\n"
+                "The INPUT object contains one authoritative "
+                "ExecutiveRequest under request. Preserve every embedded "
+                "CandidateReport candidate exactly. Use only capabilities, "
+                "checks, outputs, artifacts, and budgets explicitly supplied "
+                "in routing_context. Produce plans only; do not claim that "
+                "tasks were dispatched or completed.\n\n"
+                "Return exactly one RoutingPlan JSON object."
+            )
+        else:
+            instructions = (
+                f"Execute the current ShortcutMiner {agent_name} task "
+                "according to your workspace instructions and return exactly "
+                "one protocol-compliant JSON object."
+            )
+
         return (
-            "Execute the current ShortcutMiner Identify task "
-            "according to your workspace instructions.\n\n"
-            "The INPUT object has two required fields: "
-            "request is the authoritative IdentifyRequest, and "
-            "discovery_context is deterministic, read-only evidence "
-            "prepared for this run. Selected metadata records are "
-            "not inspected dataset samples. Use the context's "
-            "samples_inspected value exactly.\n\n"
-            "Return exactly one CandidateReport JSON object. "
+            f"{instructions} "
             "Do not add Markdown fences or explanatory prose.\n\n"
             "INPUT:\n"
             f"{payload_json}"
@@ -182,14 +209,12 @@ class OpenClawGatewayCliTransport:
 
         except json.JSONDecodeError as exc:
             raise OpenClawGatewayCliTransportError(
-                "Identify Agent did not return "
-                "a valid JSON object."
+                "Agent did not return a valid JSON object."
             ) from exc
 
         if not isinstance(result, dict):
             raise OpenClawGatewayCliTransportError(
-                "Identify Agent response "
-                "must be a JSON object."
+                "Agent response must be a JSON object."
             )
 
         return result

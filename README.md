@@ -267,6 +267,11 @@ The **Executive Agent makes routing decisions**.
 
 The Orchestrator only ensures that those decisions are executed reliably.
 
+The current Executive `1.0` implementation stops at a validated routing plan:
+it preserves every Identify candidate, selects `quantitative`, `qualitative`,
+`both`, or `unresolved`, and emits complete downstream task messages. Physical
+dispatch and result tracking remain part of the deferred Orchestrator skeleton.
+
 ---
 
 ## `openclaw_client.py`
@@ -320,6 +325,8 @@ shortcutminer/protocol/
 
 ```text
 protocol/
+├── identify.py
+├── executive.py
 ├── messages.py
 ├── schemas.py
 ├── artifacts.py
@@ -337,7 +344,7 @@ message_id
 source
 target
 message_type
-payload
+stage-specific body fields
 artifact references
 ```
 
@@ -351,7 +358,15 @@ Example:
   "source": "identify",
   "target": "executive",
   "message_type": "candidate_report",
-  "payload": {}
+  "in_reply_to": "msg_identify_request_00001",
+  "artifact_references": [],
+  "dataset_summary": {
+    "dataset": "waterbirds",
+    "samples_inspected": 0,
+    "metadata_used": true
+  },
+  "candidates": [],
+  "limitations": []
 }
 ```
 
@@ -360,7 +375,10 @@ Expected structured entities include:
 ```text
 Candidate
 CandidateReport
+ExecutiveRequest
 RoutingDecision
+RoutingPlan
+AnalysisTask
 QuantitativeResult
 QualitativeResult
 SummaryReport
@@ -880,6 +898,7 @@ runs/
     │
     ├── executive/
     │   ├── input.json
+    │   ├── raw_output.json
     │   └── routing.json
     │
     ├── quantitative/

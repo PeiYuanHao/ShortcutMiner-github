@@ -2,7 +2,7 @@
 
 ## 1. Current Scope
 
-Protocol version `1.0` currently defines the complete canonical contract for the Identify stage:
+Protocol version `1.0` currently defines the complete canonical contracts for the Identify and Executive planning stages:
 
 ```text
 Orchestrator
@@ -13,18 +13,22 @@ Identify Agent
     |
     | CandidateReport
     v
-Executive
+Executive Agent
+    |
+    | RoutingPlan + AnalysisTask messages
+    v
+Orchestrator
 ```
 
-The executable Pydantic contract is defined in `shortcutminer/protocol/identify.py`. The prepared context is defined in `shortcutminer/experiment/identify_context.py`. This document describes the same wire contract and its cross-object invariants.
+The executable Pydantic contracts are defined in `shortcutminer/protocol/identify.py` and `shortcutminer/protocol/executive.py`. Deterministic preparation and cross-stage construction live in the corresponding `shortcutminer/experiment/` modules. This document describes the same wire contracts and their cross-object invariants.
 
-Routing, quantitative, qualitative, and summary message bodies will be added as their agents are implemented. They must follow the same explicit envelope principles, but no incomplete placeholder schema for those stages is part of protocol `1.0` today.
+Quantitative, qualitative, and summary result message bodies will be added as their agents are implemented. They must follow the same explicit envelope principles, but no incomplete placeholder schema for those stages is part of protocol `1.0` today.
 
 ---
 
 ## 2. Validation Policy
 
-Every Identify protocol model uses these rules:
+Every implemented Identify and Executive protocol model uses these rules:
 
 * unknown fields are forbidden at every nesting level;
 * JSON types are strict and are not silently coerced;
@@ -423,4 +427,226 @@ When the remaining agents are implemented, each message will define:
 * cross-object and budget invariants;
 * a documented degraded/failure boundary.
 
-Until those contracts exist, the complete canonical contract in this document applies only to Identify. It does not claim that placeholder schemas for later agents are already valid or stable.
+Quantitative, Qualitative, and Summarize result contracts remain future work. This document does not claim that placeholder schemas for those stages are already valid or stable.
+
+---
+
+## 11. Executive Planning Protocol
+
+### 11.1 Current execution boundary
+
+Executive converts a validated Identify `CandidateReport` into a routing plan:
+
+```text
+CandidateReport + authoritative routing context
+        |
+        v
+Executive Agent
+        |
+        v
+RoutingPlan
+  |- RoutingDecision[]
+  `- AnalysisTask[]
+        |
+        v
+deterministic Orchestrator (future skeleton integration)
+```
+
+The current Executive executor plans only. It does not dispatch tasks, wait for downstream results, run heartbeat coordination, or claim task completion. Those lifecycle operations belong to deterministic infrastructure and remain outside this stage until the main execution skeleton is connected.
+
+### 11.2 ExecutiveRequest
+
+The invocation payload contains exactly one `request` object. Its complete envelope is:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "message_id": "msg_executive_request_0001",
+  "source": "orchestrator",
+  "target": "executive",
+  "message_type": "executive_request",
+  "in_reply_to": "msg_candidate_report_0001",
+  "candidate_report": {},
+  "routing_context": {}
+}
+```
+
+`candidate_report` is the complete, validated Identify output. It is not rewritten into a second candidate representation. In particular, Executive protocol `1.0` uses the Identify IDs `C001` through `C999`, not a separate `SC-001` namespace.
+
+`in_reply_to` must equal `candidate_report.message_id`. Protocol version and run ID must agree across the request, report, and routing context. The request `message_id` must be new.
+
+### 11.3 ExecutiveRoutingContext
+
+The deterministic control layer supplies:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "dataset": {
+    "name": "waterbirds",
+    "root": "/datasets/waterbirds",
+    "metadata_file": "metadata.csv"
+  },
+  "task": {
+    "type": "classification",
+    "label_column": "y"
+  },
+  "audit_options": {
+    "validation_depth": "standard",
+    "max_tasks": 10,
+    "max_samples_per_task": 40,
+    "allowed_targets": ["quantitative", "qualitative"],
+    "requested_outputs": ["metrics", "observations"],
+    "runtime_constraints": []
+  },
+  "capabilities": {
+    "available_targets": ["quantitative", "qualitative"],
+    "available_metadata_fields": ["y", "place"],
+    "available_splits": ["train", "val", "test"],
+    "quantitative_checks": ["association_test"],
+    "qualitative_checks": ["representative_sample_inspection"],
+    "model_capabilities": ["predictions"],
+    "sample_access": true,
+    "available_output_types": ["metrics", "tables", "observations"]
+  },
+  "artifact_references": ["identify/output.json"],
+  "limitations": []
+}
+```
+
+Capabilities are permissions and availability facts, not suggestions. Executive must not request a target, check, metadata field, split, model capability, output type, sample access, or artifact reference absent from this context.
+
+`max_tasks` is from 1 through 1998, matching at most two tasks for each possible Identify candidate. `max_samples_per_task` is a hard positive limit. `validation_depth` is exactly `light`, `standard`, or `deep`; it never grants unlimited execution.
+
+The context builder copies dataset and task identity from the Identify request, verifies that capability metadata fields occurred in the bounded Identify profile, and carries forward Identify limitations. It does not rescan the dataset.
+
+### 11.4 RoutingPlan
+
+Executive returns exactly one object:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "message_id": "msg_routing_plan_0001",
+  "source": "executive",
+  "target": "orchestrator",
+  "message_type": "routing_plan",
+  "in_reply_to": "msg_executive_request_0001",
+  "artifact_references": [],
+  "decisions": [],
+  "tasks": [],
+  "limitations": []
+}
+```
+
+The target is `orchestrator` because the Agent decides what should run while deterministic infrastructure owns physical dispatch, concurrency, retries, persistence, and lifecycle management.
+
+The plan message ID must be distinct from both upstream message IDs. Every routing-context limitation must appear verbatim in plan limitations. Plan artifact references must be a subset of the authoritative context references.
+
+### 11.5 RoutingDecision
+
+There is exactly one decision for every input candidate, in input order:
+
+```json
+{
+  "candidate": {},
+  "route": "both",
+  "routing_reason": "Measurable and semantic evidence are complementary.",
+  "task_ids": ["TASK-C001-QT", "TASK-C001-QL"],
+  "priority": "high",
+  "status": "planned",
+  "missing_requirements": [],
+  "limitations": []
+}
+```
+
+`candidate` is the complete original `Candidate` and must match it exactly. `priority` must also preserve the upstream value. The four routes are:
+
+| Route | Exact task IDs | Status |
+| --- | --- | --- |
+| `quantitative` | `TASK-<candidate_id>-QT` | `planned` |
+| `qualitative` | `TASK-<candidate_id>-QL` | `planned` |
+| `both` | QT then QL tasks | `planned` |
+| `unresolved` | Empty list | `unresolved` |
+
+An executable decision cannot retain missing requirements. An unresolved decision must state at least one missing requirement or limitation. No candidate may be dropped merely because it cannot be executed.
+
+### 11.6 AnalysisTask
+
+Every planned task is itself a dispatchable protocol message:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "message_id": "msg_task_C001_QT",
+  "source": "executive",
+  "target": "quantitative",
+  "message_type": "analysis_task",
+  "in_reply_to": "msg_routing_plan_0001",
+  "task_id": "TASK-C001-QT",
+  "candidate_id": "C001",
+  "hypothesis": "Background category may be associated with the label.",
+  "objective": "Measure the label-background association.",
+  "inputs": {
+    "dataset": "waterbirds",
+    "dataset_reference": "/datasets/waterbirds",
+    "label_column": "y",
+    "split": "train",
+    "metadata_fields": ["y", "place"],
+    "artifact_references": [],
+    "sample_limit": null,
+    "requires_sample_access": false,
+    "required_model_capabilities": []
+  },
+  "requested_checks": ["association_test"],
+  "expected_outputs": ["metrics", "tables"],
+  "priority": "high",
+  "dependencies": [],
+  "status": "planned"
+}
+```
+
+Task IDs are deterministic and unique. QT tasks target `quantitative`; QL tasks target `qualitative`. The hypothesis and priority are copied exactly from the candidate. Dataset reference and label column are copied from routing context. Every other input and requested operation must remain within declared capabilities and budgets.
+
+Tasks produced for `both` are independent by default. Dependencies are allowed only when genuine, must refer to tasks in the same plan, and must be acyclic. A planned task is not a dispatched, running, or completed task.
+
+### 11.7 Cross-object invariants
+
+The Executive boundary enforces:
+
+```text
+request/report/context/plan protocol_version and run_id agree
+request.in_reply_to == candidate_report.message_id
+plan.in_reply_to == request.message_id
+one decision per candidate, in order
+decision.candidate == upstream candidate
+decision.priority == candidate.priority
+task IDs exactly match route
+plan tasks exactly match all decision task IDs, in order
+len(tasks) <= audit_options.max_tasks
+task target, suffix, candidate_id, hypothesis, and priority agree
+task inputs/checks/outputs <= routing_context capabilities
+task sample_limit <= max_samples_per_task
+all artifact references <= authoritative references
+all task dependencies exist and form an acyclic graph
+```
+
+Unknown fields and type coercion are rejected recursively, just as in Identify.
+
+### 11.8 Failure and persistence
+
+Invalid identity, correlation, candidate preservation, capability, budget, traceability, or schema is a protocol failure. Missing data or unavailable capabilities are not reasons to fabricate a task; Executive returns a visible `unresolved` decision when the request itself remains valid.
+
+With run storage enabled, Executive persists:
+
+```text
+runs/<run_id>/executive/input.json
+runs/<run_id>/executive/raw_output.json
+runs/<run_id>/executive/routing.json
+```
+
+`input.json` is the exact invocation payload, `raw_output.json` is the unvalidated Agent object, and `routing.json` is written only after schema and semantic validation. Events record `EXECUTIVE_STARTED`, `EXECUTIVE_COMPLETED`, or `AGENT_FAILED` without claiming downstream execution.

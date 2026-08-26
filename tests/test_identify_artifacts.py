@@ -511,7 +511,7 @@ def test_atomic_replace_failure_is_wrapped(
         )
 
     monkeypatch.setattr(
-        "shortcutminer.storage.identify_artifacts.os.replace",
+        "shortcutminer.storage.json_artifacts.os.replace",
         fail_replace,
     )
 

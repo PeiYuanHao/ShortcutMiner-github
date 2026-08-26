@@ -1,100 +1,20 @@
-from collections.abc import Mapping
-import json
-import os
-import tempfile
 from pathlib import Path
-from typing import TypeAlias
-
-from pydantic import BaseModel
 
 from shortcutminer.protocol.identify import CandidateReport
+from shortcutminer.storage.json_artifacts import (
+    JsonObject,
+    JsonObjectInput,
+    atomic_write_json,
+    model_to_json_object,
+)
 from shortcutminer.storage.paths import (
     RunPathError,
     get_run_dir,
 )
 
 
-JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = (
-    JsonScalar
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
-)
-JsonObject: TypeAlias = dict[str, JsonValue]
-JsonObjectInput: TypeAlias = Mapping[str, JsonValue]
-
-
 class IdentifyArtifactError(RuntimeError):
     """Raised when Identify artifacts cannot be persisted."""
-
-
-def _atomic_write_json(
-    path: Path,
-    data: JsonObjectInput,
-) -> None:
-    """
-    Write JSON atomically.
-
-    The temporary file is written in the same directory and
-    replaced only after the complete JSON document is ready.
-    """
-
-    temp_path: Path | None = None
-
-    try:
-        serialized = json.dumps(
-            dict(data),
-            ensure_ascii=False,
-            indent=2,
-            allow_nan=False,
-        )
-
-        path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
-        )
-
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            suffix=".tmp",
-            dir=path.parent,
-            delete=False,
-        ) as file:
-            temp_path = Path(file.name)
-            file.write(serialized)
-            file.write("\n")
-            file.flush()
-            os.fsync(file.fileno())
-
-        os.replace(
-            temp_path,
-            path,
-        )
-
-    except Exception as exc:
-        if temp_path is not None:
-            try:
-                temp_path.unlink(
-                    missing_ok=True
-                )
-
-            except OSError:
-                pass
-
-        raise IdentifyArtifactError(
-            f"Failed to write artifact: {path}"
-        ) from exc
-
-
-def _model_to_dict(
-    model: BaseModel,
-) -> JsonObject:
-    data = model.model_dump(
-        mode="json"
-    )
-
-    return data
 
 
 def get_identify_run_dir(
@@ -142,9 +62,10 @@ def save_identify_input(
         / "input.json"
     )
 
-    _atomic_write_json(
+    atomic_write_json(
         output_path,
         payload,
+        error_type=IdentifyArtifactError,
     )
 
     return output_path
@@ -165,9 +86,10 @@ def save_identify_raw_output(
 
     output_path = identify_dir / "raw_output.json"
 
-    _atomic_write_json(
+    atomic_write_json(
         output_path,
         raw_output,
+        error_type=IdentifyArtifactError,
     )
 
     return output_path
@@ -191,9 +113,10 @@ def save_identify_output(
         / "output.json"
     )
 
-    _atomic_write_json(
+    atomic_write_json(
         output_path,
-        _model_to_dict(report),
+        model_to_json_object(report),
+        error_type=IdentifyArtifactError,
     )
 
     return output_path
