@@ -1,1 +1,9 @@
-# TODO: add content.
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Pytest
+.pytest_cache/
+
+# VS Code
+.vscode/
