@@ -122,6 +122,12 @@ class OpenClawGatewayCliTransport:
         return (
             "Execute the current ShortcutMiner Identify task "
             "according to your workspace instructions.\n\n"
+            "The INPUT object has two required fields: "
+            "request is the authoritative IdentifyRequest, and "
+            "discovery_context is deterministic, read-only evidence "
+            "prepared for this run. Selected metadata records are "
+            "not inspected dataset samples. Use the context's "
+            "samples_inspected value exactly.\n\n"
             "Return exactly one CandidateReport JSON object. "
             "Do not add Markdown fences or explanatory prose.\n\n"
             "INPUT:\n"

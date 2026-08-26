@@ -532,6 +532,14 @@ Agent interprets the returned evidence
 
 LLMs should not manually perform calculations when deterministic implementations are available.
 
+Tool ownership is stage-specific. In the current Identify `1.0` integration,
+the deterministic control layer runs the bounded dataset and metadata
+preparation plan before invocation and sends the resulting immutable
+`discovery_context` to the Agent. Identify interprets that evidence but does
+not directly rerun the Python tools. Moving inspection choices into the Agent
+requires an explicit runtime-tool binding and protocol revision so budgets and
+run isolation remain enforceable.
+
 ---
 
 ## Common Tools
@@ -867,6 +875,7 @@ runs/
     │
     ├── identify/
     │   ├── input.json
+    │   ├── raw_output.json
     │   └── output.json
     │
     ├── executive/

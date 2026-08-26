@@ -5,5 +5,35 @@ __pycache__/
 # Pytest
 .pytest_cache/
 
+# Virtual environments and packaging output
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+
 # VS Code
 .vscode/
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+
+# Raw datasets (keep preparation documentation)
+data/*
+!data/README.md
+
+# Raw experiment runs (keep the directory scaffold)
+runs/*
+!runs/.gitkeep
+
+# OpenClaw runtime state must remain outside version control
+.openclaw/
+infrastructure/openclaw/runtime/
+infrastructure/openclaw/sessions/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
