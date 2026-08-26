@@ -7,6 +7,10 @@ name = "shortcutminer"
 version = "0.1.0"
 description = "A multi-agent framework for dataset shortcut discovery and auditing."
 requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "pandas>=2.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
