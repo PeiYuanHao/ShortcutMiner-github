@@ -143,6 +143,17 @@ def test_executive_message_uses_routing_contract():
     assert "do not claim that tasks were dispatched" in message
 
 
+def test_qualitative_message_uses_evidence_contract():
+    message = OpenClawGatewayCliTransport._build_message(
+        {"request": {"run_id": "test_run"}, "evidence_context": {}},
+        agent_name="qualitative",
+    )
+
+    assert "Qualitative evidence task" in message
+    assert "counterevidence" in message
+    assert "QualitativeResult" in message
+
+
 def test_parse_nested_gateway_payload():
     report = _candidate_report()
 

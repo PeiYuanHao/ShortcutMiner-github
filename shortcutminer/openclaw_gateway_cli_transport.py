@@ -149,6 +149,20 @@ class OpenClawGatewayCliTransport:
                 "tasks were dispatched or completed.\n\n"
                 "Return exactly one RoutingPlan JSON object."
             )
+        elif agent_name == "qualitative":
+            instructions = (
+                "Execute the current ShortcutMiner Qualitative evidence task "
+                "according to your workspace instructions.\n\n"
+                "The INPUT object contains one authoritative "
+                "QualitativeRequest and one deterministic, read-only "
+                "evidence_context. Inspect only the selected samples and "
+                "authorized artifacts. Keep observations separate from "
+                "interpretations, preserve counterevidence and every context "
+                "limitation, and do not present dataset-level evidence as "
+                "proof of model reliance. Sample IDs and artifact references "
+                "must come from INPUT.\n\n"
+                "Return exactly one QualitativeResult JSON object."
+            )
         else:
             instructions = (
                 f"Execute the current ShortcutMiner {agent_name} task "

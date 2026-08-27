@@ -2,7 +2,8 @@
 
 ## 1. Current Scope
 
-Protocol version `1.0` currently defines the complete canonical contracts for the Identify and Executive planning stages:
+Protocol version `1.0` currently defines complete canonical contracts for the
+Identify, Executive planning, and single-task Qualitative evidence stages:
 
 ```text
 Orchestrator
@@ -18,17 +19,32 @@ Executive Agent
     | RoutingPlan + AnalysisTask messages
     v
 Orchestrator
+    |
+    | QualitativeRequest + QualitativeEvidenceContext
+    v
+Qualitative Agent
+    |
+    | QualitativeResult
+    v
+Summarize (downstream contract consumer)
 ```
 
-The executable Pydantic contracts are defined in `shortcutminer/protocol/identify.py` and `shortcutminer/protocol/executive.py`. Deterministic preparation and cross-stage construction live in the corresponding `shortcutminer/experiment/` modules. This document describes the same wire contracts and their cross-object invariants.
+The executable Pydantic contracts are defined in
+`shortcutminer/protocol/identify.py`, `shortcutminer/protocol/executive.py`, and
+`shortcutminer/protocol/qualitative.py`. Deterministic preparation and
+cross-stage construction live in the corresponding `shortcutminer/experiment/`
+modules. This document describes the same wire contracts and their cross-object
+invariants.
 
-Quantitative, qualitative, and summary result message bodies will be added as their agents are implemented. They must follow the same explicit envelope principles, but no incomplete placeholder schema for those stages is part of protocol `1.0` today.
+Quantitative and summary result message bodies will be added as their agents are
+implemented. They must follow the same explicit envelope principles, but no
+incomplete placeholder schema for those stages is part of protocol `1.0`.
 
 ---
 
 ## 2. Validation Policy
 
-Every implemented Identify and Executive protocol model uses these rules:
+Every implemented Identify, Executive, and Qualitative protocol model uses these rules:
 
 * unknown fields are forbidden at every nesting level;
 * JSON types are strict and are not silently coerced;
@@ -418,7 +434,7 @@ Artifact storage is run-local and must not become hidden cross-run Agent memory.
 
 Protocol `1.0` is strict: adding a new field to an existing object requires a deliberate protocol update because unknown fields are rejected.
 
-When the remaining agents are implemented, each message will define:
+When the remaining stage contracts are implemented, each message will define:
 
 * an explicit version, run ID, message ID, source, target, and message type;
 * request/response correlation where applicable;
@@ -427,7 +443,9 @@ When the remaining agents are implemented, each message will define:
 * cross-object and budget invariants;
 * a documented degraded/failure boundary.
 
-Quantitative, Qualitative, and Summarize result contracts remain future work. This document does not claim that placeholder schemas for those stages are already valid or stable.
+Quantitative and Summarize result contracts remain future work. Qualitative is
+defined in Section 12; this document does not treat placeholders for the other
+stages as valid or stable contracts.
 
 ---
 
@@ -659,3 +677,192 @@ runs/<run_id>/executive/routing.json
 ```
 
 `input.json` is the exact invocation payload, `raw_output.json` is the unvalidated Agent object, and `routing.json` is written only after schema and semantic validation. Events record `EXECUTIVE_STARTED`, `EXECUTIVE_COMPLETED`, or `AGENT_FAILED` without claiming downstream execution.
+
+---
+
+## 12. Qualitative Evidence Protocol
+
+### 12.1 Execution boundary
+
+Qualitative consumes exactly one validated Executive task whose target is
+`qualitative` and whose ID ends in `-QL`. The deterministic control layer
+prepares evidence before invoking the Agent:
+
+```text
+Candidate + AnalysisTask + preparation options
+        |
+        v
+bounded metadata load and split filter
+        |
+        v
+random or group-balanced sample selection
+        |
+        v
+dataset-contained sample-reference manifest
+        |
+        v
+Qualitative Agent
+        |
+        v
+validated QualitativeResult
+```
+
+Preparation only resolves and records evidence. It does not claim to visually
+inspect samples and does not transform source data.
+
+### 12.2 QualitativeRequest
+
+The request envelope is:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "message_id": "msg_qualitative_request_C001",
+  "source": "orchestrator",
+  "target": "qualitative",
+  "message_type": "qualitative_analysis_request",
+  "in_reply_to": "msg_task_C001_QL",
+  "candidate": {},
+  "task": {},
+  "metadata_file": "metadata.csv",
+  "preparation": {
+    "sampling_strategy": "group_balanced",
+    "seed": 42,
+    "sample_id_column": "sample_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "group_columns": ["y", "place"],
+    "max_evidence_records": 40,
+    "max_metadata_rows": 100000
+  },
+  "limitations": []
+}
+```
+
+The embedded candidate is the unmodified Identify candidate. The embedded task
+is the unmodified Executive `AnalysisTask`. Its hypothesis, candidate ID,
+dataset reference, requested checks, expected outputs, runtime constraints, and
+sample limit remain authoritative. Preparation columns must be present in the
+task's authorized label or metadata fields. `max_evidence_records` cannot
+exceed the task's `sample_limit` when one is present.
+
+### 12.3 QualitativeEvidenceContext
+
+The invocation payload contains exactly:
+
+```json
+{
+  "request": {},
+  "evidence_context": {}
+}
+```
+
+The evidence context records selected sample IDs, metadata row indexes, group
+values, relevant metadata, dataset-relative sample references, file
+availability, media type, byte size, available and selected group coverage,
+the sampling seed and strategy, authoritative upstream artifacts, an allowed
+candidate-scoped derived-artifact prefix, and every preparation limitation.
+
+Sample paths must be relative to the configured dataset root. Absolute paths,
+drive-qualified paths, `.`/`..` traversal, missing files, and unknown formats
+are not exposed as valid inspectable sample evidence. Missing metadata, missing
+groups, selection failure, or zero accessible samples produce a bounded degraded
+context so the Agent can return `insufficient_evidence` instead of fabricating a
+result.
+
+### 12.4 QualitativeResult
+
+The Agent returns:
+
+```json
+{
+  "protocol_version": "1.0",
+  "run_id": "waterbirds__model-a__seed42__r01",
+  "message_id": "msg_qualitative_result_C001",
+  "source": "qualitative",
+  "target": "summarize",
+  "message_type": "qualitative_analysis_result",
+  "in_reply_to": "msg_qualitative_request_C001",
+  "payload": {
+    "candidate_id": "C001",
+    "candidate_name": "background_category",
+    "hypothesis": "Background category may be associated with the label.",
+    "evidence_status": "partially_supported",
+    "evidence_summary": "The cue is visible with several counterexamples.",
+    "sampling": {
+      "strategy": "group_balanced",
+      "seed": 42,
+      "groups": {"y=0 | place=0": 1, "y=1 | place=1": 1},
+      "sample_count": 2,
+      "sample_ids": ["S017", "S204"]
+    },
+    "observations": [],
+    "interpretations": [],
+    "counterevidence": [],
+    "metadata_evidence": [],
+    "failures": [],
+    "limitations": [],
+    "artifact_references": [],
+    "recommended_followup": []
+  }
+}
+```
+
+The five evidence statuses are `supported`, `partially_supported`,
+`inconclusive`, `contradicted`, and `insufficient_evidence`. Interpretation
+confidence is `high`, `medium`, or `low` and is explicitly not statistical
+confidence.
+
+Observations use candidate-scoped sequential IDs such as `QO-C001-001` and
+must cite selected, inspected sample IDs. Interpretations cite existing
+observation IDs. Counterevidence and metadata evidence cite selected records;
+metadata fields must be authorized by the task. Failure categories are
+canonical and remain distinct from negative scientific evidence.
+
+### 12.5 Cross-object invariants
+
+The Qualitative boundary enforces:
+
+```text
+request/task/context/result protocol_version and run_id agree
+request.in_reply_to == task.message_id
+result.in_reply_to == request.message_id
+candidate ID, cue name, and hypothesis are preserved
+task target == qualitative and task ID suffix == -QL
+preparation record budget <= task sample_limit
+result sampling strategy and seed == evidence context
+result sample_count == len(sample_ids)
+result sample IDs <= selected evidence-context sample IDs
+sample-access tasks may cite only available sample files
+reported group counts exactly match cited sample groups
+observation IDs are candidate-scoped and sequential
+observations/counterevidence/metadata evidence cite known samples
+interpretations cite known observations
+metadata fields <= task-authorized fields
+artifact references <= upstream references or candidate output prefix
+every evidence-context limitation is preserved verbatim
+substantive statuses require direct evidence
+insufficient_evidence requires a visible limitation or failure
+```
+
+These rules provide structural traceability. They do not turn a qualitative
+observation into proof that a model uses the cue; the workspace contract keeps
+dataset-level evidence and model reliance separate.
+
+### 12.6 Persistence and failure
+
+With run storage enabled, Qualitative persists:
+
+```text
+runs/<run_id>/qualitative/input.json
+runs/<run_id>/qualitative/raw_output.json
+runs/<run_id>/qualitative/result.json
+runs/<run_id>/qualitative/artifacts/<candidate_id>/...
+```
+
+`input.json` preserves the exact request and deterministic evidence context.
+`raw_output.json` preserves invalid Agent responses for diagnosis. `result.json`
+is written only after schema and semantic validation. Derived artifact files are
+required to exist before a stored result may cite them. Events record
+`QUALITATIVE_STARTED`, `QUALITATIVE_COMPLETED`, or `AGENT_FAILED`.

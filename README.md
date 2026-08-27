@@ -269,8 +269,13 @@ The Orchestrator only ensures that those decisions are executed reliably.
 
 The current Executive `1.0` implementation stops at a validated routing plan:
 it preserves every Identify candidate, selects `quantitative`, `qualitative`,
-`both`, or `unresolved`, and emits complete downstream task messages. Physical
-dispatch and result tracking remain part of the deferred Orchestrator skeleton.
+`both`, or `unresolved`, and emits complete downstream task messages.
+
+The Qualitative `1.0` stage can consume one planned qualitative task, prepare a
+bounded metadata-linked sample manifest, invoke the Qualitative Agent, validate
+its sample-level evidence, and persist a result for Summarize. Physical
+multi-task dispatch and result tracking remain part of the deferred Orchestrator
+skeleton.
 
 ---
 
@@ -602,12 +607,18 @@ Planned functionality includes:
 tools/qualitative/
 ```
 
-Planned functionality includes:
+Implemented functionality includes:
 
-* image sampling
-* metadata inspection
-* representative example selection
-* qualitative evidence construction
+* bounded, deterministic random or group-balanced sampling
+* metadata-field and split validation
+* dataset-contained sample-reference resolution
+* representative evidence manifests with group coverage
+* explicit unavailable/unsupported-sample limitations
+
+The control layer does not invent visual observations. It selects and verifies
+the evidence boundary; the Qualitative Agent inspects the referenced samples
+and returns traceable observations, interpretations, counterevidence, failures,
+and limitations under the strict `QualitativeResult` contract.
 
 ---
 
@@ -908,6 +919,7 @@ runs/
     │
     ├── qualitative/
     │   ├── input.json
+    │   ├── raw_output.json
     │   ├── result.json
     │   └── artifacts/
     │
