@@ -71,10 +71,13 @@ Information required during one run may be retained temporarily within that run.
 Examples include:
 
 * current `run_id`;
+* current request and report message identifiers;
 * current dataset specification;
 * current task definition;
-* selected sample identifiers;
-* tool results from the current run;
+* current deterministic seed;
+* selected metadata rows and their selection identifiers;
+* prepared control-layer results from the current run;
+* actual inspected-sample count, kept distinct from selected metadata rows;
 * temporary observations;
 * current candidate drafts;
 * current limitations.
@@ -224,9 +227,9 @@ configuration
 +
 current dataset state
 +
-current run context
+exact {request, discovery_context} payload
 +
-available tools
+prepared artifact references
 +
 current model behavior
 ```

@@ -1,14 +1,16 @@
+import json
 from pathlib import Path
 
 import pytest
 
-import json
-
+from shortcutminer.experiment.identify_context import build_identify_context
 from shortcutminer.experiment.identify_executor import (
     IdentifyExecutionError,
     execute_identify,
+    validate_candidate_report,
 )
 from shortcutminer.protocol.identify import (
+    CandidateReport,
     DatasetSpec,
     IdentifyBudget,
     IdentifyRequest,
@@ -64,7 +66,12 @@ def _create_request(
     root: Path,
 ) -> IdentifyRequest:
     return IdentifyRequest(
+        protocol_version="1.0",
         run_id="identify_test_run",
+        message_id="identify_test_run:identify:request",
+        source="orchestrator",
+        target="identify",
+        message_type="identify_request",
         dataset=DatasetSpec(
             name="test_dataset",
             root=str(root),
@@ -85,11 +92,15 @@ def _valid_output() -> dict:
     return {
         "protocol_version": "1.0",
         "run_id": "identify_test_run",
+        "message_id": "identify_test_run:identify:report",
         "source": "identify",
+        "target": "executive",
         "message_type": "candidate_report",
+        "in_reply_to": "identify_test_run:identify:request",
+        "artifact_references": [],
         "dataset_summary": {
             "dataset": "test_dataset",
-            "samples_inspected": 4,
+            "samples_inspected": 0,
             "metadata_used": True,
         },
         "candidates": [
@@ -119,7 +130,11 @@ def _valid_output() -> dict:
             }
         ],
         "limitations": [
-            "The candidate has not been validated."
+            "The candidate has not been validated.",
+            (
+                "Selected records are metadata rows only; "
+                "no dataset sample content was inspected."
+            ),
         ],
     }
 
@@ -228,6 +243,191 @@ def test_wrong_run_id(
             request=request,
             seed=42,
             client=client,
+        )
+
+
+def test_wrong_reply_message_id(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["in_reply_to"] = "another:request"
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="in_reply_to",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_samples_inspected_must_match_context(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["dataset_summary"]["samples_inspected"] = 1
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="samples_inspected",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_context_limitations_must_be_preserved(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["limitations"] = [
+        "The candidate has not been validated."
+    ]
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="omitted deterministic context limitations",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_candidate_ids_must_be_sequential(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["candidates"][0]["candidate_id"] = "C002"
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="sequential",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_unavailable_evidence_source_is_rejected(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["candidates"][0]["evidence_sources"] = [
+        "sample_inspection"
+    ]
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="no sample content was inspected",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_unsupplied_artifact_reference_is_rejected(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["artifact_references"] = ["identify/input.json"]
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="not supplied authoritatively",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+def test_duplicate_evidence_sources_are_rejected(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    output = _valid_output()
+    output["candidates"][0]["evidence_sources"] = [
+        "metadata",
+        "metadata",
+    ]
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="duplicate evidence sources",
+    ):
+        execute_identify(
+            request=request,
+            seed=42,
+            client=MockIdentifyClient(output),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "wrong_value"),
+    [
+        ("dataset_name", "other_dataset"),
+        ("task_type", "regression"),
+        ("label_column", "other_label"),
+    ],
+)
+def test_context_identity_must_match_request(
+    tmp_path: Path,
+    field_name: str,
+    wrong_value: str,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    context = build_identify_context(request=request, seed=42)
+    setattr(context, field_name, wrong_value)
+
+    with pytest.raises(IdentifyExecutionError, match=field_name):
+        validate_candidate_report(
+            report=CandidateReport.model_validate(_valid_output()),
+            request=request,
+            context=context,
+        )
+
+
+def test_context_metadata_selection_count_is_validated(
+    tmp_path: Path,
+):
+    _create_test_dataset(tmp_path)
+    request = _create_request(tmp_path)
+    context = build_identify_context(request=request, seed=42)
+    context.metadata_rows_selected += 1
+
+    with pytest.raises(
+        IdentifyExecutionError,
+        match="metadata_rows_selected",
+    ):
+        validate_candidate_report(
+            report=CandidateReport.model_validate(_valid_output()),
+            request=request,
+            context=context,
         )
 
 
@@ -340,7 +540,13 @@ def test_execute_identify_persists_artifacts(
         / "output.json"
     )
 
+    raw_output_path = (
+        identify_dir
+        / "raw_output.json"
+    )
+
     assert input_path.exists()
+    assert raw_output_path.exists()
     assert output_path.exists()
 
     input_data = json.loads(
@@ -355,10 +561,23 @@ def test_execute_identify_persists_artifacts(
         )
     )
 
+    raw_output_data = json.loads(
+        raw_output_path.read_text(
+            encoding="utf-8"
+        )
+    )
+
     assert (
-        input_data["run_id"]
+        input_data["request"]["run_id"]
         == request.run_id
     )
+
+    assert input_data["discovery_context"]["seed"] == 42
+    assert (
+        input_data["discovery_context"]["samples_inspected"]
+        == 0
+    )
+    assert raw_output_data == _valid_output()
 
     assert (
         output_data["run_id"]
@@ -415,6 +634,11 @@ def test_failed_identify_does_not_persist_output(
     assert not (
         identify_dir
         / "output.json"
+    ).exists()
+
+    assert (
+        identify_dir
+        / "raw_output.json"
     ).exists()
 
 

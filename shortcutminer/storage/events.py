@@ -3,6 +3,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from shortcutminer.storage.paths import (
+    RunPathError,
+    get_run_dir,
+)
+
 
 class EventLogError(RuntimeError):
     """Raised when an experiment event cannot be recorded."""
@@ -20,30 +25,23 @@ def append_event(
     Append one structured event to runs/<run_id>/events.jsonl.
     """
 
-    if not run_id.strip():
-        raise EventLogError(
-            "run_id must not be empty."
-        )
-
-    if not event.strip():
+    if not isinstance(event, str) or not event.strip():
         raise EventLogError(
             "event must not be empty."
         )
 
-    run_dir = (
-        Path(runs_root)
-        / run_id
-    )
+    try:
+        run_dir = get_run_dir(
+            runs_root=runs_root,
+            run_id=run_id,
+        )
 
-    run_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    except RunPathError as exc:
+        raise EventLogError(
+            str(exc)
+        ) from exc
 
-    event_path = (
-        run_dir
-        / "events.jsonl"
-    )
+    event_path = run_dir / "events.jsonl"
 
     record = {
         "timestamp": datetime.now(
@@ -60,19 +58,24 @@ def append_event(
         record["details"] = details
 
     try:
+        serialized = json.dumps(
+            record,
+            ensure_ascii=False,
+            allow_nan=False,
+        )
+
+        run_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
         with event_path.open(
             "a",
             encoding="utf-8",
         ) as file:
-            file.write(
-                json.dumps(
-                    record,
-                    ensure_ascii=False,
-                )
-            )
-            file.write("\n")
+            file.write(f"{serialized}\n")
 
-    except OSError as exc:
+    except Exception as exc:
         raise EventLogError(
             f"Failed to append event: {event_path}"
         ) from exc

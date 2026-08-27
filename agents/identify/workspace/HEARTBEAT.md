@@ -14,20 +14,18 @@ It must not perform shortcut discovery itself.
 
 During execution, verify that the following conditions remain valid:
 
-* a current `IdentifyRequest` exists;
-* `run_id` is available;
-* dataset configuration is available;
-* required dataset paths are accessible;
-* the target label definition is available;
-* configured budgets are known;
-* required tools are available when needed;
+* the top-level `{request, discovery_context}` payload exists;
+* the request envelope is complete and uses protocol `1.0`;
+* `protocol_version`, `run_id`, dataset identity, task type, and label column agree across both objects;
+* all four configured budgets are known;
+* prepared evidence availability and limitations are explicit;
 * the final output can be represented as a valid `CandidateReport`.
 
 ---
 
-## 3. Dataset Accessibility
+## 3. Prepared Evidence Accessibility
 
-Before relying on dataset evidence, verify that the relevant data can actually be accessed.
+Before relying on evidence, verify that it is actually present and marked usable in `discovery_context`.
 
 Possible failures include:
 
@@ -39,7 +37,7 @@ unsupported file format
 sample decoding failure
 ```
 
-Do not assume that configured resources are accessible merely because they are listed in the request.
+The Python control layer, not the Agent, attempts dataset access. Do not retry a failed access or call inspection tools directly. A configured path is not evidence, and a selected metadata row is not an inspected sample.
 
 ---
 
@@ -50,8 +48,10 @@ Track execution against the configured limits.
 Verify that:
 
 ```text
-samples_inspected <= budget.max_samples
+reported_samples_inspected == context.samples_inspected <= budget.max_samples
 candidates_returned <= budget.max_candidates
+dataset entries prepared <= budget.max_dataset_entries
+metadata rows processed <= budget.max_metadata_rows
 ```
 
 If a limit is reached, stop the corresponding exploration instead of exceeding the budget.
@@ -62,14 +62,14 @@ Budget exhaustion is not a runtime failure by itself.
 
 ## 5. Tool Health
 
-When a required tool call fails:
+When the context records that a control-layer operation failed:
 
 1. record the failure;
 2. determine whether the task can continue using remaining evidence;
 3. avoid fabricating the missing result;
 4. include the limitation in the final report when relevant.
 
-A single non-critical tool failure does not necessarily require aborting the run.
+A single non-critical preparation failure does not necessarily require aborting the run. The Agent does not directly rerun the failed tool.
 
 ---
 
@@ -93,13 +93,14 @@ The run should be treated as unable to complete normally when essential context 
 
 Examples include:
 
-* no valid `IdentifyRequest`;
+* no valid `{request, discovery_context}` payload;
 * missing `run_id`;
-* dataset root cannot be accessed at all;
+* dataset root is missing, is not a directory, or cannot be inspected at all;
 * target label cannot be determined;
 * required input is structurally invalid;
-* no usable evidence can be accessed;
 * a valid `CandidateReport` cannot be produced.
+
+Missing metadata, partial directory errors, bounded scan truncation, selection failure, or zero candidate-supporting evidence is recoverable when the dataset root was successfully inspected and the payload remains valid. Identify can then complete in a degraded state with explicit limitations and zero candidates.
 
 Do not compensate for non-recoverable failures by inventing information.
 
@@ -109,17 +110,22 @@ Do not compensate for non-recoverable failures by inventing information.
 
 Before completion, verify that the final result:
 
+* explicitly uses `protocol_version = "1.0"`;
 * preserves the input `run_id`;
+* has a non-empty `message_id`;
 * uses `source = "identify"`;
+* uses `target = "executive"`;
 * uses `message_type = "candidate_report"`;
-* reports the actual number of inspected samples;
+* sets `in_reply_to` to the request `message_id`;
+* explicitly contains safe run-relative `artifact_references`;
+* reports exactly the inspected-sample count recorded by the context;
 * reports whether metadata were actually used;
 * contains no more than the configured candidate limit;
-* uses unique candidate identifiers;
+* uses unique candidate identifiers sequentially from `C001`;
 * uses only allowed cue families;
 * uses only allowed priorities;
-* sets every candidate status to `unverified`;
-* records relevant limitations.
+* explicitly sets every candidate status to `unverified`;
+* preserves every context limitation verbatim and explicitly records any additional relevant limitations, including an empty list when none apply.
 
 The output must conform to the current `CandidateReport` protocol.
 
@@ -148,7 +154,7 @@ Identify may complete successfully when:
 ```text
 valid request
 +
-accessible evidence
+valid prepared context
 +
 budget-compliant inspection
 +
@@ -185,6 +191,8 @@ Only the training split was accessible.
 
 Do not hide degraded execution conditions.
 
+If the root is usable but optional evidence is unavailable and no evidence supports a candidate, degraded completion means an explicit zero-candidate report with `samples_inspected = 0`, truthful `metadata_used`, and every prepared limitation. Do not turn that evidence shortage into a fabricated candidate. A wholly unavailable dataset root fails earlier during context construction instead.
+
 ---
 
 ## 12. Failure Reporting
@@ -206,6 +214,7 @@ The heartbeat must not:
 
 * generate shortcut candidates;
 * inspect additional samples for discovery;
+* directly invoke Python discovery tools;
 * change candidate priority;
 * perform statistical validation;
 * make routing decisions;

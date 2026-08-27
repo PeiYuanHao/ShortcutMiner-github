@@ -132,6 +132,17 @@ def test_parse_payloads():
     assert result == report
 
 
+def test_executive_message_uses_routing_contract():
+    message = OpenClawGatewayCliTransport._build_message(
+        {"request": {"run_id": "test_run"}},
+        agent_name="executive",
+    )
+
+    assert "Executive routing task" in message
+    assert "RoutingPlan" in message
+    assert "do not claim that tasks were dispatched" in message
+
+
 def test_parse_nested_gateway_payload():
     report = _candidate_report()
 

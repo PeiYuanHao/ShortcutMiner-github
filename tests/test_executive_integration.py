@@ -1,0 +1,102 @@
+from pathlib import Path
+
+from shortcutminer.experiment.executive_executor import execute_executive
+from shortcutminer.openclaw_client import OpenClawClient, OpenClawClientConfig
+from shortcutminer.protocol.executive import (
+    ExecutiveCapabilities,
+    ExecutiveRequest,
+    ExecutiveRoutingContext,
+)
+from shortcutminer.protocol.identify import (
+    CandidateReport,
+    DatasetInspectionSummary,
+    DatasetSpec,
+    TaskSpec,
+)
+
+
+class RecordingTransport:
+    def __init__(self, output: dict):
+        self.output = output
+        self.calls = []
+
+    def run_agent(self, **kwargs) -> dict:
+        self.calls.append(kwargs)
+        return self.output
+
+
+def test_executive_mock_runtime_integration(tmp_path: Path):
+    report = CandidateReport(
+        protocol_version="1.0",
+        run_id="executive_integration_run",
+        message_id="identify:report:empty",
+        source="identify",
+        target="executive",
+        message_type="candidate_report",
+        in_reply_to="identify:request:empty",
+        artifact_references=[],
+        dataset_summary=DatasetInspectionSummary(
+            dataset="empty_dataset",
+            samples_inspected=0,
+            metadata_used=False,
+        ),
+        candidates=[],
+        limitations=["No candidates were identified."],
+    )
+    request = ExecutiveRequest(
+        protocol_version="1.0",
+        run_id=report.run_id,
+        message_id="executive:request:empty",
+        source="orchestrator",
+        target="executive",
+        message_type="executive_request",
+        in_reply_to=report.message_id,
+        candidate_report=report,
+        routing_context=ExecutiveRoutingContext(
+            protocol_version="1.0",
+            run_id=report.run_id,
+            dataset=DatasetSpec(
+                name="empty_dataset",
+                root=str(tmp_path / "dataset"),
+            ),
+            task=TaskSpec(
+                type="classification",
+                label_column="label",
+            ),
+            capabilities=ExecutiveCapabilities(),
+            artifact_references=[],
+            limitations=["No candidates were identified."],
+        ),
+    )
+    output = {
+        "protocol_version": "1.0",
+        "run_id": report.run_id,
+        "message_id": "executive:plan:empty",
+        "source": "executive",
+        "target": "orchestrator",
+        "message_type": "routing_plan",
+        "in_reply_to": request.message_id,
+        "artifact_references": [],
+        "decisions": [],
+        "tasks": [],
+        "limitations": ["No candidates were identified."],
+    }
+    transport = RecordingTransport(output)
+    client = OpenClawClient(
+        config=OpenClawClientConfig(
+            gateway_url="ws://mock-gateway",
+            token="mock-token",
+        ),
+        transport=transport,
+    )
+
+    plan = execute_executive(request=request, client=client)
+
+    assert plan.tasks == []
+    assert transport.calls[0]["agent_name"] == "executive"
+    assert transport.calls[0]["session_key"] == (
+        "shortcutminer:executive_integration_run"
+    )
+    assert transport.calls[0]["payload"]["request"]["message_type"] == (
+        "executive_request"
+    )

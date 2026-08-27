@@ -46,7 +46,12 @@ def _create_request(
     root: Path,
 ) -> IdentifyRequest:
     return IdentifyRequest(
+        protocol_version="1.0",
         run_id="integration_test_run",
+        message_id="integration_test_run:identify:request",
+        source="orchestrator",
+        target="identify",
+        message_type="identify_request",
         dataset=DatasetSpec(
             name="test_dataset",
             root=str(root),
@@ -67,11 +72,15 @@ def _agent_report() -> dict:
     return {
         "protocol_version": "1.0",
         "run_id": "integration_test_run",
+        "message_id": "integration_test_run:identify:report",
         "source": "identify",
+        "target": "executive",
         "message_type": "candidate_report",
+        "in_reply_to": "integration_test_run:identify:request",
+        "artifact_references": [],
         "dataset_summary": {
             "dataset": "test_dataset",
-            "samples_inspected": 4,
+            "samples_inspected": 0,
             "metadata_used": True,
         },
         "candidates": [
@@ -101,7 +110,11 @@ def _agent_report() -> dict:
             }
         ],
         "limitations": [
-            "The candidate has not been validated."
+            "The candidate has not been validated.",
+            (
+                "Selected records are metadata rows only; "
+                "no dataset sample content was inspected."
+            ),
         ],
     }
 
@@ -198,6 +211,7 @@ def test_identify_end_to_end_mock(
     )
 
     assert len(report.candidates) == 1
+    assert report.dataset_summary.samples_inspected == 0
 
     candidate = report.candidates[0]
 
@@ -265,3 +279,4 @@ def test_identify_end_to_end_mock(
     assert "discovery_context" in message
     assert "selected_samples" in message
     assert "CandidateReport" in message
+    assert "not inspected dataset samples" in message

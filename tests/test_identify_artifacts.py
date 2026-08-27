@@ -15,9 +15,11 @@ from shortcutminer.protocol.identify import (
 )
 from shortcutminer.storage.identify_artifacts import (
     IdentifyArtifactError,
+    JsonObject,
     get_identify_run_dir,
     save_identify_input,
     save_identify_output,
+    save_identify_raw_output,
 )
 
 
@@ -25,7 +27,12 @@ def _create_request(
     root: Path,
 ) -> IdentifyRequest:
     return IdentifyRequest(
+        protocol_version="1.0",
         run_id="test_run",
+        message_id="identify-request-001",
+        source="orchestrator",
+        target="identify",
+        message_type="identify_request",
         dataset=DatasetSpec(
             name="test_dataset",
             root=str(root),
@@ -44,7 +51,16 @@ def _create_request(
 
 def _create_report() -> CandidateReport:
     return CandidateReport(
+        protocol_version="1.0",
         run_id="test_run",
+        message_id="candidate-report-001",
+        source="identify",
+        target="executive",
+        message_type="candidate_report",
+        in_reply_to="identify-request-001",
+        artifact_references=[
+            "identify/input.json"
+        ],
         dataset_summary=DatasetInspectionSummary(
             dataset="test_dataset",
             samples_inspected=4,
@@ -71,12 +87,33 @@ def _create_report() -> CandidateReport:
                     "metadata"
                 ],
                 priority="medium",
+                status="unverified",
             )
         ],
         limitations=[
             "Candidate is unverified."
         ],
     )
+
+
+def _create_agent_payload(
+    request: IdentifyRequest,
+) -> JsonObject:
+    return {
+        "request": request.model_dump(
+            mode="json"
+        ),
+        "discovery_context": {
+            "seed": 7,
+            "selected_samples": [
+                "sample-a.jpg",
+                "sample-b.jpg",
+            ],
+            "tool_results": {
+                "metadata_used": True,
+            },
+        },
+    }
 
 
 def test_get_identify_run_dir(
@@ -100,10 +137,14 @@ def test_save_identify_input(
     request = _create_request(
         tmp_path
     )
+    payload = _create_agent_payload(
+        request
+    )
 
     path = save_identify_input(
         runs_root=tmp_path / "runs",
-        request=request,
+        run_id=request.run_id,
+        payload=payload,
     )
 
     assert path.exists()
@@ -122,17 +163,60 @@ def test_save_identify_input(
         )
     )
 
-    assert data["run_id"] == "test_run"
+    assert (
+        data["request"]["run_id"]
+        == "test_run"
+    )
 
     assert (
-        data["dataset"]["name"]
+        data["request"]["dataset"]["name"]
         == "test_dataset"
     )
 
     assert (
-        data["budget"]["max_samples"]
+        data["request"]["budget"]["max_samples"]
         == 4
     )
+
+    assert (
+        data["discovery_context"]["seed"]
+        == 7
+    )
+
+    assert data == payload
+
+
+def test_save_identify_raw_output(
+    tmp_path: Path,
+):
+    raw_output = {
+        "protocol_version": "1.0",
+        "run_id": "test_run",
+        "source": "identify",
+        "message_type": "candidate_report",
+        "candidates": [],
+        "agent_note": "unvalidated response",
+    }
+
+    path = save_identify_raw_output(
+        runs_root=tmp_path / "runs",
+        run_id="test_run",
+        raw_output=raw_output,
+    )
+
+    assert path == (
+        tmp_path
+        / "runs"
+        / "test_run"
+        / "identify"
+        / "raw_output.json"
+    )
+
+    assert json.loads(
+        path.read_text(
+            encoding="utf-8"
+        )
+    ) == raw_output
 
 
 def test_save_identify_output(
@@ -188,12 +272,16 @@ def test_input_and_output_share_run_directory(
     request = _create_request(
         tmp_path
     )
+    payload = _create_agent_payload(
+        request
+    )
 
     report = _create_report()
 
     input_path = save_identify_input(
         runs_root=runs_root,
-        request=request,
+        run_id=request.run_id,
+        payload=payload,
     )
 
     output_path = save_identify_output(
@@ -269,3 +357,212 @@ def test_empty_run_id_rejected(
             runs_root=tmp_path,
             run_id="",
         )
+
+
+@pytest.mark.parametrize(
+    "run_id",
+    [
+        "..",
+        "../escape",
+        "nested/run",
+        r"nested\run",
+        ".hidden",
+        "CON",
+    ],
+)
+def test_unsafe_run_id_rejected(
+    tmp_path: Path,
+    run_id: str,
+):
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="run_id",
+    ):
+        get_identify_run_dir(
+            runs_root=tmp_path,
+            run_id=run_id,
+        )
+
+
+def test_absolute_run_id_rejected(
+    tmp_path: Path,
+):
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="run_id",
+    ):
+        get_identify_run_dir(
+            runs_root=tmp_path / "runs",
+            run_id=str(
+                (tmp_path / "escape").resolve()
+            ),
+        )
+
+
+def test_repeated_dots_inside_run_id_are_allowed(
+    tmp_path: Path,
+):
+    result = get_identify_run_dir(
+        runs_root=tmp_path,
+        run_id="run..variant",
+    )
+
+    assert result == (
+        tmp_path
+        / "run..variant"
+        / "identify"
+    )
+
+
+def test_save_output_revalidates_report_run_id(
+    tmp_path: Path,
+):
+    report = _create_report().model_copy(
+        update={
+            "run_id": "../escape"
+        }
+    )
+
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="run_id",
+    ):
+        save_identify_output(
+            runs_root=tmp_path / "runs",
+            report=report,
+        )
+
+    assert not (
+        tmp_path
+        / "escape"
+        / "identify"
+        / "output.json"
+    ).exists()
+
+
+def test_identify_directory_cannot_escape_through_symlink(
+    tmp_path: Path,
+):
+    runs_root = tmp_path / "runs"
+    outside = tmp_path / "outside"
+    runs_root.mkdir()
+    outside.mkdir()
+
+    try:
+        (runs_root / "linked_run").symlink_to(
+            outside,
+            target_is_directory=True,
+        )
+
+    except OSError:
+        pytest.skip(
+            "Directory symlinks are not available."
+        )
+
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="runs_root",
+    ):
+        get_identify_run_dir(
+            runs_root=runs_root,
+            run_id="linked_run",
+        )
+
+
+def test_directory_creation_failure_is_wrapped(
+    tmp_path: Path,
+):
+    runs_root = tmp_path / "runs"
+    runs_root.write_text(
+        "not a directory",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="Failed to write artifact",
+    ) as exc_info:
+        save_identify_input(
+            runs_root=runs_root,
+            run_id="test_run",
+            payload={
+                "request": {
+                    "run_id": "test_run"
+                }
+            },
+        )
+
+    assert isinstance(
+        exc_info.value.__cause__,
+        OSError,
+    )
+
+
+def test_atomic_replace_failure_is_wrapped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def fail_replace(
+        *_args,
+        **_kwargs,
+    ):
+        raise OSError(
+            "replace unavailable"
+        )
+
+    monkeypatch.setattr(
+        "shortcutminer.storage.json_artifacts.os.replace",
+        fail_replace,
+    )
+
+    expected_path = (
+        tmp_path
+        / "runs"
+        / "test_run"
+        / "identify"
+        / "raw_output.json"
+    )
+
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="Failed to write artifact",
+    ) as exc_info:
+        save_identify_raw_output(
+            runs_root=tmp_path / "runs",
+            run_id="test_run",
+            raw_output={
+                "run_id": "test_run"
+            },
+        )
+
+    assert isinstance(
+        exc_info.value.__cause__,
+        OSError,
+    )
+    assert not expected_path.exists()
+    assert not list(
+        expected_path.parent.glob(
+            "*.tmp"
+        )
+    )
+
+
+def test_non_json_raw_output_is_wrapped(
+    tmp_path: Path,
+):
+    with pytest.raises(
+        IdentifyArtifactError,
+        match="Failed to write artifact",
+    ) as exc_info:
+        save_identify_raw_output(
+            runs_root=tmp_path / "runs",
+            run_id="test_run",
+            raw_output={
+                "not_json": object(),  # type: ignore[dict-item]
+            },
+        )
+
+    assert isinstance(
+        exc_info.value.__cause__,
+        TypeError,
+    )

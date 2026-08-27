@@ -97,11 +97,13 @@ When this distinction cannot be established during discovery, state the candidat
 
 ## 7. Use Tools as Evidence Sources
 
-Use deterministic tools to inspect data whenever an appropriate tool is available.
+The deterministic Python control layer prepares bounded evidence before invocation. Interpret the supplied `discovery_context`; do not call those Python tools directly or reopen dataset paths.
 
 Do not replace tool output with guessed calculations or unsupported interpretation.
 
 Interpret returned evidence carefully and only within the scope of what the tool actually measured.
+
+A selected metadata row measures table selection, not sample inspection. It supports `metadata`; it does not support `sample_inspection` or `image_statistics` unless the context separately supplies those observations.
 
 ---
 
@@ -112,6 +114,8 @@ Honor all configured limits.
 Do not exceed:
 
 * sample budgets;
+* dataset-entry budgets;
+* metadata-row budgets;
 * candidate limits;
 * available data access;
 * tool permissions.
@@ -137,6 +141,7 @@ Prefer behavior that can be traced back to:
 * the request;
 * inspected data;
 * tool outputs;
+* the prepared seed and evidence-availability counters;
 * explicit observations;
 * structured candidates.
 

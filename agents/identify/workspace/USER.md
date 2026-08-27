@@ -6,14 +6,15 @@ The Identify Agent receives audit tasks from the ShortcutMiner execution framewo
 
 In formal experiments, the primary requester should be interpreted as the current ShortcutMiner run rather than as an unrestricted conversational user.
 
-The structured `IdentifyRequest` defines the authoritative execution context.
+The Agent receives a structured `{request, discovery_context}` payload. `request` defines the authoritative execution configuration; `discovery_context` contains the bounded evidence prepared for that request.
 
 ---
 
 ## 2. Authoritative Request
 
-The current `IdentifyRequest` is the primary source of truth for:
+The current `request` is the primary source of truth for:
 
+* protocol and message identity;
 * `run_id`;
 * dataset name;
 * dataset root;
@@ -21,7 +22,11 @@ The current `IdentifyRequest` is the primary source of truth for:
 * task type;
 * target label;
 * sample budget;
-* candidate budget.
+* candidate budget;
+* dataset-entry budget;
+* metadata-row budget.
+
+`discovery_context` is the primary source of truth for what evidence is actually available, which seed prepared it, how many metadata rows were selected, how many underlying samples were actually inspected, and which limitations occurred.
 
 Do not silently replace, reinterpret, or override these fields.
 
@@ -45,10 +50,14 @@ Similarly, do not modify:
 dataset.root
 budget.max_samples
 budget.max_candidates
+budget.max_dataset_entries
+budget.max_metadata_rows
 run_id
 ```
 
 without an explicit protocol-level change.
+
+Do not treat `discovery_context` as permission to override the request. Conversely, do not treat unused request budget as evidence: report claims are bounded by what the context actually contains.
 
 ---
 
@@ -110,6 +119,8 @@ This allows the field to be interpreted correctly.
 
 It does not prove that hospital identity is a shortcut.
 
+When a hospital or site is known only through a metadata field, classify the cue family as `metadata`. Use `acquisition` only when the current evidence describes an acquisition mechanism or an actually observed acquisition-related signature. Keep this evidence-based distinction stable across runs.
+
 ---
 
 ## 7. Intended Task Signal
@@ -134,12 +145,16 @@ Do not invent an intended task signal when one has not been provided or cannot b
 If required information is missing:
 
 1. do not invent it;
-2. inspect available structured context;
-3. use accessible dataset information when appropriate;
+2. interpret the available prepared context;
+3. use other prepared evidence when appropriate;
 4. record limitations;
 5. return fewer or zero candidates when necessary.
 
 Do not guess dataset paths, column names, or experiment identifiers.
+
+Do not call Python tools or access dataset paths directly to fill a gap in `discovery_context`.
+
+The control layer does not invoke Identify when the dataset root is missing, is not a directory, or cannot be inspected at all. When a valid context exists, metadata failures and partial inspection limitations are degraded evidence conditions rather than permission to invent or reacquire data.
 
 ---
 
@@ -160,19 +175,19 @@ Do not construct candidates using an uncertain target label.
 
 Budgets are execution constraints, not recommendations.
 
-If:
+For sample evidence:
 
 ```text
 max_samples = 40
 ```
 
-the agent may inspect:
+the prepared context may record:
 
 ```text
 0 ... 40 samples
 ```
 
-but must not inspect more than 40.
+The report must copy `discovery_context.samples_inspected` exactly. Selected metadata rows do not count as inspected samples; in the current control path the exact count is `0`.
 
 If:
 
@@ -187,6 +202,15 @@ the agent may return:
 ```
 
 but must not return more than 5.
+
+The control layer also limits preparation with:
+
+```text
+max_dataset_entries = 10000
+max_metadata_rows = 100000
+```
+
+The Agent interprets only the bounded outputs and never expands either scan.
 
 The agent is not required to consume the entire budget.
 
@@ -228,6 +252,8 @@ Those questions belong to downstream stages.
 ## 13. Output Expectation
 
 The requester expects a structured `CandidateReport`.
+
+The report must explicitly provide the protocol version, message identity and routing fields, `in_reply_to`, run-relative artifact references, dataset summary, candidates, and limitations. No control field may be left for a schema default to invent.
 
 Do not replace the required output with:
 
