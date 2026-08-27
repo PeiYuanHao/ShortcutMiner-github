@@ -499,7 +499,7 @@ The deterministic control layer supplies:
     "max_samples_per_task": 40,
     "allowed_targets": ["quantitative", "qualitative"],
     "requested_outputs": ["metrics", "observations"],
-    "runtime_constraints": []
+    "runtime_constraints": ["no_retraining"]
   },
   "capabilities": {
     "available_targets": ["quantitative", "qualitative"],
@@ -509,6 +509,7 @@ The deterministic control layer supplies:
     "qualitative_checks": ["representative_sample_inspection"],
     "model_capabilities": ["predictions"],
     "sample_access": true,
+    "external_services": false,
     "available_output_types": ["metrics", "tables", "observations"]
   },
   "artifact_references": ["identify/output.json"],
@@ -516,9 +517,11 @@ The deterministic control layer supplies:
 }
 ```
 
-Capabilities are permissions and availability facts, not suggestions. Executive must not request a target, check, metadata field, split, model capability, output type, sample access, or artifact reference absent from this context.
+Capabilities are permissions and availability facts, not suggestions. Executive must not request a target, check, metadata field, split, model capability, output type, sample access, external-service access, or artifact reference absent from this context.
 
-`max_tasks` is from 1 through 1998, matching at most two tasks for each possible Identify candidate. `max_samples_per_task` is a hard positive limit. `validation_depth` is exactly `light`, `standard`, or `deep`; it never grants unlimited execution.
+`max_tasks` is from 1 through 1998, matching at most two tasks for each possible Identify candidate. `max_samples_per_task` is a hard positive limit. Any task that requires sample access must therefore provide a non-null `sample_limit` within that bound. `validation_depth` is exactly `light`, `standard`, or `deep`; it never grants unlimited execution.
+
+`runtime_constraints` contains only canonical protocol tokens. Version `1.0` supports `no_retraining` and `no_external_services`. Every planned task must copy the complete list so deterministic downstream infrastructure receives the same restrictions. A task under `no_retraining` cannot request the `retraining` model capability, and a task under `no_external_services` must set `requires_external_services` to false. External-service use is also rejected unless `capabilities.external_services` is true.
 
 The context builder copies dataset and task identity from the Identify request, verifies that capability metadata fields occurred in the bounded Identify profile, and carries forward Identify limitations. It does not rescan the dataset.
 
@@ -600,6 +603,8 @@ Every planned task is itself a dispatchable protocol message:
     "artifact_references": [],
     "sample_limit": null,
     "requires_sample_access": false,
+    "requires_external_services": false,
+    "runtime_constraints": ["no_retraining"],
     "required_model_capabilities": []
   },
   "requested_checks": ["association_test"],
@@ -631,6 +636,10 @@ len(tasks) <= audit_options.max_tasks
 task target, suffix, candidate_id, hypothesis, and priority agree
 task inputs/checks/outputs <= routing_context capabilities
 task sample_limit <= max_samples_per_task
+sample access implies a non-null bounded sample_limit
+task runtime_constraints == audit_options.runtime_constraints
+no_retraining excludes the retraining model capability
+external-service use requires capability and is excluded by no_external_services
 all artifact references <= authoritative references
 all task dependencies exist and form an acyclic graph
 ```

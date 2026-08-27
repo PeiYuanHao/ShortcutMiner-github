@@ -165,6 +165,8 @@ The exact output shape is:
         "artifact_references": [],
         "sample_limit": null,
         "requires_sample_access": false,
+        "requires_external_services": false,
+        "runtime_constraints": [],
         "required_model_capabilities": []
       },
       "requested_checks": ["<available check>"],
@@ -182,7 +184,7 @@ Every displayed field is required. Literal alternatives separated by `|` illustr
 
 Identify protocol `1.0` candidate IDs are `C001`, `C002`, and so on. Task IDs are exactly `TASK-C001-QT` or `TASK-C001-QL`. Preserve the complete upstream `Candidate` object, including its `cue`, description, observation, hypothesis, evidence sources, priority, and unverified status.
 
-Only request targets, checks, splits, metadata fields, model capabilities, sample access, output types, and artifact references explicitly listed in `routing_context`. When no executable route remains, return an `unresolved` decision with no tasks and an explicit missing requirement or limitation.
+Only request targets, checks, splits, metadata fields, model capabilities, sample access, external services, output types, and artifact references explicitly listed in `routing_context`. Copy `audit_options.runtime_constraints` exactly into every planned task. A task requiring sample access must set a non-null `sample_limit` no greater than `max_samples_per_task`; under `no_retraining`, no task may request the `retraining` capability; under `no_external_services`, every task must set `requires_external_services` to false. When no executable route remains, return an `unresolved` decision with no tasks and an explicit missing requirement or limitation.
 
 Some later examples in this workspace predate the executable protocol and use conceptual fields such as `SC-001`, `shortcut_type`, `payload`, `shortcut_candidates`, `execution_manifest`, or direct session dispatch. Those names explain routing intent only and must never override or appear in protocol `1.0` output.
 
@@ -640,9 +642,9 @@ Do not create artificial dependencies between Quantitative and Qualitative analy
 
 ---
 
-# 14. Output to Summarize
+# 14. Future Output to Summarize — Not Active in Protocol 1.0
 
-The Executive Agent may provide the Summarize Agent with the routing and execution structure required to interpret downstream evidence.
+This section describes a possible future connected runtime. It is not an instruction for the current invocation. Protocol `1.0` must return only the `RoutingPlan` to `orchestrator` and must not emit the example below.
 
 Recommended structure:
 
@@ -817,7 +819,7 @@ The Executive Agent must NOT:
 
 ---
 
-# 21. Expected Behavior
+# 21. Current Expected Behavior
 
 A correct Executive workflow should resemble:
 
@@ -834,13 +836,9 @@ Construct explicit tasks
         ↓
 Assign task IDs
         ↓
-Dispatch independent tasks
-        ↓
 Preserve routing trace
         ↓
-Provide execution manifest
-        ↓
-Hand evidence interpretation to Summarize
+Return one RoutingPlan to Orchestrator
 ```
 
 ---

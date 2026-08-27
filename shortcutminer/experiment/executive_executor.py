@@ -342,9 +342,43 @@ def validate_routing_plan(
             raise ExecutiveExecutionError(
                 f"AnalysisTask {task.task_id} exceeds the sample budget."
             )
+        if inputs.requires_sample_access and inputs.sample_limit is None:
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} requires sample access without "
+                "a sample_limit."
+            )
         if inputs.requires_sample_access and not capabilities.sample_access:
             raise ExecutiveExecutionError(
                 f"AnalysisTask {task.task_id} requires unavailable sample access."
+            )
+        if (
+            inputs.requires_external_services
+            and not capabilities.external_services
+        ):
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} requires unavailable external "
+                "services."
+            )
+        if inputs.runtime_constraints != options.runtime_constraints:
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} did not preserve runtime "
+                "constraints."
+            )
+        if (
+            "no_retraining" in options.runtime_constraints
+            and "retraining" in inputs.required_model_capabilities
+        ):
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} violates the no_retraining "
+                "runtime constraint."
+            )
+        if (
+            "no_external_services" in options.runtime_constraints
+            and inputs.requires_external_services
+        ):
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} violates the "
+                "no_external_services runtime constraint."
             )
         if not set(inputs.required_model_capabilities).issubset(
             set(capabilities.model_capabilities)

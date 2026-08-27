@@ -142,8 +142,10 @@ class OpenClawGatewayCliTransport:
                 "The INPUT object contains one authoritative "
                 "ExecutiveRequest under request. Preserve every embedded "
                 "CandidateReport candidate exactly. Use only capabilities, "
-                "checks, outputs, artifacts, and budgets explicitly supplied "
-                "in routing_context. Produce plans only; do not claim that "
+                "checks, outputs, artifacts, budgets, and runtime constraints "
+                "explicitly supplied in routing_context. Preserve every "
+                "runtime constraint in each planned task. Produce plans only; "
+                "do not claim that "
                 "tasks were dispatched or completed.\n\n"
                 "Return exactly one RoutingPlan JSON object."
             )

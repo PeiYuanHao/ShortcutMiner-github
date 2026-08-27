@@ -162,6 +162,8 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "artifact_references": [],
                     "sample_limit": None,
                     "requires_sample_access": False,
+                    "requires_external_services": False,
+                    "runtime_constraints": ["no_retraining"],
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["association_test"],
@@ -191,6 +193,8 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "artifact_references": [],
                     "sample_limit": 20,
                     "requires_sample_access": True,
+                    "requires_external_services": False,
+                    "runtime_constraints": ["no_retraining"],
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["sample_inspection"],
@@ -271,6 +275,76 @@ def test_sample_budget_is_enforced(tmp_path: Path):
     output["tasks"][1]["inputs"]["sample_limit"] = 21
     plan = RoutingPlan.model_validate(output)
     with pytest.raises(ExecutiveExecutionError, match="sample budget"):
+        validate_routing_plan(plan, request)
+
+
+def test_sample_access_requires_explicit_limit(tmp_path: Path):
+    request = _request(tmp_path)
+    output = _valid_output(request)
+    output["tasks"][1]["inputs"]["sample_limit"] = None
+    plan = RoutingPlan.model_validate(output)
+
+    with pytest.raises(ExecutiveExecutionError, match="without a sample_limit"):
+        validate_routing_plan(plan, request)
+
+
+def test_runtime_constraints_must_be_preserved(tmp_path: Path):
+    request = _request(tmp_path)
+    output = _valid_output(request)
+    output["tasks"][0]["inputs"]["runtime_constraints"] = []
+    plan = RoutingPlan.model_validate(output)
+
+    with pytest.raises(ExecutiveExecutionError, match="runtime constraints"):
+        validate_routing_plan(plan, request)
+
+
+def test_no_retraining_constraint_is_enforced(tmp_path: Path):
+    request = _request(tmp_path)
+    request.routing_context.capabilities.model_capabilities.append(
+        "retraining"
+    )
+    output = _valid_output(request)
+    output["tasks"][0]["inputs"]["required_model_capabilities"] = [
+        "retraining"
+    ]
+    plan = RoutingPlan.model_validate(output)
+
+    with pytest.raises(ExecutiveExecutionError, match="no_retraining"):
+        validate_routing_plan(plan, request)
+
+
+def test_no_external_services_constraint_is_enforced(tmp_path: Path):
+    request = _request(tmp_path)
+    request.routing_context.audit_options.runtime_constraints = [
+        "no_external_services"
+    ]
+    request.routing_context.capabilities.external_services = True
+    output = _valid_output(request)
+    for task in output["tasks"]:
+        task["inputs"]["runtime_constraints"] = ["no_external_services"]
+    output["tasks"][0]["inputs"]["requires_external_services"] = True
+    plan = RoutingPlan.model_validate(output)
+
+    with pytest.raises(
+        ExecutiveExecutionError,
+        match="no_external_services",
+    ):
+        validate_routing_plan(plan, request)
+
+
+def test_unavailable_external_services_are_rejected(tmp_path: Path):
+    request = _request(tmp_path)
+    request.routing_context.audit_options.runtime_constraints = []
+    output = _valid_output(request)
+    for task in output["tasks"]:
+        task["inputs"]["runtime_constraints"] = []
+    output["tasks"][0]["inputs"]["requires_external_services"] = True
+    plan = RoutingPlan.model_validate(output)
+
+    with pytest.raises(
+        ExecutiveExecutionError,
+        match="unavailable external services",
+    ):
         validate_routing_plan(plan, request)
 
 

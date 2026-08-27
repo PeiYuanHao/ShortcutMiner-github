@@ -129,9 +129,9 @@ artifact references
 
 ---
 
-# 5. Sending Quantitative Tasks
+# 5. Future Quantitative Dispatch — Not Active in Protocol 1.0
 
-Use session communication to dispatch measurable or statistical validation tasks to the Quantitative Agent.
+The future deterministic runtime may dispatch measurable or statistical validation tasks to the Quantitative Agent. The current Executive invocation must only describe such a task inside its returned `RoutingPlan`; it must not use session communication.
 
 Example conceptual instruction:
 
@@ -161,9 +161,9 @@ The Executive Agent should normally avoid specifying low-level implementation un
 
 ---
 
-# 6. Sending Qualitative Tasks
+# 6. Future Qualitative Dispatch — Not Active in Protocol 1.0
 
-Use session communication to dispatch semantic or visual inspection tasks to the Qualitative Agent.
+The future deterministic runtime may dispatch semantic or visual inspection tasks to the Qualitative Agent. The current Executive invocation must only describe such a task inside its returned `RoutingPlan`; it must not use session communication.
 
 Example:
 

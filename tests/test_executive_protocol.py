@@ -134,6 +134,8 @@ def _plan_data() -> dict:
                     "artifact_references": [],
                     "sample_limit": None,
                     "requires_sample_access": False,
+                    "requires_external_services": False,
+                    "runtime_constraints": ["no_retraining"],
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["association_test"],
@@ -163,6 +165,8 @@ def _plan_data() -> dict:
                     "artifact_references": [],
                     "sample_limit": 20,
                     "requires_sample_access": True,
+                    "requires_external_services": False,
+                    "runtime_constraints": ["no_retraining"],
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["sample_inspection"],
@@ -229,6 +233,15 @@ def test_duplicate_capabilities_are_rejected():
     data["routing_context"]["capabilities"]["available_targets"] = [
         "quantitative",
         "quantitative",
+    ]
+    with pytest.raises(ValidationError):
+        ExecutiveRequest.model_validate(data)
+
+
+def test_unknown_runtime_constraint_is_rejected():
+    data = _request_data()
+    data["routing_context"]["audit_options"]["runtime_constraints"] = [
+        "arbitrary_free_text"
     ]
     with pytest.raises(ValidationError):
         ExecutiveRequest.model_validate(data)

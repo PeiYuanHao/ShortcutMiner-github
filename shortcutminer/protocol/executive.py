@@ -25,6 +25,10 @@ ValidationRoute = Literal[
     "unresolved",
 ]
 ValidationDepth = Literal["light", "standard", "deep"]
+RuntimeConstraint = Literal[
+    "no_retraining",
+    "no_external_services",
+]
 ModelCapability = Literal[
     "predictions",
     "logits",
@@ -56,7 +60,7 @@ class ExecutiveAuditOptions(StrictProtocolModel):
         default_factory=lambda: ["quantitative", "qualitative"]
     )
     requested_outputs: list[NonEmptyText] = Field(default_factory=list)
-    runtime_constraints: list[NonEmptyText] = Field(default_factory=list)
+    runtime_constraints: list[RuntimeConstraint] = Field(default_factory=list)
 
     @field_validator(
         "allowed_targets",
@@ -78,6 +82,7 @@ class ExecutiveCapabilities(StrictProtocolModel):
     qualitative_checks: list[NonEmptyText] = Field(default_factory=list)
     model_capabilities: list[ModelCapability] = Field(default_factory=list)
     sample_access: bool = False
+    external_services: bool = False
     available_output_types: list[NonEmptyText] = Field(default_factory=list)
 
     @field_validator(
@@ -135,6 +140,8 @@ class AnalysisTaskInputs(StrictProtocolModel):
     artifact_references: list[SafeRelativePath] = Field(default_factory=list)
     sample_limit: int | None = Field(default=None, ge=1)
     requires_sample_access: bool
+    requires_external_services: bool
+    runtime_constraints: list[RuntimeConstraint]
     required_model_capabilities: list[ModelCapability] = Field(
         default_factory=list
     )
@@ -142,6 +149,7 @@ class AnalysisTaskInputs(StrictProtocolModel):
     @field_validator(
         "metadata_fields",
         "artifact_references",
+        "runtime_constraints",
         "required_model_capabilities",
     )
     @classmethod
