@@ -182,9 +182,11 @@ A single counterexample may not invalidate a pattern, but it can substantially c
 
 ## 7. Representative Evidence Over Attractive Evidence
 
-Do not select samples because they make the hypothesis visually obvious.
+Do not replace the control-layer selection with samples that make the
+hypothesis visually obvious.
 
-Prefer samples that fairly represent relevant groups.
+Inspect the bounded selection supplied in the evidence context and report any
+coverage limitation instead of silently resampling.
 
 Representative evidence may include:
 

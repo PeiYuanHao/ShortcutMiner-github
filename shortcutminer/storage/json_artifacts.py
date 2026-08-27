@@ -20,7 +20,7 @@ JsonObjectInput: TypeAlias = Mapping[str, JsonValue]
 
 def atomic_write_json(
     path: Path,
-    data: JsonObjectInput,
+    data: JsonValue | JsonObjectInput,
     *,
     error_type: type[Exception],
 ) -> None:
@@ -29,8 +29,9 @@ def atomic_write_json(
     temp_path: Path | None = None
 
     try:
+        serializable = dict(data) if isinstance(data, Mapping) else data
         serialized = json.dumps(
-            dict(data),
+            serializable,
             ensure_ascii=False,
             indent=2,
             allow_nan=False,

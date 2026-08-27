@@ -3,6 +3,7 @@ from pathlib import Path
 from shortcutminer.protocol.qualitative import QualitativeResult
 from shortcutminer.storage.json_artifacts import (
     JsonObjectInput,
+    JsonValue,
     atomic_write_json,
     model_to_json_object,
 )
@@ -36,7 +37,7 @@ def save_qualitative_raw_output(
     runs_root: str | Path,
     *,
     run_id: str,
-    raw_output: JsonObjectInput,
+    raw_output: JsonValue,
 ) -> Path:
     path = get_qualitative_run_dir(runs_root, run_id) / "raw_output.json"
     atomic_write_json(path, raw_output, error_type=QualitativeArtifactError)

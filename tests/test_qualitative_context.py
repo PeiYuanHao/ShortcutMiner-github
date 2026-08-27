@@ -114,6 +114,19 @@ def test_context_builds_balanced_traceable_manifest(tmp_path: Path):
     assert "Upstream evidence was limited." in context.limitations
 
 
+def test_label_values_are_exposed_even_when_not_repeated_in_metadata_fields(
+    tmp_path: Path,
+):
+    _dataset(tmp_path)
+    request = _request(tmp_path)
+    request.task.inputs.metadata_fields.remove("label")
+
+    context = build_qualitative_context(request)
+
+    assert "label" in context.metadata_fields
+    assert all("label" in sample.metadata for sample in context.selected_samples)
+
+
 def test_missing_metadata_produces_degraded_context(tmp_path: Path):
     tmp_path.mkdir(exist_ok=True)
     context = build_qualitative_context(_request(tmp_path, metadata_file="missing.csv"))
@@ -121,6 +134,17 @@ def test_missing_metadata_produces_degraded_context(tmp_path: Path):
     assert context.metadata_available is False
     assert context.samples_selected == 0
     assert any("unavailable or invalid" in item for item in context.limitations)
+
+
+def test_requested_split_without_configured_column_is_degraded(tmp_path: Path):
+    _dataset(tmp_path)
+    request = _request(tmp_path)
+    request.preparation.split_column = None
+
+    context = build_qualitative_context(request)
+
+    assert context.samples_selected == 0
+    assert any("authorized split column" in item for item in context.limitations)
 
 
 def test_sample_path_escape_is_not_exposed(tmp_path: Path):

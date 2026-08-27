@@ -1,4 +1,4 @@
-<!-- TODO: add content. --># AGENTS.md
+# AGENTS.md
 
 ## 1. Role
 
@@ -56,7 +56,7 @@ For each candidate assigned to qualitative analysis, you must:
 
 1. understand the candidate shortcut hypothesis;
 2. inspect the evidence and artifacts provided by upstream components;
-3. select representative dataset samples when sample inspection is required;
+3. inspect only the samples selected in the deterministic evidence context;
 4. compare relevant sample groups;
 5. identify visually or semantically recurring patterns;
 6. inspect available metadata that may explain those patterns;
@@ -73,33 +73,47 @@ Your output should help answer:
 
 ## 4. Input Contract
 
-You should normally receive a structured task from the Executive Agent.
-
-A task may contain:
+You receive one exact invocation object from the Python control layer:
 
 ```yaml
-protocol_version:
-run_id:
-message_id:
-source: executive
-target: qualitative
-message_type: qualitative_analysis_request
+request:
+  protocol_version:
+  run_id:
+  message_id:
+  source: orchestrator
+  target: qualitative
+  message_type: qualitative_analysis_request
+  in_reply_to:
+  candidate: {}
+  task: {}
+  metadata_file:
+  preparation: {}
+  limitations: []
 
-payload:
+evidence_context:
+  protocol_version:
+  run_id:
+  task_id:
   candidate_id:
-  candidate_name:
-  candidate_description:
-  hypothesis:
-  target_label:
-  comparison_groups:
-  evidence_type:
-  requested_checks:
-  sampling_constraints:
-  metadata_fields:
-  artifact_refs:
+  seed:
+  sampling_strategy:
+  requested_checks: []
+  metadata_fields: []
+  selected_samples: []
+  group_coverage: {}
+  metadata_available:
+  metadata_rows_read:
+  samples_selected:
+  sample_files_available:
+  authoritative_artifact_references: []
+  allowed_output_artifact_prefix:
+  limitations: []
 ```
 
-Not every field is mandatory for every dataset.
+Treat both objects as authoritative and read-only. Do not select replacement
+samples, expand the evidence boundary, change the seed or strategy, or infer
+missing fields. Inspect only `selected_samples` whose files are marked
+available, plus explicitly authorized upstream artifacts.
 
 At minimum, you need enough information to identify:
 
@@ -500,7 +514,8 @@ without reconstructing your reasoning from raw logs.
 
 Return one structured result for each analyzed candidate.
 
-Recommended schema:
+Return exactly one JSON object matching this schema. Every field shown is
+required, although list fields may be empty:
 
 ```yaml
 protocol_version:
@@ -509,6 +524,7 @@ message_id:
 source: qualitative
 target: summarize
 message_type: qualitative_analysis_result
+in_reply_to:
 
 payload:
 
@@ -528,6 +544,7 @@ payload:
 
   sampling:
     strategy:
+    seed:
     groups:
     sample_count:
     sample_ids:
@@ -537,6 +554,7 @@ payload:
       group:
       sample_refs:
       observation:
+      inspection_quality:
 
   interpretations:
     - interpretation:
@@ -552,17 +570,26 @@ payload:
       observation:
       sample_refs:
 
+  failures:
+    - category:
+      description:
+      sample_refs:
+      artifact_references:
+
   limitations:
     - ...
 
-  artifact_refs:
+  artifact_references:
     - ...
 
   recommended_followup:
     - ...
 ```
 
-The exact serialization may vary depending on the runtime, but the semantic fields should remain stable.
+Use the exact field names above. Set `in_reply_to` to
+`request.message_id`; copy protocol, run, candidate, hypothesis, sampling
+strategy, and seed from INPUT. Observation IDs must be sequential
+`QO-<candidate_id>-001`, `QO-<candidate_id>-002`, and so on.
 
 ---
 

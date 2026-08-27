@@ -20,7 +20,7 @@ from shortcutminer.storage.qualitative_artifacts import (
 
 
 class AgentClient(Protocol):
-    def invoke_agent(self, agent_name: str, payload: dict) -> dict:
+    def invoke_agent(self, agent_name: str, payload: dict) -> object:
         ...
 
 
@@ -258,6 +258,15 @@ def validate_qualitative_result(
             raise QualitativeExecutionError(
                 "Qualitative observation references an uninspected sample."
             )
+        referenced_groups = {
+            selected_by_id[sample_id].group
+            for sample_id in observation.sample_refs
+        }
+        if referenced_groups != {observation.group}:
+            raise QualitativeExecutionError(
+                "Qualitative observation group does not match its referenced "
+                "samples."
+            )
     for interpretation in payload.interpretations:
         if not set(interpretation.supporting_observation_ids).issubset(
             observation_id_set
@@ -372,16 +381,15 @@ def execute_qualitative(
             raise QualitativeExecutionError(
                 f"Qualitative agent invocation failed: {exc}"
             ) from exc
-        if not isinstance(raw_output, dict):
-            raise QualitativeExecutionError(
-                "Qualitative agent returned a non-object response."
-            )
-
         if runs_root is not None:
             save_qualitative_raw_output(
                 runs_root,
                 run_id=request.run_id,
                 raw_output=raw_output,
+            )
+        if not isinstance(raw_output, dict):
+            raise QualitativeExecutionError(
+                "Qualitative agent returned a non-object response."
             )
         try:
             result = QualitativeResult.model_validate(raw_output)

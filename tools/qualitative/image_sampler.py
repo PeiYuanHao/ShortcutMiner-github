@@ -72,19 +72,12 @@ def select_qualitative_samples(
 
     dataframe = loaded.dataframe
     if split is not None:
-        split_columns = (
-            [split_column]
-            if split_column is not None
-            else [
-                name
-                for name in ("split", "dataset_split")
-                if name in dataframe.columns
-            ]
-        )
-        if not split_columns:
-            raise ValueError("A split was requested but no split column is available.")
+        if split_column is None:
+            raise ValueError(
+                "A split was requested but no authorized split column was configured."
+            )
         dataframe = dataframe[
-            dataframe[split_columns[0]].astype(str) == str(split)
+            dataframe[split_column].astype(str) == str(split)
         ]
 
     if dataframe.empty:

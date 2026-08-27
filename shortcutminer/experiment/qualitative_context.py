@@ -64,6 +64,14 @@ def _unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+def _evidence_metadata_fields(request: QualitativeRequest) -> list[str]:
+    """Return every task-authorized field whose value may support evidence."""
+
+    return _unique(
+        [request.task.inputs.label_column, *request.task.inputs.metadata_fields]
+    )
+
+
 def build_qualitative_request(
     *,
     executive_request: ExecutiveRequest,
@@ -189,7 +197,7 @@ def _empty_context(
         seed=request.preparation.seed,
         sampling_strategy=request.preparation.sampling_strategy,
         requested_checks=request.task.requested_checks,
-        metadata_fields=request.task.inputs.metadata_fields,
+        metadata_fields=_evidence_metadata_fields(request),
         selected_samples=[],
         group_coverage={},
         metadata_available=False,
@@ -245,10 +253,11 @@ def build_qualitative_context(
             "sampling uses only the bounded prefix."
         )
 
+    evidence_metadata_fields = _evidence_metadata_fields(request)
     required_fields = _unique(
         [
             *request.preparation.group_columns,
-            *request.task.inputs.metadata_fields,
+            *evidence_metadata_fields,
             *(
                 [request.preparation.sample_id_column]
                 if request.preparation.sample_id_column
@@ -290,7 +299,7 @@ def build_qualitative_context(
             seed=request.preparation.seed,
             strategy=request.preparation.sampling_strategy,
             group_columns=request.preparation.group_columns,
-            metadata_fields=request.task.inputs.metadata_fields,
+            metadata_fields=evidence_metadata_fields,
             sample_id_column=request.preparation.sample_id_column,
             sample_path_column=request.preparation.sample_path_column,
             split_column=request.preparation.split_column,
@@ -327,7 +336,7 @@ def build_qualitative_context(
         seed=request.preparation.seed,
         sampling_strategy=request.preparation.sampling_strategy,
         requested_checks=request.task.requested_checks,
-        metadata_fields=request.task.inputs.metadata_fields,
+        metadata_fields=evidence_metadata_fields,
         selected_samples=manifest,
         group_coverage=coverage,
         metadata_available=True,

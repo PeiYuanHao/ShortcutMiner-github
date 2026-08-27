@@ -1,4 +1,3 @@
-<!-- TODO: add content. -->
 # MEMORY.md
 
 ## Purpose
@@ -120,7 +119,7 @@ evidence:
   sample_refs:
     - ...
 
-  artifact_refs:
+  artifact_references:
     - ...
 
   metadata_refs:
@@ -350,7 +349,7 @@ upstream_context:
   quantitative:
     status:
     key_result:
-    artifact_refs:
+    artifact_references:
 ```
 
 This information provides context.
@@ -421,7 +420,7 @@ Example:
 failure:
   candidate_id: C-004
   type: missing_metadata
-  artifact_ref:
+  artifact_reference:
   description:
   retry_attempted: true
   resolved: false

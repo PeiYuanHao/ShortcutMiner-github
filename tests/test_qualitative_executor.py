@@ -129,6 +129,18 @@ def test_unselected_sample_reference_is_rejected(tmp_path: Path):
         validate_qualitative_result(result, request, context)
 
 
+def test_observation_group_must_match_referenced_samples(tmp_path: Path):
+    _dataset(tmp_path)
+    request = _request(tmp_path)
+    context = build_qualitative_context(request)
+    output = _valid_output(request, context)
+    output["payload"]["observations"][0]["group"] = "label=invented"
+    result = QualitativeResult.model_validate(output)
+
+    with pytest.raises(QualitativeExecutionError, match="group does not match"):
+        validate_qualitative_result(result, request, context)
+
+
 def test_unknown_interpretation_dependency_is_rejected(tmp_path: Path):
     _dataset(tmp_path)
     request = _request(tmp_path)
@@ -171,6 +183,33 @@ def test_invalid_raw_output_is_retained_and_failure_logged(tmp_path: Path):
     stage_dir = runs_root / request.run_id / "qualitative"
     assert (stage_dir / "raw_output.json").exists()
     assert not (stage_dir / "result.json").exists()
+    assert "AGENT_FAILED" in (
+        runs_root / request.run_id / "events.jsonl"
+    ).read_text("utf-8")
+
+
+def test_non_object_raw_output_is_retained_and_failure_logged(tmp_path: Path):
+    dataset_root = tmp_path / "dataset"
+    _dataset(dataset_root)
+    request = _request(dataset_root)
+    runs_root = tmp_path / "runs"
+
+    with pytest.raises(QualitativeExecutionError, match="non-object"):
+        execute_qualitative(
+            request,
+            MockQualitativeClient(["invalid", "output"]),
+            runs_root=runs_root,
+        )
+
+    raw_output = json.loads(
+        (
+            runs_root
+            / request.run_id
+            / "qualitative"
+            / "raw_output.json"
+        ).read_text("utf-8")
+    )
+    assert raw_output == ["invalid", "output"]
     assert "AGENT_FAILED" in (
         runs_root / request.run_id / "events.jsonl"
     ).read_text("utf-8")

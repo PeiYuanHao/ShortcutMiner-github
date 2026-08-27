@@ -143,7 +143,7 @@ Recommended record:
 ```yaml
 sample_id:
 group:
-artifact_ref:
+sample_reference:
 
 observations:
   - ...
@@ -344,8 +344,7 @@ Python may be used for lightweight evidence support.
 Appropriate uses include:
 
 ```text
-loading sample manifests
-selecting representative samples
+loading the prepared sample manifest
 joining metadata with sample IDs
 checking group coverage
 counting inspected samples
@@ -394,31 +393,24 @@ Do not automatically treat them as population-level statistical evidence.
 
 ## 14. Sampling Tools
 
-Use sampling utilities when representative inspection is required.
+The Python control layer selects the evidence records before Agent invocation.
+Do not resample, replace records, or search outside `selected_samples`.
 
-Possible sampling strategies:
+The supported strategies supplied by the context are:
 
 ```text
 random
-stratified
-group-balanced
-shortcut-aligned
-shortcut-conflicting
-failure-case
-metadata-guided
-score-guided
+group_balanced
 ```
 
-The sampling strategy should be recorded.
-
-If random sampling is used and reproducibility matters, record the seed.
+Copy the strategy and seed exactly from `evidence_context` into the result.
 
 Example:
 
 ```yaml
 sampling:
-  strategy: stratified_random
-  seed: 2026
+  strategy: group_balanced
+  seed: 42
   groups:
     group_A: 10
     group_B: 10
@@ -597,15 +589,17 @@ Store derived artifacts separately from source data.
 Recommended structure:
 
 ```text
-artifacts/
-  qualitative/
+qualitative/
+  artifacts/
     <candidate_id>/
       sample_manifest.*
       comparison_panel.*
       observations.*
 ```
 
-Exact paths may vary by project configuration.
+Every result reference to a derived artifact must remain below the exact
+candidate-scoped prefix supplied as
+`evidence_context.allowed_output_artifact_prefix`.
 
 ---
 
@@ -874,9 +868,9 @@ For a standard image-based candidate, the preferred workflow is:
 ```text
 1. read candidate request
 2. load metadata
-3. resolve relevant sample groups
-4. select representative samples
-5. verify sample IDs
+3. read the prepared groups and selected sample manifest
+4. verify selected sample IDs and availability
+5. preserve the supplied sampling strategy and seed
 6. inspect original images
 7. create comparison views if helpful
 8. record observations
