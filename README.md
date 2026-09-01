@@ -10,7 +10,7 @@ The framework contains five specialized agents:
 * **Qualitative** — collects sample-level, visual, and metadata-based qualitative evidence.
 * **Summarize** — integrates evidence and generates the final shortcut audit report.
 
-ShortcutMiner uses **OpenClaw** as the agent runtime. A deterministic Python control layer is responsible for experiment execution, agent scheduling, configuration management, artifact storage, logging, and reproducibility.
+ShortcutMiner uses **LangGraph** for workflow orchestration. A deterministic Python control layer is responsible for experiment execution, agent scheduling, configuration management, artifact storage, logging, and reproducibility.
 
 > **Project Status**
 >
@@ -85,8 +85,9 @@ ShortcutMiner/
 ├── shortcutminer/
 │   ├── runner.py
 │   ├── orchestrator.py
-│   ├── openclaw_client.py
+│   ├── agent_client.py
 │   ├── context.py
+│   ├── workflow/
 │   ├── protocol/
 │   ├── experiment/
 │   ├── storage/
@@ -104,8 +105,7 @@ ShortcutMiner/
 │   └── qualitative/
 │
 ├── infrastructure/
-│   ├── docker/
-│   └── openclaw/
+│   └── docker/
 │
 ├── scripts/
 ├── tests/
@@ -119,11 +119,11 @@ ShortcutMiner/
 
 | Directory         | Purpose                                                                   |
 | ----------------- | ------------------------------------------------------------------------- |
-| `agents/`         | OpenClaw workspaces for the five agents                                   |
+| `agents/`         | Preserved workspace documents for the five agents                         |
 | `shortcutminer/`  | Core deterministic execution framework                                    |
 | `configs/`        | Dataset, model, and experiment configurations                             |
 | `tools/`          | Deterministic tools callable by agents                                    |
-| `infrastructure/` | Docker and OpenClaw deployment configuration                              |
+| `infrastructure/` | Docker deployment configuration                                           |
 | `scripts/`        | User-facing experiment entry points                                       |
 | `tests/`          | Unit, integration, and mock pipeline tests                                |
 | `data/`           | Dataset preparation instructions                                          |
@@ -141,7 +141,7 @@ All five agents are stored under:
 agents/
 ```
 
-Each agent has an independent OpenClaw workspace.
+Each agent has an independent set of preserved workspace documents. Future migration phases will load these documents directly when constructing prompts.
 
 Example:
 
@@ -279,23 +279,17 @@ skeleton.
 
 ---
 
-## `openclaw_client.py`
+## `agent_client.py`
 
-Provides the interface between ShortcutMiner and the OpenClaw runtime.
+Defines the minimal runtime-agnostic `AgentClient` Protocol used by the existing
+stage executors. Concrete OpenAI, DeepSeek, or other model backends can implement
+this interface in later phases without changing the experiment contracts.
 
-OpenClaw-specific behavior should be isolated in this module whenever possible.
+## `workflow/`
 
-Typical responsibilities include:
-
-* invoking agents
-* creating or resolving sessions
-* sending structured requests
-* retrieving outputs
-* checking execution status
-* handling timeouts
-* handling runtime errors
-
-This separation prevents OpenClaw runtime changes from affecting the entire ShortcutMiner codebase.
+Contains the shared workflow state, Phase 1 placeholder nodes, and the compiled
+LangGraph `StateGraph`. The placeholders establish control flow only; the five
+agents' existing business logic has not yet been migrated into the graph.
 
 ---
 
@@ -312,7 +306,7 @@ model
 seed
 repeat
 artifact paths
-agent session keys
+workflow execution state
 experiment configuration
 ```
 
@@ -666,15 +660,13 @@ Copy the environment template:
 cp .env.example .env
 ```
 
-Configure the required runtime credentials.
+Configure credentials for the model backend selected in a later migration phase.
 
 Example:
 
 ```env
-OPENCLAW_GATEWAY_URL=
-OPENCLAW_TOKEN=
-
 OPENAI_API_KEY=
+DEEPSEEK_API_KEY=
 ```
 
 Never commit the real `.env` file.
@@ -719,28 +711,11 @@ Whenever possible, source datasets should be mounted into containers as **read-o
 
 ---
 
-# OpenClaw
+# LangGraph Workflow
 
-ShortcutMiner uses OpenClaw as the runtime environment for the five agents.
-
-The complete OpenClaw source tree is **not copied into this repository**.
-
-ShortcutMiner-specific OpenClaw configuration is stored under:
-
-```text
-infrastructure/openclaw/
-```
-
-```text
-infrastructure/openclaw/
-├── openclaw.json.template
-├── agents.example.json
-└── version.lock
-```
-
-`version.lock` is used to record the OpenClaw version or container image used for formal experiments.
-
-Formal experiments should use a pinned OpenClaw version rather than an uncontrolled `latest` version.
+The Phase 1 workflow is defined under `shortcutminer/workflow/`. It compiles a
+minimal `StateGraph` with placeholder nodes in the intended five-stage topology.
+No concrete LLM backend is selected in this phase.
 
 ---
 
@@ -764,8 +739,6 @@ The intended server architecture is:
 Server
 │
 ├── ShortcutMiner container
-│
-├── OpenClaw runtime
 │
 ├── persistent datasets
 │
@@ -795,7 +768,7 @@ python scripts/health_check.py
 
 The health check should verify:
 
-* OpenClaw availability
+* LangGraph workflow compilation
 * model API availability
 * dataset paths
 * runtime directories
@@ -951,7 +924,7 @@ Example:
   "repeat": 1,
 
   "shortcutminer_commit": "git-commit",
-  "openclaw_version": "pinned-version",
+  "langgraph_version": "pinned-version",
 
   "started_at": "timestamp",
   "finished_at": "timestamp",
@@ -1143,7 +1116,7 @@ Mock Quant. Mock Qual.
 
 without requiring:
 
-* OpenClaw
+* external agent runtimes
 * external LLM APIs
 * real model inference
 
@@ -1171,7 +1144,7 @@ Storage and manifests
 Mock pipeline
         │
         ▼
-OpenClaw integration
+LangGraph workflow skeleton
         │
         ▼
 Five agent workspaces
@@ -1210,11 +1183,11 @@ shortcutminer/runner.py
 shortcutminer/orchestrator.py
 ```
 
-### Modify OpenClaw integration
+### Modify workflow orchestration
 
 ```text
-shortcutminer/openclaw_client.py
-infrastructure/openclaw/
+shortcutminer/workflow/
+shortcutminer/orchestrator.py
 ```
 
 ### Add or modify datasets
@@ -1264,7 +1237,6 @@ configuration files
 tests
 documentation
 Docker configuration
-OpenClaw configuration templates
 small aggregated results
 ```
 
@@ -1275,7 +1247,7 @@ The following files should normally **not** be committed:
 API keys
 authentication tokens
 raw datasets
-OpenClaw runtime sessions
+runtime caches
 cache files
 temporary files
 large raw experiment runs
@@ -1302,7 +1274,7 @@ Explains:
 
 * system components
 * Runner and Orchestrator
-* OpenClaw integration
+* LangGraph workflow integration
 * five-agent execution flow
 * storage architecture
 
@@ -1334,7 +1306,7 @@ Explains:
 
 * server setup
 * Docker
-* OpenClaw
+* LangGraph runtime
 * persistent volumes
 * runtime storage
 * experiment startup and shutdown
@@ -1350,7 +1322,7 @@ The current development priorities are:
 3. Implement the deterministic Runner and Orchestrator.
 4. Implement persistent run storage and manifests.
 5. Pass the complete mock pipeline.
-6. Integrate OpenClaw.
+6. Migrate each agent into the LangGraph workflow.
 7. Rebuild the five agent workspaces against the new protocol.
 8. Pass a single smoke-test experiment.
 9. Expand to multi-dataset, multi-seed, and multi-model experiments.
@@ -1377,7 +1349,7 @@ tools/
     Provides deterministic operations for the agents.
 
 infrastructure/
-    Defines how ShortcutMiner and OpenClaw are deployed.
+    Defines how ShortcutMiner is deployed.
 
 scripts/
     Provides user-facing execution commands.

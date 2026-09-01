@@ -1,16 +1,7 @@
-import json
-import subprocess
 from pathlib import Path
 
 from shortcutminer.experiment.identify_executor import (
     execute_identify,
-)
-from shortcutminer.openclaw_client import (
-    OpenClawClient,
-    OpenClawClientConfig,
-)
-from shortcutminer.openclaw_gateway_cli_transport import (
-    OpenClawGatewayCliTransport,
 )
 from shortcutminer.protocol.identify import (
     DatasetSpec,
@@ -18,6 +9,16 @@ from shortcutminer.protocol.identify import (
     IdentifyRequest,
     TaskSpec,
 )
+
+
+class RecordingAgentClient:
+    def __init__(self, output: dict):
+        self.output = output
+        self.calls: list[dict] = []
+
+    def invoke_agent(self, agent_name: str, payload: dict) -> dict:
+        self.calls.append({"agent_name": agent_name, "payload": payload})
+        return self.output
 
 
 def _create_dataset(root: Path) -> None:
@@ -130,65 +131,7 @@ def test_identify_end_to_end_mock(
 
     report_dict = _agent_report()
 
-    captured = {}
-
-    def fake_runner(
-        command,
-        **kwargs,
-    ):
-        captured["command"] = command
-        captured["env"] = kwargs["env"]
-
-        message_index = (
-            command.index("--message-file")
-            + 1
-        )
-
-        message_path = Path(
-            command[message_index]
-        )
-
-        captured["message"] = (
-            message_path.read_text(
-                encoding="utf-8"
-            )
-        )
-
-        cli_output = {
-            "payloads": [
-                {
-                    "text": json.dumps(
-                        report_dict
-                    )
-                }
-            ]
-        }
-
-        return subprocess.CompletedProcess(
-            args=command,
-            returncode=0,
-            stdout=json.dumps(
-                cli_output
-            ),
-            stderr="",
-        )
-
-    transport = (
-        OpenClawGatewayCliTransport(
-            runner=fake_runner
-        )
-    )
-
-    client = OpenClawClient(
-        config=OpenClawClientConfig(
-            gateway_url=(
-                "ws://openclaw-gateway:18789"
-            ),
-            token="test-token",
-            timeout_seconds=120,
-        ),
-        transport=transport,
-    )
+    client = RecordingAgentClient(report_dict)
 
     report = execute_identify(
         request=request,
@@ -225,58 +168,9 @@ def test_identify_end_to_end_mock(
         == "unverified"
     )
 
-    # -----------------------------
-    # Official OpenClaw CLI path
-    # -----------------------------
-
-    command = captured["command"]
-
-    assert command[0] == "openclaw"
-    assert command[1] == "agent"
-
-    assert "--agent" in command
-    assert "identify" in command
-
-    assert "--session-key" in command
-
-    assert (
-        "shortcutminer:"
-        "integration_test_run"
-        in command
-    )
-
-    assert "--json" in command
-
-    # Must use Gateway runtime.
-    assert "--local" not in command
-
-    # -----------------------------
-    # Gateway configuration
-    # -----------------------------
-
-    assert (
-        captured["env"][
-            "OPENCLAW_GATEWAY_URL"
-        ]
-        == "ws://openclaw-gateway:18789"
-    )
-
-    assert (
-        captured["env"][
-            "OPENCLAW_GATEWAY_TOKEN"
-        ]
-        == "test-token"
-    )
-
-    # -----------------------------
-    # Discovery context reached Agent
-    # -----------------------------
-
-    message = captured["message"]
-
-    assert "integration_test_run" in message
-    assert "test_dataset" in message
-    assert "discovery_context" in message
-    assert "selected_samples" in message
-    assert "CandidateReport" in message
-    assert "not inspected dataset samples" in message
+    call = client.calls[0]
+    assert call["agent_name"] == "identify"
+    assert call["payload"]["request"]["run_id"] == "integration_test_run"
+    assert call["payload"]["request"]["dataset"]["name"] == "test_dataset"
+    assert "discovery_context" in call["payload"]
+    assert "selected_samples" in call["payload"]["discovery_context"]

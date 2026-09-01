@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Protocol
 
 from pydantic import ValidationError
 
+from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.identify_context import (
     IdentifyDiscoveryContext,
     build_identify_context,
@@ -17,23 +17,6 @@ from shortcutminer.storage.identify_artifacts import (
     save_identify_output,
     save_identify_raw_output,
 )
-
-
-class AgentClient(Protocol):
-    """
-    Minimal client contract required by IdentifyExecutor.
-
-    A concrete OpenClaw client can implement this interface later.
-    """
-
-    def invoke_agent(
-        self,
-        agent_name: str,
-        payload: dict,
-    ) -> dict:
-        ...
-
-
 class IdentifyExecutionError(RuntimeError):
     """Raised when Identify execution cannot produce a valid report."""
 

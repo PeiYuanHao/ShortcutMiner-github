@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Protocol
 
 from pydantic import ValidationError
 
+from shortcutminer.agent_client import AgentClient
 from shortcutminer.protocol.executive import (
     AnalysisTask,
     ExecutiveRequest,
@@ -14,13 +14,6 @@ from shortcutminer.storage.executive_artifacts import (
     save_executive_raw_output,
     save_executive_routing,
 )
-
-
-class AgentClient(Protocol):
-    def invoke_agent(self, agent_name: str, payload: dict) -> dict:
-        ...
-
-
 class ExecutiveExecutionError(RuntimeError):
     """Raised when Executive cannot produce a valid routing plan."""
 

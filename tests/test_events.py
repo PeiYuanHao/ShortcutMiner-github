@@ -90,7 +90,7 @@ def test_event_details(
         stage="identify",
         details={
             "error_type": "RuntimeError",
-            "message": "gateway unavailable",
+            "message": "runtime unavailable",
         },
     )
 

@@ -1,0 +1,48 @@
+warning: in the working copy of '.gitignore', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'README.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/AGENTS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/HEARTBEAT.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/IDENTITY.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/MEMORY.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/SOUL.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/TOOLS.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'agents/quantitative/workspace/USER.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'pyproject.toml', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'requirements.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shortcutminer/experiment/executive_executor.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shortcutminer/experiment/identify_executor.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shortcutminer/experiment/qualitative_executor.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shortcutminer/orchestrator.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'shortcutminer/runner.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_events.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_executive_integration.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_identify_integration.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_qualitative_integration.py', LF will be replaced by CRLF the next time Git touches it
+ .gitignore                                       |    5 [31m-[m
+ README.md                                        |   96 [32m+[m[31m-[m
+ agents/quantitative/workspace/AGENTS.md          |  958 [32m++++++++++++[m[31m-[m
+ agents/quantitative/workspace/HEARTBEAT.md       |  630 [32m++++++++[m[31m-[m
+ agents/quantitative/workspace/IDENTITY.md        |  772 [32m++++++++++[m[31m-[m
+ agents/quantitative/workspace/MEMORY.md          |  979 [32m++++++++++++[m[31m-[m
+ agents/quantitative/workspace/SOUL.md            |  790 [32m++++++++++[m[31m-[m
+ agents/quantitative/workspace/TOOLS.md           | 1616 [32m+++++++++++++++++++++[m[31m-[m
+ agents/quantitative/workspace/USER.md            | 1007 [32m+++++++++++++[m[31m-[m
+ infrastructure/openclaw/agents.example.json      |    1 [31m-[m
+ infrastructure/openclaw/openclaw.json.template   |    1 [31m-[m
+ infrastructure/openclaw/version.lock             |    1 [31m-[m
+ pyproject.toml                                   |    1 [32m+[m
+ requirements.txt                                 |    1 [32m+[m
+ shortcutminer/experiment/executive_executor.py   |    9 [32m+[m[31m-[m
+ shortcutminer/experiment/identify_executor.py    |   19 [32m+[m[31m-[m
+ shortcutminer/experiment/qualitative_executor.py |    9 [32m+[m[31m-[m
+ shortcutminer/openclaw_client.py                 |  159 [31m---[m
+ shortcutminer/openclaw_gateway_cli_transport.py  |  295 [31m----[m
+ shortcutminer/orchestrator.py                    |    6 [32m+[m[31m-[m
+ shortcutminer/runner.py                          |   10 [32m+[m[31m-[m
+ tests/test_events.py                             |    2 [32m+[m[31m-[m
+ tests/test_executive_integration.py              |   23 [32m+[m[31m-[m
+ tests/test_identify_integration.py               |  140 [32m+[m[31m-[m
+ tests/test_openclaw_client.py                    |  205 [31m---[m
+ tests/test_openclaw_gateway_cli_transport.py     |  260 [31m----[m
+ tests/test_qualitative_integration.py            |   23 [32m+[m[31m-[m
+ 27 files changed, 6828 insertions(+), 1190 deletions(-)

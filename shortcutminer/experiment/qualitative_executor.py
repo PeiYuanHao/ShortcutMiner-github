@@ -1,8 +1,8 @@
 from pathlib import Path, PurePosixPath
-from typing import Protocol
 
 from pydantic import ValidationError
 
+from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.qualitative_context import (
     QualitativeEvidenceContext,
     build_qualitative_context,
@@ -17,13 +17,6 @@ from shortcutminer.storage.qualitative_artifacts import (
     save_qualitative_raw_output,
     save_qualitative_result,
 )
-
-
-class AgentClient(Protocol):
-    def invoke_agent(self, agent_name: str, payload: dict) -> object:
-        ...
-
-
 class QualitativeExecutionError(RuntimeError):
     """Raised when Qualitative cannot produce a valid evidence result."""
 

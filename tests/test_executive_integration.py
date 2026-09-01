@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from shortcutminer.experiment.executive_executor import execute_executive
-from shortcutminer.openclaw_client import OpenClawClient, OpenClawClientConfig
 from shortcutminer.protocol.executive import (
     ExecutiveCapabilities,
     ExecutiveRequest,
@@ -15,13 +14,13 @@ from shortcutminer.protocol.identify import (
 )
 
 
-class RecordingTransport:
+class RecordingAgentClient:
     def __init__(self, output: dict):
         self.output = output
         self.calls = []
 
-    def run_agent(self, **kwargs) -> dict:
-        self.calls.append(kwargs)
+    def invoke_agent(self, agent_name: str, payload: dict) -> dict:
+        self.calls.append({"agent_name": agent_name, "payload": payload})
         return self.output
 
 
@@ -81,22 +80,12 @@ def test_executive_mock_runtime_integration(tmp_path: Path):
         "tasks": [],
         "limitations": ["No candidates were identified."],
     }
-    transport = RecordingTransport(output)
-    client = OpenClawClient(
-        config=OpenClawClientConfig(
-            gateway_url="ws://mock-gateway",
-            token="mock-token",
-        ),
-        transport=transport,
-    )
+    client = RecordingAgentClient(output)
 
     plan = execute_executive(request=request, client=client)
 
     assert plan.tasks == []
-    assert transport.calls[0]["agent_name"] == "executive"
-    assert transport.calls[0]["session_key"] == (
-        "shortcutminer:executive_integration_run"
-    )
-    assert transport.calls[0]["payload"]["request"]["message_type"] == (
+    assert client.calls[0]["agent_name"] == "executive"
+    assert client.calls[0]["payload"]["request"]["message_type"] == (
         "executive_request"
     )
