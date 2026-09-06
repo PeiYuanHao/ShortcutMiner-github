@@ -1,0 +1,40 @@
+# Replace dataset/metadata columns with your mounted dataset's actual values.
+# Choose a model separately with CLI --model-config; no credential belongs here.
+runs_root: /runs
+dataset_info:
+  name: example_dataset
+  root: /data/example_dataset
+  metadata_file: metadata.csv
+task_input:
+  type: classification
+  label_column: label
+  description: Audit the mounted dataset for potential shortcuts.
+seed: 42
+identify_config:
+  budget:
+    max_samples: 4
+    max_candidates: 1
+    max_dataset_entries: 100
+    max_metadata_rows: 100
+executive_config:
+  audit_options:
+    validation_depth: standard
+    max_tasks: 2
+    max_samples_per_task: 4
+    allowed_targets: [quantitative, qualitative]
+    runtime_constraints: []
+  capabilities:
+    available_targets: [quantitative, qualitative]
+    available_metadata_fields: [id, label, site]
+    quantitative_checks: [association_test]
+    qualitative_checks: [metadata_inspection]
+    sample_access: false
+    external_services: false
+    available_output_types: [metrics, observations]
+qualitative_config:
+  preparation:
+    seed: 42
+    sample_id_column: id
+    group_columns: [label]
+    max_evidence_records: 4
+    max_metadata_rows: 100

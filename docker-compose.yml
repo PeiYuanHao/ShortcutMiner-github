@@ -1,0 +1,22 @@
+services:
+  shortcutminer:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    working_dir: /app
+    network_mode: ${SHORTCUTMINER_NETWORK_MODE:-none}
+    environment:
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - runs:/runs
+      - ./data:/data:ro
+      - ./configs:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: "no"
+
+volumes:
+  runs:
