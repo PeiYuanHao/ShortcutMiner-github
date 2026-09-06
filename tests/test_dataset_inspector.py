@@ -87,12 +87,31 @@ def test_inspect_dataset(tmp_path: Path):
 
 def test_dataset_scan_is_bounded_and_deterministic(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     nested = tmp_path / "a"
     nested.mkdir()
     (nested / "inside.png").write_bytes(b"test")
     (tmp_path / "b.txt").write_bytes(b"test")
     (tmp_path / "z.jpg").write_bytes(b"test")
+
+    # scandir order is filesystem-dependent. Supply the intended ordered input
+    # explicitly; production promises to sort a bounded prefix, not to discover
+    # the lexicographically first entries of an unbounded directory.
+    real_scandir = os.scandir
+
+    class OrderedScandir:
+        def __init__(self, directory):
+            with real_scandir(directory) as entries:
+                self.entries = sorted(entries, key=lambda entry: entry.name)
+
+        def __enter__(self):
+            return iter(self.entries)
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(dataset_inspector.os, "scandir", OrderedScandir)
 
     result_a = inspect_dataset(str(tmp_path), max_entries=2)
     result_b = inspect_dataset(str(tmp_path), max_entries=2)
@@ -104,6 +123,54 @@ def test_dataset_scan_is_bounded_and_deterministic(
     assert result_a["num_files"] == 1
     assert result_a["file_extensions"] == [".txt"]
     assert result_a["top_level_entries"] == ["a", "b.txt"]
+
+
+@pytest.mark.parametrize("names", [
+    ["z.jpg", "b.txt", "a.csv", "unread.png"],
+    ["b.txt", "z.jpg", "a.csv", "unread.png"],
+])
+def test_bounded_prefix_is_sorted_without_consuming_rest_of_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, names: list[str],
+):
+    requested = []
+    classified = []
+
+    class Entry:
+        def __init__(self, name):
+            self.name = name
+            self.path = str(tmp_path / name)
+
+        def is_dir(self, *, follow_symlinks):
+            assert follow_symlinks is False
+            classified.append(self.name)
+            return False
+
+        def is_file(self, *, follow_symlinks):
+            assert follow_symlinks is False
+            return True
+
+    class Scandir:
+        def __enter__(self):
+            def entries():
+                for name in names:
+                    requested.append(name)
+                    yield Entry(name)
+            return entries()
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(dataset_inspector.os, "scandir", lambda _: Scandir())
+    result = inspect_dataset(str(tmp_path), max_entries=2)
+
+    assert requested == names[:3]  # Exactly the budget and truncation sentinel.
+    assert classified == names[:2]  # The sentinel must not be inspected.
+    assert result["top_level_entries"] == ["b.txt", "z.jpg"]
+    assert result["file_extensions"] == [".jpg", ".txt"]
+    assert result["entries_scanned"] == 2
+    assert result["num_files"] == 2
+    assert result["num_directories"] == 0
+    assert result["truncated"] is True
 
 
 def test_directory_enumeration_stops_after_budget_sentinel(

@@ -3,6 +3,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.protocol.executive import (
     AnalysisTask,
     ExecutiveRequest,
@@ -14,6 +15,8 @@ from shortcutminer.storage.executive_artifacts import (
     save_executive_raw_output,
     save_executive_routing,
 )
+from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.runtime import ToolRuntime
 class ExecutiveExecutionError(RuntimeError):
     """Raised when Executive cannot produce a valid routing plan."""
 
@@ -420,6 +423,8 @@ def execute_executive(
     request: ExecutiveRequest,
     client: AgentClient,
     runs_root: str | Path | None = None,
+    workspace_dir: str | Path | None = None,
+    tool_runtime: ToolRuntime | None = None,
 ) -> RoutingPlan:
     try:
         if runs_root is not None:
@@ -433,6 +438,9 @@ def execute_executive(
         validate_executive_request(request)
 
         payload = build_executive_agent_payload(request)
+        system_prompt = load_agent_workspace_prompt(
+            "executive", workspace_dir
+        )
         if runs_root is not None:
             save_executive_input(
                 runs_root=runs_root,
@@ -441,10 +449,14 @@ def execute_executive(
             )
 
         try:
-            raw_output = client.invoke_agent(
-                agent_name="executive",
-                payload=payload,
+            invocation = invoke_agent_with_tools(
+                client,
+                "executive",
+                payload,
+                system_prompt=system_prompt,
+                tool_runtime=tool_runtime,
             )
+            raw_output = invocation.output
         except Exception as exc:
             raise ExecutiveExecutionError(
                 f"Executive agent invocation failed: {exc}"

@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints, field_validator
 
-from shortcutminer.protocol.executive import AnalysisTask
+from shortcutminer.protocol.executive import AnalysisTask, TaskId
 from shortcutminer.protocol.identify import (
     Candidate,
     CandidateId,
@@ -158,6 +158,7 @@ class QualitativeFailure(StrictProtocolModel):
 
 
 class QualitativeResultPayload(StrictProtocolModel):
+    task_id: TaskId
     candidate_id: CandidateId
     candidate_name: NonEmptyText
     hypothesis: NonEmptyText

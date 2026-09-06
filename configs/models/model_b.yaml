@@ -1,1 +1,7 @@
-# TODO: add content.
+provider: openai_compatible
+model: replace-with-deepseek-model
+base_url: https://api.deepseek.com/v1
+api_key_env: SHORTCUTMINER_DEEPSEEK_API_KEY
+timeout: 60.0
+temperature: 0.0
+max_tokens: 4096

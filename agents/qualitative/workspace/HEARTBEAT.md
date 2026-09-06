@@ -2,140 +2,31 @@
 
 ## Purpose
 
-The heartbeat defines the periodic self-check behavior of the **Qualitative Agent**.
-
-Its purpose is to ensure that qualitative analysis remains:
-
-* active;
-* evidence-grounded;
-* traceable;
-* scoped to the assigned candidate;
-* free from fabricated observations;
-* complete enough for downstream summarization.
-
-The heartbeat is not a trigger for generating new shortcut hypotheses or expanding the task beyond the request from the Executive Agent.
+HEARTBEAT.md defines a fixed checklist within each invocation. It is not a background service, polling loop, periodic wake-up or independent retry mechanism. Use only the supplied QualitativeRequest/evidence_context and return one QualitativeResult. The executor validates and persists results/events; no separate heartbeat message is emitted.
 
 ---
 
 ## 1. Heartbeat Principle
 
-At every heartbeat, first determine the current qualitative-analysis state.
-
-Use one of the following states:
-
-```text
-IDLE
-TASK_RECEIVED
-EVIDENCE_LOADING
-SAMPLE_SELECTION
-INSPECTING
-COMPARING
-VALIDATING
-PACKAGING
-BLOCKED
-COMPLETED
-```
-
-Only perform actions appropriate to the current state.
+Read input → check prepared evidence availability and coverage → inspect actually supplied evidence → separate observations from interpretation → check counterevidence/limitations → check exact QualitativeResult fields → return once. Section labels below describe local checklist steps, not persisted workflow states or output literals.
 
 ---
 
 ## 2. IDLE
 
-When no qualitative task is active:
-
-```text
-state = IDLE
-```
-
-Do not:
-
-* inspect datasets without a request;
-* generate new shortcut candidates;
-* repeat previously completed analysis;
-* search for unrelated visual patterns;
-* start quantitative experiments;
-* modify upstream artifacts.
-
-Remain available for a valid request from the Executive Agent.
+Without a valid request, do not invent work or remain in a waiting loop. Invalid input is rejected by infrastructure. Do not inspect datasets, repeat earlier tasks or generate new candidates.
 
 ---
 
 ## 3. TASK_RECEIVED
 
-When a new task arrives, verify that the request contains enough information to begin.
-
-Check for:
-
-```text
-candidate_id
-candidate hypothesis
-comparison target
-requested qualitative checks
-relevant artifact or dataset references
-```
-
-Then classify the request as:
-
-```text
-READY
-PARTIALLY_READY
-BLOCKED
-```
-
-### READY
-
-Required evidence sources are available.
-
-Proceed to evidence loading.
-
-### PARTIALLY_READY
-
-Some optional information is unavailable, but useful qualitative analysis is still possible.
-
-Proceed while recording the limitation.
-
-### BLOCKED
-
-Critical evidence is missing.
-
-Move to:
-
-```text
-state = BLOCKED
-```
-
-Do not invent missing information.
+Verify request.run_id, candidate identity, assigned AnalysisTask, requested_checks and evidence_context alignment. Preserve the supplied seed and strategy. Missing optional evidence is a limitation; missing required evidence requires insufficient_evidence. Do not invent identifiers or introduce READY/BLOCKED protocol states.
 
 ---
 
 ## 4. EVIDENCE_LOADING
 
-Before inspecting samples, verify that required evidence can actually be accessed.
-
-Check:
-
-```text
-dataset references resolve
-artifact references resolve
-sample identifiers are valid
-metadata is readable
-requested groups can be identified
-```
-
-For every source, record its provenance.
-
-Example:
-
-```yaml
-source_type: dataset_sample
-reference: sample_0172
-origin: dataset/test/class_1
-```
-
-If an artifact cannot be loaded, record the failure explicitly.
-
-Do not silently skip required evidence.
+Check the evidence content actually present in the payload. Current AgentClient has no file reader or image viewer. Metadata records and sample_available flags do not establish visual inspection. If the task requires unavailable media, record insufficient_evidence and the specific failure/limitation instead of fabricating content.
 
 ---
 
@@ -152,7 +43,7 @@ Are both supporting and potentially contradicting samples included?
 Is the number of samples sufficient for the requested qualitative inspection?
 ```
 
-Prefer balanced inspection across relevant groups whenever possible.
+Use only the prepared selected_samples. Do not select extra samples to repair coverage; record the limitation.
 
 Example:
 
@@ -206,7 +97,7 @@ unless the hospital-source relationship is independently established.
 
 ## 7. Visual Inspection Check
 
-For image-based evidence, periodically verify:
+For actual visible image-based evidence supplied in this invocation, verify:
 
 ```text
 Am I describing something that is actually visible?
@@ -247,7 +138,7 @@ Record ambiguity explicitly.
 
 ## 9. Metadata Inspection Check
 
-When using metadata, periodically verify:
+When using supplied metadata, verify:
 
 ```text
 Is the metadata field meaning known?
@@ -313,47 +204,7 @@ Never remove counterexamples merely because the dominant pattern appears convinc
 
 ## 12. Cross-Agent Consistency Check
 
-When Quantitative Agent results are available, compare them with qualitative observations.
-
-Possible outcomes:
-
-```text
-QUALITATIVE_AND_QUANTITATIVE_AGREE
-QUALITATIVE_SUPPORT_ONLY
-QUANTITATIVE_SUPPORT_ONLY
-RESULTS_CONFLICT
-NOT_COMPARABLE
-```
-
-Example:
-
-```text
-Quantitative result:
-Strong association between source and label.
-
-Qualitative result:
-Visible acquisition-style differences are also observable between sources.
-
-Status:
-QUALITATIVE_AND_QUANTITATIVE_AGREE
-```
-
-Another example:
-
-```text
-Quantitative result:
-Strong source-label association.
-
-Qualitative result:
-No consistent visible difference found in inspected samples.
-
-Status:
-QUANTITATIVE_SUPPORT_ONLY
-```
-
-Do not alter the Quantitative Agent's result.
-
-Report the relationship between the evidence streams.
+Quantitative and Qualitative are parallel branches. Do not await or fetch sibling results, introduce cross-branch dependencies or change sample selection based on quantitative evidence. Preserve any relevant context explicitly supplied in the request, without changing upstream results. Summarize performs final cross-branch consistency checks.
 
 ---
 
@@ -402,6 +253,7 @@ Validation checklist:
 
 ```text
 [ ] candidate_id is correct
+[ ] task_id is correct
 [ ] assigned hypothesis was not changed
 [ ] relevant groups were inspected
 [ ] observations are evidence-backed
@@ -413,7 +265,7 @@ Validation checklist:
 [ ] no unsupported causal claims exist
 ```
 
-If a critical validation item fails, return to the relevant previous state.
+Correct unsupported claims within the supplied evidence boundary before return. If they cannot be supported, remove them and record the limitation; do not start a new execution loop.
 
 ---
 
@@ -445,6 +297,7 @@ Minimum useful package:
 
 ```text
 candidate_id
+task_id
 hypothesis
 evidence_status
 evidence_summary
@@ -467,60 +320,13 @@ interpretation confidence
 
 ## 17. BLOCKED
 
-Enter the blocked state when the task cannot proceed reliably.
-
-Typical causes:
-
-```text
-missing dataset
-missing samples
-missing subgroup
-invalid artifact reference
-unreadable data
-unsupported format
-unclear candidate definition
-tool failure
-```
-
-When blocked:
-
-1. preserve all completed observations;
-2. record the exact blocking reason;
-3. identify what information or artifact is required;
-4. return a structured partial result when possible;
-5. do not fabricate a substitute.
-
-Example:
-
-```yaml
-state: BLOCKED
-reason: missing_shortcut_conflicting_samples
-completed:
-  - inspected shortcut-aligned samples
-required:
-  - representative shortcut-conflicting samples
-```
+If required evidence is missing, preserve valid completed observations and explain unavailable evidence in failures/limitations. Use evidence_status insufficient_evidence when no meaningful evaluation is possible. Return the full QualitativeResult with truthful sampling fields, not a custom state/reason/required object.
 
 ---
 
 ## 18. Retry Behavior
 
-Retries are allowed for operational failures.
-
-Examples:
-
-```text
-temporary file-read failure
-tool timeout
-artifact access failure
-sample rendering failure
-```
-
-Retries must not be used to repeatedly search for evidence until the desired conclusion appears.
-
-A failed hypothesis is not an operational failure.
-
-A contradictory result is not a reason to retry the analysis.
+The Agent does not retry, poll, self-wake or wait for resources. Invocation retry and checkpoint/resume belong to infrastructure. Use only explicit inputs on a resumed invocation. A contradictory finding is not a reason to rerun analysis.
 
 ---
 
@@ -542,31 +348,13 @@ Do not continue exploring unrelated dataset properties after the candidate has b
 
 ## 20. Completion Condition
 
-A qualitative task is complete only when:
-
-```text
-requested evidence has been inspected
-relevant comparisons have been performed
-counterevidence has been considered
-observations are traceable
-limitations are explicit
-evidence status has been assigned
-downstream output has been prepared
-```
-
-Then set:
-
-```text
-state = COMPLETED
-```
-
-and return the result to the designated downstream agent.
+Return the full QualitativeResult with source qualitative, target summarize, message_type qualitative_analysis_result and in_reply_to = request.message_id. Preserve request.task.task_id, candidate.cue.name as candidate_name, the hypothesis, context limitations and sampling strategy/seed. sampled IDs and groups must reflect actual inspected evidence; observations use sequential QO-Cnnn-nnn IDs and valid sample_refs. No custom COMPLETED state is emitted. The executor performs schema/correlation validation and persistence.
 
 ---
 
 ## 21. Final Heartbeat Rule
 
-At every heartbeat, ask:
+Before returning from each invocation, ask:
 
 ```text
 Am I still analyzing the assigned candidate?

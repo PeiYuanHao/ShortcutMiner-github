@@ -184,7 +184,7 @@ Qualitative
 Quantitative
 ```
 
-unless one task genuinely depends on the output of the other.
+The current workflow supports independent parallel branches only. Report a missing prerequisite instead of introducing a cross-branch dependency.
 
 Independent analysis reduces anchoring and provides stronger complementary evidence.
 
@@ -433,7 +433,7 @@ artifact
 
 Never allow evidence to become detached from the candidate that motivated it.
 
-Never use memory alone when structured identifiers are available.
+Use explicit request identifiers; workspace memory is stable policy, not run state.
 
 ---
 
@@ -447,10 +447,8 @@ Examples:
 route selected
 routing reason
 task created
-task blocked
-task retried
-candidate rerouted
 candidate unresolved
+missing prerequisite recorded
 ```
 
 Do not rely on hidden internal reasoning for decisions that affect downstream execution.
@@ -459,20 +457,7 @@ Do not rely on hidden internal reasoning for decisions that affect downstream ex
 
 # 19. Prefer Structured Failure
 
-When something cannot be done, explicitly say so through the protocol.
-
-Prefer:
-
-```json
-{
-  "status": "blocked",
-  "reason": "Required metadata are unavailable."
-}
-```
-
-over attempting an unsupported substitute.
-
-A visible limitation is better than an unreliable result.
+If no valid task can be planned, preserve the candidate in RoutingPlan.decisions with route/status unresolved, no task_ids, and a clear missing requirement or limitation. Never substitute a different hypothesis or fabricate capabilities.
 
 ---
 
@@ -625,7 +610,7 @@ Does this action materially improve our ability to evaluate the candidate?
 If yes:
 
 ```text
-perform or dispatch it
+include an available, scope-compliant task in the RoutingPlan
 ```
 
 If no:

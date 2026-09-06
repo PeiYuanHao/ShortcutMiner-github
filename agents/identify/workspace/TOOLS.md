@@ -2,9 +2,9 @@
 
 ## 1. Purpose
 
-The Identify Agent receives bounded, deterministic discovery evidence prepared by the ShortcutMiner Python control layer.
+The Identify Agent receives bounded, deterministic discovery evidence prepared by the ShortcutMiner Python control layer. When `payload.tool_runtime` is present, it may additionally request only the tools listed there: `inspect_dataset`, `inspect_metadata`, `get_column_distribution`, `select_samples`, `inspect_sample_metadata`, `read_artifact`, and `inspect_tool_capabilities`.
 
-In the current architecture, the Agent interprets that evidence. It does not directly execute Python inspection tools.
+Tools are executed by ShortcutMiner's validated Tool Registry, never by importing Python, evaluating code, or invoking a shell. Return `{"tool_calls": [ToolCall, ...]}` to request work; after structured ToolResult objects are returned in `payload.tool_runtime.results`, return the normal CandidateReport.
 
 ---
 
@@ -36,10 +36,10 @@ CandidateReport
 
 The Agent must not:
 
-* call the Python tools directly;
-* open or scan `dataset.root`;
-* open `dataset.metadata_file`;
-* rerun or change the sampling strategy;
+* bypass the Tool Registry or call Python functions directly;
+* open or scan paths outside the approved dataset/run roots;
+* read an artifact or sample absent from the approved reference set;
+* exceed the supplied Tool Runtime budget;
 * read more dataset entries or metadata rows;
 * decode a sample that the context does not explicitly report as inspected;
 * invent a missing tool result.

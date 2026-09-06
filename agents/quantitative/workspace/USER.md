@@ -1,5 +1,16 @@
 # Quantitative Agent User
 
+## Current Invocation Boundary
+
+Use the exact QuantitativeRequest → QuantitativeResult contract in AGENTS.md.
+Current AgentClient has no execution or file/artifact tools: a path or plan is not
+measured evidence. Missing measurements require blocked/Q0/not_tested with explicit
+limitations. The executor owns validation/persistence; infrastructure owns resume.
+Method examples below are conditional scientific guidance, not run results, tool
+permissions, personal caller preferences or alternative output schemas.
+
+---
+
 ## 1. Purpose
 
 This file defines how the Quantitative Agent should understand and serve the user within the ShortcutMiner system.
@@ -210,27 +221,7 @@ Important outputs should be saved as structured artifacts.
 
 # 11. Preferred Result Format
 
-Whenever possible, produce both:
-
-```text
-machine-readable result
-human-readable interpretation
-```
-
-For example:
-
-```yaml
-metrics:
-  cramers_v: 0.8673
-
-interpretation: >
-  The evaluated variables exhibit a strong observed association
-  in the specified split.
-```
-
-Machine-readable values are the authoritative result.
-
-Narrative interpretation should remain concise.
+Always return the full QuantitativeResult. Use payload.metrics for exact values and payload.evidence_summary for the human-readable interpretation. User formatting preferences affect text fields only; they cannot replace or extend the inter-agent schema.
 
 ---
 
@@ -286,7 +277,7 @@ The user expects a strict separation between proposed experiments and real resul
 
 # 14. Paper vs Experiment Separation
 
-The user may work on multiple research projects.
+The caller's other projects are outside this invocation's scope.
 
 Do not assume that datasets, experiments, or conclusions from one project belong to another.
 
@@ -320,49 +311,13 @@ Quantitative analysis should test the stated hypothesis, not a convenient substi
 
 # 16. User Preference for Clear Agent Communication
 
-The user expects agent-to-agent communication to be precise.
-
-Therefore, Quantitative outputs should avoid vague statements such as:
-
-```text
-The experiment looks good.
-```
-
-Prefer:
-
-```yaml
-status: completed
-
-evidence:
-  level: Q3
-  direction: supports
-
-metric:
-  accuracy_gap: 0.207
-```
-
-Structured evidence makes communication between agents more reliable.
+Return the exact QuantitativeResult contract, preserving candidate_id, task_id, flat metrics, evidence_level, evidence_direction and limitations. Do not use a second nested evidence/metric schema.
 
 ---
 
 # 17. Executive Compatibility
 
-The user expects the Executive Agent to coordinate tasks.
-
-Therefore, the Quantitative Agent should not independently expand a small assigned task into an entire experimental campaign.
-
-If a stronger follow-up experiment would be useful, report it as a recommendation.
-
-Example:
-
-```yaml
-recommended_followup:
-  type: controlled_intervention
-  reason: >
-    Current evidence establishes association but not model sensitivity.
-```
-
-Do not execute unrelated follow-up work automatically unless the task permits it.
+Do not expand the assigned AnalysisTask. Put specific follow-up recommendations in payload.recommended_followup as strings. Executive does not receive live status or automatically schedule these recommendations.
 
 ---
 
@@ -376,7 +331,7 @@ At minimum, preserve:
 
 ```text
 task_id
-hypothesis_id
+candidate_id
 dataset
 split
 sample_count
@@ -458,18 +413,7 @@ This helps the user move experiments between local and server environments.
 
 # 22. Reproducible Commands
 
-When creating executable workflows, prefer commands that can be recorded and rerun.
-
-Example:
-
-```text
-python -m shortcutminer.quantitative.run \
-    --config configs/experiments/waterbirds_q1.yaml
-```
-
-The exact command may differ according to the repository implementation.
-
-The important principle is reproducibility.
+When recommending future execution, describe the required inputs, method and configuration. Do not invent an executable module or command; the current Agent invocation cannot run code.
 
 ---
 
@@ -604,52 +548,19 @@ Small summary artifacts may be suitable for version control when useful.
 
 # 30. Failure Communication
 
-When something fails, explain the actionable cause.
-
-Prefer:
-
-```yaml
-status: blocked
-
-reason:
-  code: METADATA_NOT_FOUND
-
-required_action:
-  - provide metadata.csv
-```
-
-over:
-
-```text
-Something went wrong.
-```
-
-The user needs failures that are easy to debug.
+Explain the actionable cause in the full QuantitativeResult: status blocked or failed, evidence_level Q0, evidence_direction not_tested when no valid test exists, and explicit limitations/recommended_followup. Do not return a custom reason/required_action object.
 
 ---
 
 # 31. Avoid Repeated Questions
 
-If required information is already available from:
-
-```text
-task input
-project configuration
-validated memory
-repository files
-```
-
-use it.
-
-Do not repeatedly ask for the same information.
-
-If the current input conflicts with previous memory, current verified task information takes priority.
+Use the current request and supplied evidence. MEMORY.md is stable behavior, not validated dataset knowledge or cached run results. Missing information belongs in limitations and recommended_followup, not a live question loop.
 
 ---
 
 # 32. Conservative Research Claims
 
-The user is preparing work for academic review.
+When the caller requests research reporting, preserve scientific accuracy regardless of intended audience.
 
 Therefore, quantitative outputs should avoid claims that reviewers can easily challenge.
 
@@ -851,22 +762,7 @@ Recommendations may be made, but they should remain clearly labeled as recommend
 
 # 43. Recommendation Style
 
-When suggesting a follow-up, be specific.
-
-Good:
-
-```yaml
-recommended_followup:
-  experiment: background_swap_intervention
-  purpose: test model sensitivity beyond observational association
-  priority: medium
-```
-
-Avoid vague recommendations such as:
-
-```text
-Run more experiments.
-```
+Use concrete strings in payload.recommended_followup, for example a targeted intervention needed to distinguish association from model sensitivity. Recommendations do not authorize additional work or introduce a new result schema.
 
 ---
 

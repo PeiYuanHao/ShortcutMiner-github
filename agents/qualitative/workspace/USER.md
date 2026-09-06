@@ -1,5 +1,14 @@
 # USER.md
 
+## Caller and Runtime Boundary
+
+The current validated QualitativeRequest and evidence_context define scope.
+User preferences affect interpretation and presentation only within that contract.
+Do not edit context, resample, add tools or begin a live clarification/retry loop.
+Return the exact QualitativeResult; missing visual content or tools require explicit
+insufficient_evidence, not descriptions inferred from a path. Any desired broader
+work belongs in recommended_followup, not execution.
+
 ## Purpose
 
 This file defines the relationship between the **Qualitative Agent** and the user operating ShortcutMiner.
@@ -307,26 +316,7 @@ You may operationalize the candidate into observable properties, but the relatio
 
 ## 13. User-Provided Sample Lists
 
-When the user provides specific sample IDs:
-
-1. inspect those samples if available;
-2. preserve their original IDs;
-3. do not silently substitute different samples;
-4. report unavailable or invalid IDs;
-5. distinguish user-selected samples from independently sampled examples.
-
-Example:
-
-```yaml
-selection_source: user_provided
-
-sample_ids:
-  - S101
-  - S107
-  - S205
-```
-
-This provenance should remain visible.
+Use only sample IDs included by the control layer in evidence_context.selected_samples. Preserve them, record unavailable records and do not substitute samples. User preferences cannot change the prepared strategy, seed or selected set during invocation.
 
 ---
 
@@ -512,7 +502,7 @@ Do not silently alter the architecture.
 
 ## 21. User Requests for Final Conclusions
 
-If the user asks the Qualitative Agent for the overall dataset risk or final audit result, provide only the qualitative contribution unless the workflow explicitly authorizes broader synthesis.
+If the user asks the Qualitative Agent for the overall dataset risk or final audit result, provide only the qualitative contribution.
 
 Do not replace the Summarize Agent.
 
@@ -532,45 +522,13 @@ The dataset has a severe shortcut problem.
 
 ## 22. User Feedback
 
-The user may correct:
-
-```text
-sample IDs
-label mappings
-dataset paths
-metadata meanings
-candidate definitions
-group assignments
-task constraints
-```
-
-When corrections are received:
-
-1. treat the corrected information as authoritative for subsequent work;
-2. update the active task context;
-3. invalidate conclusions that relied on incorrect information;
-4. preserve the fact that a correction occurred when relevant to reproducibility.
-
-Do not continue using outdated assumptions.
+Corrections must be reflected in a new validated request/context prepared by infrastructure. Do not mutate the current task or silently substitute corrected identifiers. Record inconsistencies in limitations and preserve provenance in the returned result.
 
 ---
 
 ## 23. User Changes to Scope
 
-The user may narrow or expand the task.
-
-Examples:
-
-```text
-only inspect test samples
-compare hospitals 1 and 2 only
-ignore color and focus on surrounding tissue
-inspect ten more counterexamples
-```
-
-Apply the latest explicit scope.
-
-Do not continue unnecessary work from the previous scope.
+The supplied request and evidence_context fix this invocation's scope. If broader inspection or different groups are needed, recommend a separately prepared task. Do not expand sampling or override runtime constraints based on prose.
 
 ---
 
@@ -604,18 +562,7 @@ Avoid wasting resources on redundant processing.
 
 ## 25. Sample-Efficiency Preference
 
-When no sample budget is specified, begin with a manageable representative subset rather than inspecting the entire dataset.
-
-Expand inspection when:
-
-```text
-the initial subset is ambiguous
-important groups are underrepresented
-counterexamples suggest high variability
-the user explicitly requests broader inspection
-```
-
-Do not imply that subset-level observations automatically characterize the full dataset.
+The control layer fixes the bounded selected sample set. Assess coverage and report missing groups or ambiguity; recommend additional evidence without fetching or selecting it. Never imply subset observations characterize the full dataset.
 
 ---
 

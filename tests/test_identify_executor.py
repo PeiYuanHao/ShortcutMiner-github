@@ -27,11 +27,14 @@ class MockIdentifyClient:
         self,
         agent_name: str,
         payload: dict,
+        *,
+        system_prompt: str | None = None,
     ) -> dict:
         self.calls.append(
             {
                 "agent_name": agent_name,
                 "payload": payload,
+                "system_prompt": system_prompt,
             }
         )
 
@@ -188,6 +191,8 @@ def test_executor_sends_structured_payload(
 
     assert "request" in payload
     assert "discovery_context" in payload
+    assert set(payload) == {"request", "discovery_context"}
+    assert "Identify Agent Operational Specification" in call["system_prompt"]
 
     assert (
         payload["request"]["run_id"]

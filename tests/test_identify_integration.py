@@ -16,8 +16,20 @@ class RecordingAgentClient:
         self.output = output
         self.calls: list[dict] = []
 
-    def invoke_agent(self, agent_name: str, payload: dict) -> dict:
-        self.calls.append({"agent_name": agent_name, "payload": payload})
+    def invoke_agent(
+        self,
+        agent_name: str,
+        payload: dict,
+        *,
+        system_prompt: str | None = None,
+    ) -> dict:
+        self.calls.append(
+            {
+                "agent_name": agent_name,
+                "payload": payload,
+                "system_prompt": system_prompt,
+            }
+        )
         return self.output
 
 
@@ -174,3 +186,4 @@ def test_identify_end_to_end_mock(
     assert call["payload"]["request"]["dataset"]["name"] == "test_dataset"
     assert "discovery_context" in call["payload"]
     assert "selected_samples" in call["payload"]["discovery_context"]
+    assert "Identify Agent Operational Specification" in call["system_prompt"]

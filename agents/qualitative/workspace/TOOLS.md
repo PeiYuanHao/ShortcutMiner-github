@@ -1,5 +1,27 @@
 # TOOLS.md
 
+## Current Invocation Boundary
+
+The current payload is {"request": QualitativeRequest, "evidence_context":
+QualitativeEvidenceContext}; the output is one QualitativeResult. The control layer
+prepares selected records before invocation. When `payload.tool_runtime` is present,
+the permitted tools are `inspect_dataset`, `inspect_metadata`,
+`get_column_distribution`, `select_samples`, `inspect_sample_metadata`,
+`read_artifact`, `read_run_trace`, and `inspect_tool_capabilities`. There is no
+visual model, Python, shell, arbitrary file reader, network or artifact writer.
+
+A selected metadata record or sample_available flag is not an inspected image.
+Use actual metadata values present in the payload for bounded metadata observations;
+do not infer image contents from paths. When visual evidence is required but not
+visible, return insufficient_evidence with explicit failures/limitations and no
+invented visual observations. Missing content is not negative scientific evidence.
+
+The runtime catalogue is the authoritative permission list. Return
+`{"tool_calls": [ToolCall, ...]}` to request a listed tool, then use only structured
+ToolResult data. `inspect_sample_metadata` validates path, type and size but does not
+provide image understanding. Never wait for Quantitative, dispatch work or mutate
+workspace/state. The executor validates the result and persists artifacts/events.
+
 ## Purpose
 
 This file defines how the **Qualitative Agent** should use tools during qualitative shortcut analysis.
@@ -43,27 +65,7 @@ Do not generate evidence that does not exist in the source dataset.
 
 ## 2. Tool Categories
 
-Depending on the runtime environment, available tools may include:
-
-```text
-filesystem access
-image inspection
-dataset loaders
-metadata readers
-table readers
-Python execution
-visualization utilities
-artifact readers
-search utilities
-logging tools
-workspace tools
-```
-
-The exact tool names may vary.
-
-Use tools according to their actual documented capability.
-
-Never assume a tool supports an operation that has not been verified.
+Current callable tools are exactly those supplied in `payload.tool_runtime.tools`; the maximum permission set is listed above. The following methods do not grant additional access. Do not read unapproved files, run Python, create images, install packages or access the network.
 
 ---
 
@@ -98,7 +100,7 @@ Do not fabricate its contents.
 
 ## 4. Image Inspection
 
-Image inspection is one of the primary tool capabilities of the Qualitative Agent.
+Image inspection is a domain responsibility, but no image-inspection tool is exposed in the current invocation.
 
 Use image tools when the candidate involves:
 
@@ -356,7 +358,7 @@ organizing qualitative evidence
 
 Python is not the Qualitative Agent's primary statistical-analysis engine.
 
-Do not reproduce the Quantitative Agent's full experimental workflow unless explicitly requested.
+Do not reproduce the Quantitative Agent's experimental workflow.
 
 ---
 
@@ -490,122 +492,45 @@ If you create annotations or derived inspection artifacts, save them separately.
 
 ## 18. Quantitative Outputs
 
-You may read quantitative outputs such as:
-
-```text
-association scores
-subgroup statistics
-model predictions
-intervention results
-plots
-candidate rankings
-```
-
-Use them to guide qualitative inspection when appropriate.
-
-For example:
-
-```text
-inspect samples with the strongest shortcut score
-```
-
-is valid if the selection criterion is recorded.
-
-Do not independently alter quantitative conclusions.
+Quantitative and Qualitative run as parallel branches. Do not fetch, await or use current sibling results to resample. Only previously authorized content explicitly embedded in the request can provide context; it cannot replace direct qualitative evidence. Final cross-branch comparison belongs to Summarize.
 
 ---
 
 ## 19. Model Prediction Inspection
 
-If model predictions are available, they may be used to identify useful qualitative subsets such as:
-
-```text
-correct predictions
-incorrect predictions
-high-confidence predictions
-low-confidence predictions
-shortcut-aligned failures
-OOD failures
-```
-
-Model outputs provide context.
-
-They do not themselves constitute qualitative observations about the sample.
-
-Keep the two evidence types separate.
+Use prediction context only if explicitly supplied for the selected records. Do not create new subsets or change sampling to target model failures. Predictions are not visual observations and do not expose sample contents.
 
 ---
 
 ## 20. Logging
 
-Important tool operations should be traceable.
-
-Record when practical:
-
-```text
-tool purpose
-input artifact
-sample IDs
-output artifact
-failure status
-```
-
-Example:
-
-```yaml
-operation: create_contact_sheet
-candidate_id: C-004
-
-input_samples:
-  - S001
-  - S012
-  - S041
-  - S054
-
-output_artifact: artifacts/C-004/group_comparison.png
-```
-
-Avoid unnecessary low-level logging that does not contribute to reproducibility.
+Represent evidence provenance and failures in the canonical QualitativeResult fields. The executor writes runtime events and persists the result. The Agent has no logging or artifact-writing tool; do not claim to generate operational logs.
 
 ---
 
 ## 21. Derived Artifacts
 
-The Qualitative Agent may create derived inspection artifacts.
+No artifact-writing tool is exposed. The executor persists the returned QualitativeResult and prepared input. Do not claim to create contact sheets, crops, sample manifests or annotations. Result references must be authorized existing references; a permitted output prefix is not proof that a file exists or authorization to invent it.
 
-Examples:
-
-```text
-contact sheets
-comparison panels
-sample manifests
-inspection notes
-annotated tables
-cropped views
-```
-
-Store derived artifacts separately from source data.
-
-Recommended structure:
+The validator's candidate-scoped namespace is supplied through
+`evidence_context.allowed_output_artifact_prefix`:
 
 ```text
 qualitative/
   artifacts/
     <candidate_id>/
-      sample_manifest.*
-      comparison_panel.*
-      observations.*
 ```
 
-Every result reference to a derived artifact must remain below the exact
-candidate-scoped prefix supplied as
-`evidence_context.allowed_output_artifact_prefix`.
+Any derived reference must be below that exact prefix and refer to a real file;
+the executor checks existence when runs_root is configured. This namespace does
+not grant the Agent a file-writing tool. Without an explicitly supplied, existing
+derived artifact, return only authoritative input references or an empty list.
 
 ---
 
 ## 22. Never Overwrite Source Data
 
-Source samples and metadata should be treated as read-only unless the task explicitly requires otherwise.
+Source samples and metadata are read-only for this Agent.
 
 Do not:
 
@@ -651,20 +576,7 @@ Do not classify negative evidence as a tool failure.
 
 ## 24. Retry Rules
 
-Retry tool calls when the failure appears operational.
-
-Appropriate retry reasons:
-
-```text
-temporary read failure
-transient runtime error
-recoverable format issue
-temporary resource failure
-```
-
-Do not repeatedly retry because the observed result does not support the hypothesis.
-
-Retries should solve execution problems, not scientific disagreement.
+Do not retry tool calls, poll for missing files or wait for new evidence. Record the unavailable capability or inspection failure in the structured result. Infrastructure controls invocation retry and checkpoint/resume. A contradictory result never justifies repeated confirmation-seeking.
 
 ---
 
@@ -812,9 +724,9 @@ Tool outputs should remain associated with the correct candidate.
 Avoid mixing:
 
 ```text
-C-001 samples
-C-002 observations
-C-003 metadata
+C001 samples
+C002 observations
+C003 metadata
 ```
 
 in one undifferentiated artifact.
@@ -899,26 +811,13 @@ OOD benchmark evaluation
 
 The Qualitative Agent may inspect outputs from these tasks.
 
-Do not duplicate them unless the Executive Agent explicitly assigns a hybrid task.
+Do not duplicate them or accept a hybrid task that changes the fixed role boundary.
 
 ---
 
 ## 36. Tool Boundary With Identify Agent
 
-Do not use tools for unrestricted candidate mining.
-
-You may notice new patterns during assigned inspection.
-
-Record them as:
-
-```yaml
-incidental_observation:
-  description:
-  sample_refs:
-  requires_followup: true
-```
-
-Do not automatically promote them to active shortcut candidates.
+Do not mine new candidates. If an incidental pattern is relevant to an existing observation, preserve it without changing candidate identity; propose a separate investigation only in recommended_followup. Do not add an incidental_observation field to QualitativeResult.
 
 ---
 
@@ -932,7 +831,7 @@ If additional evidence is needed, report:
 recommended_followup
 ```
 
-The Executive Agent decides whether that follow-up should be scheduled.
+Follow-up is a recommendation for a separately requested audit; it does not trigger scheduling in the current one-shot workflow.
 
 ---
 

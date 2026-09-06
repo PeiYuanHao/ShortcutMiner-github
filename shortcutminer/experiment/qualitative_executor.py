@@ -3,6 +3,7 @@ from pathlib import Path, PurePosixPath
 from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.experiment.qualitative_context import (
     QualitativeEvidenceContext,
     build_qualitative_context,
@@ -17,6 +18,8 @@ from shortcutminer.storage.qualitative_artifacts import (
     save_qualitative_raw_output,
     save_qualitative_result,
 )
+from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.runtime import ToolRuntime
 class QualitativeExecutionError(RuntimeError):
     """Raised when Qualitative cannot produce a valid evidence result."""
 
@@ -194,6 +197,8 @@ def validate_qualitative_result(
         raise QualitativeExecutionError(
             "QualitativeResult message_id must identify a new message."
         )
+    if payload.task_id != request.task.task_id:
+        raise QualitativeExecutionError("QualitativeResult changed task_id.")
     if payload.candidate_id != request.candidate.candidate_id:
         raise QualitativeExecutionError("QualitativeResult changed candidate_id.")
     if payload.candidate_name != request.candidate.cue.name:
@@ -346,6 +351,9 @@ def execute_qualitative(
     request: QualitativeRequest,
     client: AgentClient,
     runs_root: str | Path | None = None,
+    workspace_dir: str | Path | None = None,
+    artifact_scope: str | None = None,
+    tool_runtime: ToolRuntime | None = None,
 ) -> QualitativeResult:
     try:
         if runs_root is not None:
@@ -360,16 +368,27 @@ def execute_qualitative(
         context = build_qualitative_context(request)
         validate_qualitative_context(context, request)
         payload = build_qualitative_agent_payload(request, context)
+        system_prompt = load_agent_workspace_prompt(
+            "qualitative", workspace_dir
+        )
 
         if runs_root is not None:
             save_qualitative_input(
                 runs_root,
                 run_id=request.run_id,
                 payload=payload,
+                scope=artifact_scope,
             )
 
         try:
-            raw_output = client.invoke_agent("qualitative", payload)
+            invocation = invoke_agent_with_tools(
+                client,
+                "qualitative",
+                payload,
+                system_prompt=system_prompt,
+                tool_runtime=tool_runtime,
+            )
+            raw_output = invocation.output
         except Exception as exc:
             raise QualitativeExecutionError(
                 f"Qualitative agent invocation failed: {exc}"
@@ -379,6 +398,7 @@ def execute_qualitative(
                 runs_root,
                 run_id=request.run_id,
                 raw_output=raw_output,
+                scope=artifact_scope,
             )
         if not isinstance(raw_output, dict):
             raise QualitativeExecutionError(
@@ -398,7 +418,11 @@ def execute_qualitative(
             runs_root=runs_root,
         )
         if runs_root is not None:
-            save_qualitative_result(runs_root, result)
+            save_qualitative_result(
+                runs_root,
+                result,
+                scope=artifact_scope,
+            )
             append_event(
                 runs_root=runs_root,
                 run_id=request.run_id,

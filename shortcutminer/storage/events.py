@@ -1,6 +1,7 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock
 from typing import Any
 
 from shortcutminer.storage.paths import (
@@ -11,6 +12,16 @@ from shortcutminer.storage.paths import (
 
 class EventLogError(RuntimeError):
     """Raised when an experiment event cannot be recorded."""
+
+
+_EVENT_LOCKS_GUARD = Lock()
+_EVENT_LOCKS: dict[str, Lock] = {}
+
+
+def _event_lock(path: Path) -> Lock:
+    key = str(path.resolve(strict=False))
+    with _EVENT_LOCKS_GUARD:
+        return _EVENT_LOCKS.setdefault(key, Lock())
 
 
 def append_event(
@@ -69,11 +80,12 @@ def append_event(
             exist_ok=True,
         )
 
-        with event_path.open(
-            "a",
-            encoding="utf-8",
-        ) as file:
-            file.write(f"{serialized}\n")
+        with _event_lock(event_path):
+            with event_path.open(
+                "a",
+                encoding="utf-8",
+            ) as file:
+                file.write(f"{serialized}\n")
 
     except Exception as exc:
         raise EventLogError(

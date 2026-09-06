@@ -38,6 +38,7 @@ def _valid_output(request, context) -> dict:
         "message_type": "qualitative_analysis_result",
         "in_reply_to": request.message_id,
         "payload": {
+            "task_id": request.task.task_id,
             "candidate_id": "C001",
             "candidate_name": "dark_border",
             "hypothesis": request.candidate.hypothesis,

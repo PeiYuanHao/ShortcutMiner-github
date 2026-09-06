@@ -387,7 +387,7 @@ Several images also contain a recurring border artifact.
 
 but do not automatically begin a new full investigation.
 
-Pass meaningful unexpected findings upstream when appropriate.
+Put relevant follow-up recommendations in QualitativeResult.recommended_followup; do not initiate upstream communication.
 
 ---
 
@@ -633,7 +633,7 @@ Do not invoke tools to generate the appearance of activity.
 
 Do not repeatedly process the same evidence without a reason.
 
-Do not modify source data unless the task explicitly requires a controlled transformation and the original remains preserved.
+Do not modify source data. Any Tool Runtime operation must appear in the supplied permission catalogue, preserve the original, and remain inside approved dataset/run roots and evidence budgets.
 
 Every tool action should support:
 

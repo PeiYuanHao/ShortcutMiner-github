@@ -2,8 +2,7 @@
 
 ## 1. Current Scope
 
-Protocol version `1.0` currently defines complete canonical contracts for the
-Identify, Executive planning, and single-task Qualitative evidence stages:
+Protocol version `1.0` defines canonical contracts for the five-agent workflow:
 
 ```text
 Orchestrator
@@ -20,31 +19,35 @@ Executive Agent
     v
 Orchestrator
     |
-    | QualitativeRequest + QualitativeEvidenceContext
-    v
-Qualitative Agent
-    |
-    | QualitativeResult
-    v
-Summarize (downstream contract consumer)
+    +--> QuantitativeRequest --> QuantitativeResult --+
+    |                                               |
+    +--> QualitativeRequest --> QualitativeResult ---+
+                                                    |
+                                                    v
+                                             Summarize Agent
+                                                    |
+                                                    v
+                                               SummaryReport
 ```
 
 The executable Pydantic contracts are defined in
-`shortcutminer/protocol/identify.py`, `shortcutminer/protocol/executive.py`, and
-`shortcutminer/protocol/qualitative.py`. Deterministic preparation and
+`shortcutminer/protocol/identify.py`, `shortcutminer/protocol/executive.py`,
+`shortcutminer/protocol/quantitative.py`,
+`shortcutminer/protocol/qualitative.py`, and
+`shortcutminer/protocol/summarize.py`. Deterministic preparation and
 cross-stage construction live in the corresponding `shortcutminer/experiment/`
 modules. This document describes the same wire contracts and their cross-object
 invariants.
 
-Quantitative and summary result message bodies will be added as their agents are
-implemented. They must follow the same explicit envelope principles, but no
-incomplete placeholder schema for those stages is part of protocol `1.0`.
+Parallel branch result batches are defined in
+`shortcutminer/protocol/batches.py` and form the explicit fan-in payload for
+Summarize.
 
 ---
 
 ## 2. Validation Policy
 
-Every implemented Identify, Executive, and Qualitative protocol model uses these rules:
+Every implemented protocol model uses these rules:
 
 * unknown fields are forbidden at every nesting level;
 * JSON types are strict and are not silently coerced;
@@ -443,9 +446,9 @@ When the remaining stage contracts are implemented, each message will define:
 * cross-object and budget invariants;
 * a documented degraded/failure boundary.
 
-Quantitative and Summarize result contracts remain future work. Qualitative is
-defined in Section 12; this document does not treat placeholders for the other
-stages as valid or stable contracts.
+Quantitative and Summarize contracts are implemented as strict Pydantic models.
+Their detailed field-level reference can be expanded in a later documentation
+phase; their executable schemas are authoritative.
 
 ---
 
@@ -785,6 +788,7 @@ The Agent returns:
   "message_type": "qualitative_analysis_result",
   "in_reply_to": "msg_qualitative_request_C001",
   "payload": {
+    "task_id": "TASK-C001-QL",
     "candidate_id": "C001",
     "candidate_name": "background_category",
     "hypothesis": "Background category may be associated with the label.",
@@ -828,6 +832,7 @@ The Qualitative boundary enforces:
 request/task/context/result protocol_version and run_id agree
 request.in_reply_to == task.message_id
 result.in_reply_to == request.message_id
+result.payload.task_id == request.task.task_id
 candidate ID, cue name, and hypothesis are preserved
 task target == qualitative and task ID suffix == -QL
 preparation record budget <= task sample_limit

@@ -2,11 +2,7 @@
 
 ## 1. Purpose
 
-The heartbeat verifies that the Identify Agent can continue the current run safely and can produce a valid result.
-
-Heartbeat behavior concerns runtime health only.
-
-It must not perform shortcut discovery itself.
+HEARTBEAT.md is the fixed health and output checklist for each invocation. It is not a background heartbeat loop, polling service, periodic wake-up or independent retry mechanism. Check the supplied request/context, evidence boundary and CandidateReport, then return once. The executor validates and persists results/events; the Agent does not write workflow state.
 
 ---
 

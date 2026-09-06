@@ -23,6 +23,7 @@ def _insufficient_result(run_id: str = "qualitative_test_run") -> QualitativeRes
         message_type="qualitative_analysis_result",
         in_reply_to="qualitative:request:C001",
         payload={
+            "task_id": "TASK-C001-QL",
             "candidate_id": "C001",
             "candidate_name": "dark_border",
             "hypothesis": "A dark border may be associated with the label.",

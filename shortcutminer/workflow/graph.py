@@ -1,7 +1,12 @@
-"""Construction of the minimal ShortcutMiner LangGraph workflow."""
+"""Construction of the complete five-agent LangGraph workflow."""
+
+from functools import partial
 
 from langgraph.graph import END, START, StateGraph
 
+from shortcutminer.agent_client import AgentClient
+from shortcutminer.tooling.protocol import AgentName
+from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.nodes import (
     executive_node,
     identify_node,
@@ -12,15 +17,68 @@ from shortcutminer.workflow.nodes import (
 from shortcutminer.workflow.state import ShortcutMinerState
 
 
-def create_workflow_graph() -> StateGraph:
-    """Create the uncompiled five-stage workflow graph."""
+def create_workflow_graph(
+    identify_client: AgentClient | None = None,
+    *,
+    agent_client: AgentClient | None = None,
+    executive_client: AgentClient | None = None,
+    quantitative_client: AgentClient | None = None,
+    qualitative_client: AgentClient | None = None,
+    summarize_client: AgentClient | None = None,
+    tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+) -> StateGraph:
+    """Create the graph while keeping all runtime objects outside state."""
+    shared_client = (
+        agent_client if agent_client is not None else identify_client
+    )
+
+    def select_client(specific: AgentClient | None) -> AgentClient | None:
+        return specific if specific is not None else shared_client
+
+    runtimes = tool_runtimes or {}
+
     graph = StateGraph(ShortcutMinerState)
 
-    graph.add_node("identify", identify_node)
-    graph.add_node("executive", executive_node)
-    graph.add_node("quantitative", quantitative_node)
-    graph.add_node("qualitative", qualitative_node)
-    graph.add_node("summarize", summarize_node)
+    graph.add_node(
+        "identify",
+        partial(
+            identify_node,
+            client=select_client(identify_client),
+            tool_runtime=runtimes.get("identify"),
+        ),
+    )
+    graph.add_node(
+        "executive",
+        partial(
+            executive_node,
+            client=select_client(executive_client),
+            tool_runtime=runtimes.get("executive"),
+        ),
+    )
+    graph.add_node(
+        "quantitative",
+        partial(
+            quantitative_node,
+            client=select_client(quantitative_client),
+            tool_runtime=runtimes.get("quantitative"),
+        ),
+    )
+    graph.add_node(
+        "qualitative",
+        partial(
+            qualitative_node,
+            client=select_client(qualitative_client),
+            tool_runtime=runtimes.get("qualitative"),
+        ),
+    )
+    graph.add_node(
+        "summarize",
+        partial(
+            summarize_node,
+            client=select_client(summarize_client),
+            tool_runtime=runtimes.get("summarize"),
+        ),
+    )
 
     graph.add_edge(START, "identify")
     graph.add_edge("identify", "executive")
@@ -32,6 +90,14 @@ def create_workflow_graph() -> StateGraph:
     return graph
 
 
-def build_workflow():
-    """Compile and return the Phase 1 ShortcutMiner workflow."""
-    return create_workflow_graph().compile()
+def build_workflow(
+    identify_client: AgentClient | None = None,
+    checkpointer=None,
+    **clients,
+):
+    """Compile the workflow with injected, runtime-agnostic clients."""
+    graph = create_workflow_graph(
+        identify_client=identify_client,
+        **clients,
+    )
+    return graph.compile(checkpointer=checkpointer)

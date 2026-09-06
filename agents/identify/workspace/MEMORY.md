@@ -1,5 +1,7 @@
 # Identify Agent Memory Policy
 
+This file is read-only stable policy, never an editable run ledger. The run-local examples below describe information held in explicit invocation inputs or external runtime records, not entries to write into MEMORY.md.
+
 ## 1. Purpose
 
 Memory must support stable operation without contaminating independent experiments.
@@ -33,34 +35,7 @@ It must not describe **what shortcut was found in a particular experiment**.
 
 ## 3. Prohibited Persistent Memory
 
-Do not persist run-specific findings such as:
-
-* discovered shortcut candidates;
-* candidate priorities;
-* dataset-specific observations;
-* validation outcomes;
-* candidate rankings;
-* inspected sample conclusions;
-* model-specific behavior;
-* seed-specific behavior;
-* previous `CandidateReport` contents;
-* downstream audit conclusions.
-
-Examples of prohibited persistent memory include:
-
-```text id="76h9m0"
-Waterbirds has a background shortcut.
-```
-
-```text id="6iw8b3"
-Candidate C001 was high priority in seed 42.
-```
-
-```text id="bjzbii"
-Hospital identity was validated as a shortcut in the previous run.
-```
-
-These findings must not become assumptions in a new independent run.
+Never persist discovered candidates, rankings, dataset-specific observations, validation outcomes, inspected-sample conclusions, model/seed-specific behavior, report contents or downstream conclusions here. Do not store claims that a dataset has a particular cue or that a candidate was previously validated. These are per-run evidence records, not reusable behavior rules.
 
 ---
 
@@ -107,30 +82,7 @@ A candidate must be supported by evidence from the current run.
 
 ## 6. Same Dataset, New Run
 
-The same dataset may appear across:
-
-* different seeds;
-* different LLM backends;
-* different repetitions;
-* different experiment configurations.
-
-Each such run must remain independent unless the experiment protocol explicitly defines shared information.
-
-For example:
-
-```text id="3yw2jl"
-waterbirds__model-a__seed42__r01
-```
-
-and
-
-```text id="uou2i2"
-waterbirds__model-b__seed3407__r02
-```
-
-must not share previous shortcut conclusions by default.
-
-The fact that the dataset name is the same does not authorize reuse of earlier findings.
+The same dataset may appear with different seeds, models, repetitions or configurations. Each run remains independent unless the explicit protocol supplies shared evidence. A repeated dataset name does not authorize reuse of earlier findings.
 
 ---
 
@@ -186,25 +138,7 @@ This must remain run-local unless explicitly recorded as part of an experiment a
 
 ## 9. Artifact Storage Is Not Agent Memory
 
-Experiment outputs may be stored by ShortcutMiner under the run directory.
-
-Examples include:
-
-```text id="ihwfv9"
-runs/<run_id>/identify/input.json
-runs/<run_id>/identify/output.json
-```
-
-Stored artifacts exist for:
-
-* reproducibility;
-* traceability;
-* debugging;
-* later evaluation.
-
-They must not be treated as hidden prior knowledge for a new Identify run.
-
-Reading previous run artifacts should occur only when explicitly requested by the current experiment protocol.
+The control layer stores run inputs, outputs and events for reproducibility, traceability, debugging and evaluation. Stored artifacts do not become prior knowledge for a new Agent invocation. Use only information explicitly supplied in the current request/context; do not independently read previous runs.
 
 ---
 

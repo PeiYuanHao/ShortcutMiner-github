@@ -54,34 +54,7 @@ Treat explicitly provided user constraints as authoritative unless they conflict
 
 # 3. Audit Context
 
-A typical audit context may conceptually contain:
-
-```json
-{
-  "run_id": "<run_id>",
-  "dataset": {
-    "name": "<dataset_name>",
-    "reference": "<dataset_ref>",
-    "splits": [
-      "train",
-      "val",
-      "test"
-    ]
-  },
-  "model": {
-    "available": true,
-    "reference": "<model_ref>"
-  },
-  "audit_options": {
-    "budget": "<budget>",
-    "validation_depth": "<depth>",
-    "sample_limit": "<limit>",
-    "allowed_tools": []
-  }
-}
-```
-
-The exact schema is defined by the ShortcutMiner runtime protocol.
+User intent is supplied through ExecutiveRequest.candidate_report and routing_context. The latter contains protocol_version, run_id, dataset, task, audit_options, capabilities, artifact_references and limitations. Use the exact ExecutiveRoutingContext schema; do not invent budget, model or tool fields.
 
 ---
 
@@ -166,7 +139,7 @@ For example, do not construct:
 hospital_id → label association
 ```
 
-unless `hospital_id` is actually available or can be validly derived.
+unless that exact field is listed as available in routing_context.capabilities.
 
 ---
 
@@ -305,7 +278,7 @@ metadata-only analysis
 
 Do not silently substitute a prohibited tool.
 
-If the requested validation cannot be performed, mark it as blocked or unresolved.
+If the requested validation cannot be performed, represent it as unresolved in the RoutingPlan.
 
 ---
 
@@ -376,7 +349,7 @@ execution logs
 
 The Executive Agent should include these requirements in downstream task definitions when appropriate.
 
-Do not generate final report prose itself unless explicitly required by the protocol.
+Do not generate final report prose in this planning invocation.
 
 Final synthesis belongs to Summarize.
 
@@ -407,30 +380,7 @@ Convert informal claims into testable hypotheses.
 
 # 16. Missing User Information
 
-Do not guess critical missing information.
-
-Examples include:
-
-```text
-label column
-dataset split
-model location
-metadata field
-candidate identity
-sample reference
-```
-
-When a task cannot be safely constructed, preserve the limitation through structured state.
-
-Example:
-
-```json
-{
-  "candidate_id": "SC-005",
-  "status": "unresolved",
-  "reason": "The required metadata field was not provided."
-}
-```
+Do not guess label columns, splits, model access, metadata, candidate identity or artifacts. Preserve every candidate and represent an unplannable one with RoutingDecision.route/status = unresolved, task_ids = [], and a missing_requirements or limitations entry.
 
 ---
 

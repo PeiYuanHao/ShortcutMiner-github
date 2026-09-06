@@ -94,6 +94,7 @@ def _result_data() -> dict:
         "message_type": "qualitative_analysis_result",
         "in_reply_to": "qualitative:request:C001",
         "payload": {
+            "task_id": "TASK-C001-QL",
             "candidate_id": "C001",
             "candidate_name": "dark_border",
             "hypothesis": candidate["hypothesis"],
@@ -140,6 +141,7 @@ def test_qualitative_request_accepts_complete_contract():
 
 def test_qualitative_result_accepts_separated_evidence_contract():
     result = QualitativeResult.model_validate(_result_data())
+    assert result.payload.task_id == "TASK-C001-QL"
     assert result.payload.observations[0].observation_id == "QO-C001-001"
     assert result.payload.interpretations[0].confidence == "low"
 

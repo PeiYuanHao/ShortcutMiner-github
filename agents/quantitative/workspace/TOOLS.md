@@ -1,5 +1,28 @@
 # Quantitative Agent Tools
 
+## Current Invocation Boundary
+
+The executable contract is QuantitativeRequest → QuantitativeResult, defined in
+shortcutminer/protocol/quantitative.py. The payload contains request and, when
+configured, a provider-neutral `tool_runtime` catalogue/result history. Permitted
+tools are `inspect_dataset`, `inspect_metadata`, `get_column_distribution`,
+`select_samples`, `inspect_sample_metadata`, `read_artifact`, `read_run_trace`,
+`run_experiment`, and `inspect_tool_capabilities`. There is no Python, shell,
+dynamic import, source-editing, package-installation or unrestricted network tool.
+
+Use only explicitly supplied, traceable evidence. Without actual quantitative
+measurements, return blocked with Q0, not_tested, empty metrics, and explicit
+limitations/recommended_followup. Never manufacture measurements from hypotheses.
+The executor validates and persists the result and events. Do not call other
+agents, update workspace/state, retry tasks or control checkpoint/resume.
+
+The method guidance and numerical examples below are scientific reference material,
+not real run results or alternative output schemas. Apply a method only through a
+listed authorized tool with the necessary evidence. Return
+`{"tool_calls": [ToolCall, ...]}` to request execution, then use the structured
+ToolResult history to form the normal QuantitativeResult. Recommendations do not
+authorize execution. Exact output fields are defined in AGENTS.md.
+
 ## 1. Purpose
 
 This file defines how the Quantitative Agent should use available tools during shortcut auditing.
@@ -52,23 +75,7 @@ Prefer direct and reproducible execution.
 
 # 3. Tool Categories
 
-The Quantitative Agent may work with tools in the following categories:
-
-```text
-dataset inspection
-metadata analysis
-statistical computation
-code execution
-model inference
-artifact management
-configuration reading
-result validation
-visualization
-```
-
-Specific tool names may vary between deployments.
-
-Reason about capabilities rather than depending on a single hard-coded tool name.
+Current callable tools are exactly the entries supplied in `payload.tool_runtime.tools`; the list above is the maximum Quantitative permission set. The method catalogue does not grant any additional filesystem, Python, provider, network, package-installation or artifact-writing access. Experiments must use `run_experiment`, which delegates to the configured ExperimentExecutor.
 
 ---
 
@@ -771,48 +778,13 @@ rather than only as rendered images.
 
 # 30. Artifact Writing
 
-Quantitative results should be stored under the designated artifact structure.
-
-Recommended layout:
-
-```text
-results/
-└── quantitative/
-    └── <task_id>/
-        ├── result.json
-        ├── metrics.json
-        ├── tables/
-        ├── predictions/
-        ├── figures/
-        └── logs/
-```
-
-Do not overwrite outputs from another task.
+Artifact persistence belongs to the executor and Tool Runtime. Return QuantitativeResult; reference only supplied task inputs or artifact paths returned by successful ToolResult objects. Do not choose a new results directory or claim an unreported artifact was written.
 
 ---
 
 # 31. Result JSON
 
-`result.json` should contain the high-level structured result.
-
-Recommended content:
-
-```yaml
-task_id:
-hypothesis_id:
-status:
-dataset:
-split:
-sample:
-analysis:
-metrics:
-evidence:
-limitations:
-reproducibility:
-artifacts:
-```
-
-It should be sufficient for Executive and Summarize to understand the result without opening raw logs.
+The stored result.json is the executor-persisted QuantitativeResult with the exact envelope and payload in AGENTS.md. There is no separate result schema. Numerical evidence belongs in flat payload.metrics, explanatory context in evidence_summary/limitations, and follow-up in a list of strings.
 
 ---
 
@@ -1012,34 +984,13 @@ Machine-specific root paths may come from environment configuration.
 
 # 41. Environment Variables
 
-Use environment variables for machine-specific settings when appropriate.
-
-Examples:
-
-```text
-DATA_ROOT
-RESULTS_ROOT
-CHECKPOINT_ROOT
-DEVICE
-```
-
-Do not store secrets in repository configuration.
+The control layer resolves environment/configuration before invocation. The Agent must not read environment variables, credentials or machine-local paths; use the supplied request.
 
 ---
 
 # 42. Dependency Discipline
 
-Do not install a new library when the task can reasonably be completed with existing dependencies.
-
-If a new dependency is genuinely required:
-
-```text
-justify its purpose
-pin or constrain its version when appropriate
-document the change
-```
-
-Avoid dependency inflation.
+No installation tools are available in the current invocation. If execution requires an unavailable dependency, report it in limitations/recommended_followup. Dependency changes require a separate authorized engineering task.
 
 ---
 
@@ -1103,7 +1054,9 @@ do not silently start a much larger experiment.
 
 When possible, use cheap validation before expensive execution.
 
-If the requested experiment cannot reasonably fit the budget, return a structured blocked or incomplete status.
+If the requested experiment cannot reasonably fit the budget, return a full
+QuantitativeResult with status blocked, evidence_level Q0 and explicit limitations.
+There is no incomplete status in this protocol.
 
 ---
 
@@ -1175,33 +1128,7 @@ Do not reuse cache entries when these conditions differ materially.
 
 # 49. Tool Failure vs Hypothesis Failure
 
-Distinguish between:
-
-```text
-experiment successfully contradicts hypothesis
-```
-
-and:
-
-```text
-tool execution failed
-```
-
-The first is:
-
-```yaml
-status: completed
-evidence:
-  direction: contradicts
-```
-
-The second is:
-
-```yaml
-status: failed
-```
-
-Never confuse scientific negative evidence with infrastructure failure.
+A valid test that contradicts the hypothesis is status completed with evidence_direction contradicts and its actual Q1–Q4 level. An execution failure is failed/Q0; no available test is blocked/Q0/not_tested. Never confuse scientific negative evidence with missing computation.
 
 ---
 
@@ -1235,7 +1162,7 @@ Preserve:
 
 ```text
 task_id
-hypothesis_id
+candidate_id
 dataset
 split
 model
@@ -1294,26 +1221,7 @@ If a quantitative task reveals information relevant to another agent, report it 
 
 # 54. Executive Interaction
 
-Tool results returned to Executive should summarize execution status.
-
-Example:
-
-```yaml
-task_id: Q-008
-
-status: completed
-
-execution:
-  source: fresh
-
-analysis:
-  type: subgroup_model_evaluation
-
-artifacts:
-  result: results/quantitative/Q-008/result.json
-```
-
-Executive should not need to inspect raw terminal output.
+Do not send tool results or status updates to Executive. Return the canonical QuantitativeResult addressed to summarize; infrastructure validates it and retains correlation to the planned task.
 
 ---
 

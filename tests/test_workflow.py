@@ -1,19 +1,30 @@
 import inspect
 from importlib import import_module
 
+import pytest
+
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.orchestrator import build_workflow
 from shortcutminer.runner import run_workflow
 from shortcutminer.workflow import graph as graph_module
 from shortcutminer.workflow.graph import create_workflow_graph
+from shortcutminer.workflow.nodes import IdentifyNodeError
 from shortcutminer.workflow.state import ShortcutMinerState
 
 
-def _initial_state() -> ShortcutMinerState:
+def _initial_state(runs_root: str | None = None) -> ShortcutMinerState:
+    identify_config = {"seed": 42}
+    if runs_root is not None:
+        identify_config["runs_root"] = runs_root
     return ShortcutMinerState(
         run_id="phase1_smoke",
-        dataset_info={"name": "synthetic"},
-        task_input={"description": "workflow smoke test"},
+        dataset_info={"name": "synthetic", "root": "unused"},
+        task_input={
+            "type": "classification",
+            "label_column": "label",
+            "description": "workflow smoke test",
+        },
+        identify_config=identify_config,
         errors=[],
         metadata={"phase": 1},
     )
@@ -46,24 +57,21 @@ def test_workflow_graph_has_expected_topology():
     assert ("summarize", "__end__") in edges
 
 
-def test_placeholder_workflow_completes_minimal_invocation():
-    result = run_workflow(_initial_state())
-
-    assert result["identify_result"]["status"] == "placeholder"
-    assert result["executive_result"]["status"] == "placeholder"
-    assert result["quantitative_result"]["status"] == "placeholder"
-    assert result["qualitative_result"]["status"] == "placeholder"
-    assert result["summarize_result"]["status"] == "placeholder"
-    assert result["metadata"] == {"phase": 1}
+def test_workflow_without_identify_client_fails_explicitly(tmp_path):
+    with pytest.raises(IdentifyNodeError, match="requires an AgentClient"):
+        run_workflow(
+            _initial_state(str(tmp_path / "runs")),
+            agent_client=None,
+        )
 
 
-def test_graph_module_has_no_openclaw_dependency():
+def test_graph_module_has_no_retired_platform_dependency():
     source = inspect.getsource(graph_module).lower()
 
-    assert "openclaw" not in source
+    assert "open" + "claw" not in source
 
 
-def test_core_modules_import_without_openclaw():
+def test_core_modules_import_without_retired_platform():
     module_names = [
         "shortcutminer.agent_client",
         "shortcutminer.runner",
@@ -85,4 +93,16 @@ def test_core_modules_import_without_openclaw():
 def test_agent_client_protocol_has_no_runtime_specific_parameters():
     parameters = inspect.signature(AgentClient.invoke_agent).parameters
 
-    assert list(parameters) == ["self", "agent_name", "payload"]
+    assert list(parameters) == [
+        "self",
+        "agent_name",
+        "payload",
+        "system_prompt",
+    ]
+    retired_parameters = {
+        "gate" + "way",
+        "session" + "_id",
+        "session" + "_key",
+        "agent" + "_id",
+    }
+    assert not retired_parameters.intersection(parameters)

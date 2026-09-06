@@ -7,6 +7,9 @@ from shortcutminer.experiment.identify_context import (
     IdentifyDiscoveryContext,
     build_identify_context,
 )
+from shortcutminer.experiment.identify_workspace import (
+    load_identify_workspace_prompt,
+)
 from shortcutminer.protocol.identify import (
     CandidateReport,
     IdentifyRequest,
@@ -17,6 +20,8 @@ from shortcutminer.storage.identify_artifacts import (
     save_identify_output,
     save_identify_raw_output,
 )
+from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.runtime import ToolRuntime
 class IdentifyExecutionError(RuntimeError):
     """Raised when Identify execution cannot produce a valid report."""
 
@@ -270,6 +275,9 @@ def execute_identify(
     seed: int,
     client: AgentClient,
     runs_root: str | Path | None = None,
+    workspace_dir: str | Path | None = None,
+    context: IdentifyDiscoveryContext | None = None,
+    tool_runtime: ToolRuntime | None = None,
 ) -> CandidateReport:
     """
     Execute one Identify stage.
@@ -287,14 +295,19 @@ def execute_identify(
                 stage="identify",
             )
 
-        context = build_identify_context(
-            request=request,
-            seed=seed,
-        )
+        if context is None:
+            context = build_identify_context(
+                request=request,
+                seed=seed,
+            )
 
         payload = build_identify_agent_payload(
             request=request,
             context=context,
+        )
+
+        system_prompt = load_identify_workspace_prompt(
+            workspace_dir=workspace_dir,
         )
 
         if runs_root is not None:
@@ -305,10 +318,14 @@ def execute_identify(
             )
 
         try:
-            raw_output = client.invoke_agent(
-                agent_name="identify",
-                payload=payload,
+            invocation = invoke_agent_with_tools(
+                client,
+                "identify",
+                payload,
+                system_prompt=system_prompt,
+                tool_runtime=tool_runtime,
             )
+            raw_output = invocation.output
 
         except Exception as exc:
             raise IdentifyExecutionError(
