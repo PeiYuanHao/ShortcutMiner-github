@@ -21,7 +21,10 @@ class DatasetInspection:
     num_files: int
     num_directories: int
     file_extensions: list[str]
+    file_extension_counts: dict[str, int]
+    discovered_files: list[str]
     top_level_entries: list[str]
+    max_depth_observed: int
     entries_scanned: int
     max_entries: int
     truncated: bool
@@ -139,6 +142,9 @@ def inspect_dataset(
     scan_errors: list[str] = []
     directories: deque[str] = deque()
     extensions: set[str] = set()
+    extension_counts: dict[str, int] = {}
+    discovered_files: list[str] = []
+    max_depth_observed = 0
     entries_scanned = 0
     num_files = 0
     num_directories = 0
@@ -160,15 +166,36 @@ def inspect_dataset(
 
     def record_entries(entries: list[_DirectoryEntry]) -> None:
         nonlocal entries_scanned, num_files, num_directories
+        nonlocal max_depth_observed
 
         for entry in entries:
             entries_scanned += 1
+            try:
+                relative_path = Path(entry.path).relative_to(root_path)
+                max_depth_observed = max(
+                    max_depth_observed,
+                    len(relative_path.parts),
+                )
+            except ValueError:
+                # os.scandir entries should always be descendants of the
+                # directory being scanned. Keep the scan bounded and omit an
+                # unsafe reference if a platform adapter violates that rule.
+                relative_path = None
 
             if entry.kind == "file":
                 num_files += 1
                 suffix = Path(entry.name).suffix.lower()
                 if suffix:
                     extensions.add(suffix)
+                    extension_counts[suffix] = (
+                        extension_counts.get(suffix, 0) + 1
+                    )
+                else:
+                    extension_counts["<none>"] = (
+                        extension_counts.get("<none>", 0) + 1
+                    )
+                if relative_path is not None:
+                    discovered_files.append(relative_path.as_posix())
             elif entry.kind == "directory":
                 num_directories += 1
                 directories.append(entry.path)
@@ -199,7 +226,10 @@ def inspect_dataset(
         num_files=num_files,
         num_directories=num_directories,
         file_extensions=sorted(extensions),
+        file_extension_counts=dict(sorted(extension_counts.items())),
+        discovered_files=discovered_files,
         top_level_entries=top_level_entries,
+        max_depth_observed=max_depth_observed,
         entries_scanned=entries_scanned,
         max_entries=max_entries,
         truncated=truncated,

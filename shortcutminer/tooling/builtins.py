@@ -43,7 +43,10 @@ class DatasetInspectionOutput(StrictProtocolModel):
     num_files: int = Field(ge=0)
     num_directories: int = Field(ge=0)
     file_extensions: list[str]
+    file_extension_counts: dict[str, int]
+    discovered_files: list[SafeRelativePath]
     top_level_entries: list[str]
+    max_depth_observed: int = Field(ge=0)
     entries_scanned: int = Field(ge=0)
     max_entries: int = Field(ge=1)
     truncated: bool

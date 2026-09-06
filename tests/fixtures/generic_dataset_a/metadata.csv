@@ -1,0 +1,5 @@
+sample_id,label,site,device,batch,split
+sample_001,0,north,d1,b1,train
+sample_002,1,south,d2,b1,train
+sample_003,0,south,d1,b2,test
+sample_004,1,north,d2,b2,test

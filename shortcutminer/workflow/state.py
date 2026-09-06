@@ -66,6 +66,7 @@ class ShortcutMinerState(TypedDict, total=False):
     summarize_config: NotRequired[SummarizeWorkflowConfig]
 
     identify_request: NotRequired[dict[str, Any]]
+    dataset_profile: NotRequired[dict[str, Any]]
     identify_context: NotRequired[dict[str, Any]]
     identify_result: NotRequired[dict[str, Any]]
     executive_request: NotRequired[dict[str, Any]]

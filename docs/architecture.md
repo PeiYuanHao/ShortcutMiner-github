@@ -11,6 +11,12 @@ Dataset / Audit Request
         Runner
           |
           v
+    Dataset Intake
+          |
+          v
+    DatasetProfile
+          |
+          v
      Orchestrator
           |
           v
@@ -37,6 +43,10 @@ Quantitative  Qualitative
 
 Runner and Orchestrator are not Agents. Runner validates a run request and exposes run/resume entry points. Orchestrator owns run lifecycle and invokes the compiled LangGraph. The graph contains five Agent-backed nodes, an Executive fan-out, and a Quantitative/Qualitative fan-in before Summarize.
 
+Dataset Intake is deterministic infrastructure, not a sixth Agent. `DatasetProfiler` performs a root-constrained, bounded scan with no network, LLM, arbitrary code execution, or dataset-specific adapter. Its strict `DatasetProfile` records structure, inferred modality, bounded metadata facts, label validity/distribution, explicit split data, safe representative file references, warnings, limitations, and the inspection budget. It contains no candidate, shortcut judgment, ranking, or benchmark answer.
+
+Identify receives the profile inside its discovery context. Every dataset-derived name, path, column, and example value is explicitly marked as untrusted quoted evidence, so dataset content cannot become an instruction. Identify alone reasons from those facts and produces the `CandidateReport`.
+
 ## Five Agent boundaries
 
 | Agent | Input role | Validated output |
@@ -54,6 +64,8 @@ Every executor loads its own workspace, invokes an injected `AgentClient`, valid
 The shared workflow state contains serializable run data and validated Agent outputs. Runtime objects such as model clients and Tool Runtime instances are closure dependencies and do not enter state or checkpoints.
 
 Protocol definitions live under `shortcutminer/protocol/`. The main cross-stage contracts are `CandidateReport`, `RoutingPlan`, `QuantitativeResult`, `QualitativeResult`, and `SummaryReport`. They carry explicit run, candidate, task, source, target, and message correlations where applicable.
+
+`DatasetProfile` is the pre-Agent intake contract. It is serializable and stored in workflow/checkpoint state as plain JSON; filesystem objects, clients, handles, and runtime instances never enter the state.
 
 ## AgentClient and workspaces
 
@@ -76,6 +88,7 @@ manifest.json
 events.jsonl
 final_result.json
 checkpoints.sqlite
+dataset/profile.json
 identify/
 executive/
 quantitative/
@@ -85,6 +98,8 @@ tools/
 ```
 
 Stage inputs, raw outputs, validated outputs, and ToolResults are stored as JSON artifacts. Events record run, stage, and tool lifecycle changes. The SQLite LangGraph checkpointer uses the run ID as its thread ID and supports local single-machine resume without serializing clients or tool implementations.
+
+The profile is written once before Identify invocation. If Identify is retried after interruption, the control layer validates and reuses the stored profile. An incompatible or malformed stored profile fails explicitly rather than silently mixing evidence from different intake settings.
 
 ## Experiment boundary
 

@@ -25,6 +25,12 @@ Dataset / Audit Request
         Runner
           |
           v
+Generic Dataset Intake
+          |
+          v
+    DatasetProfile
+          |
+          v
      Orchestrator
           |
           v
@@ -48,6 +54,8 @@ Quantitative  Qualitative
 
 Runner and Orchestrator are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph provides the typed execution graph: Executive fans out to Quantitative and Qualitative, and Summarize runs after both branches join.
 
+The production control path accepts user-provided local datasets through a generic intake contract; dataset names are not selected from a benchmark whitelist. Intake performs bounded, deterministic inspection of supported local structures and CSV metadata, emits a strict `DatasetProfile`, and gives that factual profile to Identify as untrusted evidence. It does not infer or rank shortcut candidates. Unknown or unsupported structures are reported through warnings and limitations rather than being treated as a known benchmark.
+
 See [Architecture](docs/architecture.md) for component boundaries and persistence behavior.
 
 ## Five Agents
@@ -69,6 +77,7 @@ All inter-Agent communication uses strict, serializable schemas. The workflow do
 The principal output contracts are:
 
 ```text
+DatasetProfile
 CandidateReport
 RoutingPlan
 QuantitativeResult
@@ -108,6 +117,30 @@ See [Tool Runtime](docs/tool-runtime.md) for the exact permission matrix and fil
 
 All file access is root-constrained, relative-path validated, allowlisted where appropriate, and bounded by runtime budgets.
 
+## Generic Dataset Intake
+
+A formal YAML/JSON run request can describe a new dataset without an adapter:
+
+```yaml
+run_id: my-audit
+runs_root: runs
+dataset_info:
+  name: my_dataset
+  root: /data/my_dataset
+  metadata_file: metadata.csv  # optional
+task_input:
+  type: classification
+  label_column: label
+seed: 42
+identify_config:
+  budget:
+    max_dataset_entries: 10000
+    max_metadata_rows: 100000
+    max_samples: 40
+```
+
+The current profiler recognizes image-, tabular-, and text-like structures using deterministic file-extension heuristics. CSV is the currently supported metadata parser. Metadata-free intake remains valid, but the profile explicitly records that labels are unavailable when no other supported label source exists. Each run persists the result at `dataset/profile.json`; resume validates and reuses that profile instead of rescanning.
+
 ## Experiment Runtime
 
 `ExperimentExecutor` is the typed boundary between `run_experiment` and a scientific execution backend. The validated test backend is currently `MockExperimentExecutor`, which is deterministic, offline, and schema-identical to a future real backend.
@@ -120,7 +153,7 @@ Real statistical checks, probes, model evaluations, interventions, ablations, an
 ShortcutMiner-github/
 ├── agents/                       # Five ShortcutMiner workspaces
 ├── configs/
-│   ├── datasets/                 # Dataset descriptors
+│   ├── datasets/                 # Evaluation/example descriptors, not a runtime whitelist
 │   ├── experiments/              # Research and local-run configurations
 │   └── models/                   # Explicit model endpoint configurations
 ├── data/                         # Dataset-mount guidance; no raw datasets
@@ -208,11 +241,11 @@ python -m pytest -q
 
 ## Current Development Validation
 
-Latest repository-refresh validation:
+Latest Phase 8 validation:
 
 ```text
-Host:   346 passed, 3 skipped
-Docker: 349 passed
+Host:   365 passed, 4 skipped
+Docker: 369 passed
 ```
 
 Automatic tests use deterministic mock clients and tools. They do not call real LLM APIs or run expensive training.

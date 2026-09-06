@@ -234,6 +234,7 @@ def test_identify_node_calls_existing_executor_and_returns_minimal_update(
     update = identify_node(state, client=client)
 
     assert set(update) == {
+        "dataset_profile",
         "identify_request",
         "identify_context",
         "identify_result",

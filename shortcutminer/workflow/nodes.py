@@ -9,8 +9,9 @@ from shortcutminer.experiment.executive_context import build_executive_request
 from shortcutminer.experiment.executive_executor import execute_executive
 from shortcutminer.experiment.identify_context import (
     IdentifyDiscoveryContext,
-    build_identify_context,
+    build_identify_context_from_profile,
 )
+from shortcutminer.experiment.dataset_profiler import build_dataset_profile
 from shortcutminer.experiment.identify_executor import execute_identify
 from shortcutminer.experiment.qualitative_context import build_qualitative_request
 from shortcutminer.experiment.qualitative_executor import execute_qualitative
@@ -33,6 +34,11 @@ from shortcutminer.protocol.identify import (
     IdentifyBudget,
     IdentifyRequest,
     TaskSpec,
+)
+from shortcutminer.storage.dataset_profiles import (
+    dataset_profile_exists,
+    load_dataset_profile,
+    save_dataset_profile,
 )
 from shortcutminer.protocol.qualitative import QualitativePreparationOptions
 from shortcutminer.protocol.summarize import SummarizeRequest
@@ -140,7 +146,20 @@ def identify_node(
     runtime = _require_client(client, "Identify", IdentifyNodeError)
     request = build_identify_request_from_state(state)
     config = state["identify_config"]
-    context = build_identify_context(request=request, seed=config["seed"])
+    runs_root = config.get("runs_root")
+    if runs_root is not None and dataset_profile_exists(
+        runs_root, request.run_id
+    ):
+        profile = load_dataset_profile(runs_root, request.run_id)
+    else:
+        profile = build_dataset_profile(request, seed=config["seed"])
+        if runs_root is not None:
+            save_dataset_profile(runs_root, request.run_id, profile)
+    context = build_identify_context_from_profile(
+        request,
+        seed=config["seed"],
+        profile=profile,
+    )
     report = execute_identify(
         request=request,
         seed=config["seed"],
@@ -152,6 +171,7 @@ def identify_node(
     )
     return {
         "identify_request": request.model_dump(mode="json"),
+        "dataset_profile": profile.model_dump(mode="json"),
         "identify_context": context.model_dump(mode="json"),
         "identify_result": report.model_dump(mode="json"),
         "stage_status": {"identify": "completed"},

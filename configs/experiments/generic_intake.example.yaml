@@ -1,0 +1,17 @@
+run_id: generic-intake-example
+runs_root: runs
+dataset_info:
+  name: my_dataset
+  root: /data/my_dataset
+  metadata_file: metadata.csv
+task_input:
+  type: classification
+  label_column: label
+  description: Audit this user-provided dataset for potential shortcuts.
+seed: 42
+identify_config:
+  budget:
+    max_samples: 40
+    max_candidates: 5
+    max_dataset_entries: 10000
+    max_metadata_rows: 100000

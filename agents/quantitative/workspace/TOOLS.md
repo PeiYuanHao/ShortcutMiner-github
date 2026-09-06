@@ -870,7 +870,7 @@ Example:
 
 ```yaml
 dataset:
-  name: waterbirds
+  name: user_dataset
   split: train
 
 analysis:

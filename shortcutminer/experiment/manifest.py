@@ -47,6 +47,7 @@ def build_run_manifest(
             "input": "input.json",
             "events": "events.jsonl",
             "workflow_state": "workflow_state.json",
+            "dataset_profile": "dataset/profile.json",
             "final_result": "final_result.json",
             "manifest": "manifest.json",
         },
