@@ -35,6 +35,7 @@ from shortcutminer.protocol.identify import (
     IdentifyRequest,
     TaskSpec,
 )
+from shortcutminer.protocol.dataset_profile import DatasetProfile
 from shortcutminer.storage.dataset_profiles import (
     dataset_profile_exists,
     load_dataset_profile,
@@ -147,7 +148,10 @@ def identify_node(
     request = build_identify_request_from_state(state)
     config = state["identify_config"]
     runs_root = config.get("runs_root")
-    if runs_root is not None and dataset_profile_exists(
+    serialized_profile = state.get("dataset_profile")
+    if serialized_profile is not None:
+        profile = DatasetProfile.model_validate(serialized_profile)
+    elif runs_root is not None and dataset_profile_exists(
         runs_root, request.run_id
     ):
         profile = load_dataset_profile(runs_root, request.run_id)

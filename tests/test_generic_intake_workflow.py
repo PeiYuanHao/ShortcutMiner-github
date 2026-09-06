@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import shortcutminer.workflow.nodes as nodes_module
+import shortcutminer.orchestrator as orchestrator_module
 from shortcutminer.experiment.identify_executor import IdentifyExecutionError
 from shortcutminer.runner import resume_run, run
 from shortcutminer.runtime.mock import MockAgentClient
@@ -76,7 +76,7 @@ def test_resume_reuses_profile_without_rescanning(
 ):
     request = _generic_request(tmp_path, "generic-profile-resume")
     client = FailIdentifyOnceClient()
-    original = nodes_module.build_dataset_profile
+    original = orchestrator_module.build_dataset_profile
     calls = 0
 
     def counted(*args, **kwargs):
@@ -84,7 +84,7 @@ def test_resume_reuses_profile_without_rescanning(
         calls += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(nodes_module, "build_dataset_profile", counted)
+    monkeypatch.setattr(orchestrator_module, "build_dataset_profile", counted)
     with pytest.raises(IdentifyExecutionError, match="planned identify interruption"):
         run(request, agent_client=client)
     assert calls == 1

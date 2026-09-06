@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.experiment.dataset_profiler import build_dataset_profile
 from shortcutminer.experiment.run_manager import initialize_run, transition_run
+from shortcutminer.protocol.dataset_profile import DatasetProfile
+from shortcutminer.protocol.identify import IdentifyBudget, IdentifyRequest
 from shortcutminer.protocol.run import (
     CheckpointReference,
     RunError,
@@ -12,6 +15,7 @@ from shortcutminer.protocol.run import (
     RunRequest,
 )
 from shortcutminer.storage.events import append_event
+from shortcutminer.storage.dataset_profiles import save_dataset_profile
 from shortcutminer.storage.run_store import (
     load_final_result,
     load_run_manifest,
@@ -58,6 +62,29 @@ def build_initial_workflow_state(
     if request.model_runtime is not None:
         state["model_runtime"] = request.model_runtime.model_dump(mode="json")
     return state
+
+
+def build_dataset_profile_for_run(
+    request: RunRequest,
+    run_id: str,
+) -> DatasetProfile:
+    """Run generic intake before the formal LangGraph invocation."""
+    identify_request = IdentifyRequest(
+        protocol_version="1.0",
+        run_id=run_id,
+        message_id=request.identify_config.get(
+            "message_id", f"{run_id}:identify:request"
+        ),
+        source="orchestrator",
+        target="identify",
+        message_type="identify_request",
+        dataset=request.dataset_info,
+        task=request.task_input,
+        budget=IdentifyBudget.model_validate(
+            request.identify_config.get("budget", {})
+        ),
+    )
+    return build_dataset_profile(identify_request, seed=request.seed)
 
 
 def _client_arguments(
@@ -134,6 +161,10 @@ def execute_workflow_state(
             runs_root=runs_root,
             checkpoint=reference,
         )
+        serialized_profile = initial_state.get("dataset_profile")
+        if serialized_profile is not None:
+            profile = DatasetProfile.model_validate(serialized_profile)
+            save_dataset_profile(runs_root, run_id, profile)
         starting_event = "RUN_STARTED"
 
     config = checkpoint_config(run_id)
@@ -247,6 +278,8 @@ def execute_run(
     if request.run_id is None:
         raise OrchestrationError("Formal RunRequest requires a generated run_id.")
     state = build_initial_workflow_state(request, request.run_id)
+    profile = build_dataset_profile_for_run(request, request.run_id)
+    state["dataset_profile"] = profile.model_dump(mode="json")
     return execute_workflow_state(
         state,
         run_id=request.run_id,
@@ -295,6 +328,7 @@ def resume_workflow_run(
 
 
 __all__ = [
+    "build_dataset_profile_for_run",
     "build_initial_workflow_state",
     "build_workflow",
     "execute_run",
