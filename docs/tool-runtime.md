@@ -52,8 +52,33 @@ This matrix is enforced by the registry, not trusted model output.
 - `select_samples` wraps `tools.common.sample_selector.select_samples`.
 - `inspect_sample_metadata` wraps the existing qualitative evidence manifest.
 - `read_artifact` and `read_run_trace` use approved run-relative storage paths.
-- `run_experiment` delegates to the `ExperimentExecutor` protocol. Phase 7 includes
-  only a deterministic mock backend; no real statistical/model execution is claimed.
+- `run_experiment` delegates to the `ExperimentExecutor` protocol. The mock backend
+  remains available for tests; configured local live runs use the CPU-first
+  `RealExperimentExecutor`.
+
+## Real quantitative experiments
+
+`run_experiment.parameters` is a union of strict, experiment-specific schemas;
+unknown fields are forbidden. In particular, code, command, and script parameters
+are not accepted. Quantitative explicitly supplies resolved metadata fields—candidate
+display names are never fuzzily mapped to columns.
+
+The static backend registry supports:
+
+| Experiment type | Current controlled implementation |
+|---|---|
+| `statistical_check` | categorical contingency/chi-square/Cramér's V, numeric-group tests/eta-squared, numeric Pearson and Spearman association, optional bounded permutation |
+| `subgroup_evaluation` | label distributions, or overall/per-group prediction accuracy when explicit predictions are supplied |
+| `model_evaluation` | bounded logistic-regression probe with explicit or deterministic stratified holdout |
+| `intervention` | seeded metadata shuffle, optionally within explicit splits |
+| `ablation` | out-of-sample probe comparison after removing one explicit metadata feature |
+| `metric_computation` | allowlisted accuracy or balanced accuracy |
+
+Budgets cap rows, categories, permutations, probe input fields, and solver
+iterations. Sparse, constant, single-class, and insufficient samples produce a
+successful `outcome: inconclusive`; parse/access failures produce a failed
+ToolResult. The backend never assigns evidence levels/directions or applies a
+threshold that confirms a shortcut.
 
 ## File and artifact safety
 
@@ -73,3 +98,9 @@ Unknown tools, permissions and invalid inputs raise their named boundary errors.
 Execution exceptions and timeouts produce serializable failed `ToolResult` objects.
 A scientifically inconclusive experiment remains a successful tool execution whose
 typed output has `outcome: inconclusive`.
+
+Real experiment evidence is additionally stored as
+`runs/<run_id>/experiments/<task_id>/<experiment_type>-<parameter_hash>.json`.
+The artifact contains bounded structured details such as contingency tables and
+group summaries while the Tool output keeps scalar metrics. A completed matching
+artifact is validated and reused on retry/resume rather than recomputed.

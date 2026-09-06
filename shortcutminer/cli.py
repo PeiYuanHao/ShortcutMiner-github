@@ -7,7 +7,7 @@ from pathlib import Path
 
 from shortcutminer.experiment.loader import load_model_runtime_config, load_run_request
 from shortcutminer.experiment.run_manager import generate_run_id
-from shortcutminer.runner import resume_run, run
+from shortcutminer.runner import build_local_tool_runtimes, resume_run, run
 from shortcutminer.runtime.demo import DemoAgentClient, build_demo_request
 from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
 from shortcutminer.storage.run_store import load_run_manifest
@@ -49,6 +49,8 @@ def main(argv: list[str] | None = None) -> int:
             if config is None:
                 raise ValueError("API run requires model_runtime or --model-config.")
             request = request.model_copy(update={"model_runtime": config})
+            if request.run_id is None:
+                request = request.model_copy(update={"run_id": generate_run_id()})
             client = OpenAICompatibleClient(config)
         elif args.runtime == "mock":
             if args.model_config:
@@ -64,10 +66,39 @@ def main(argv: list[str] | None = None) -> int:
 
         print(json.dumps({"event": "started", "command": args.command}), flush=True)
         if args.command == "resume":
-            result = resume_run(args.run_id, runs_root=args.runs_root, agent_client=client)
+            runtime_args = {}
+            if not isinstance(client, DemoAgentClient):
+                manifest = load_run_manifest(args.runs_root, args.run_id)
+                runtime_args["tool_runtimes"] = build_local_tool_runtimes(
+                    run_id=args.run_id,
+                    dataset_root=manifest.dataset_info.root,
+                    runs_root=args.runs_root,
+                    approved_artifacts={
+                        *manifest.artifacts.values(),
+                        *manifest.config.get("executive_config", {}).get(
+                            "artifact_references", []
+                        ),
+                    },
+                )
+            result = resume_run(
+                args.run_id,
+                runs_root=args.runs_root,
+                agent_client=client,
+                **runtime_args,
+            )
             runs_root = args.runs_root
         else:
-            result = run(request, agent_client=client)
+            runtime_args = {}
+            if not isinstance(client, DemoAgentClient):
+                runtime_args["tool_runtimes"] = build_local_tool_runtimes(
+                    run_id=request.run_id,
+                    dataset_root=request.dataset_info.root,
+                    runs_root=request.runs_root,
+                    approved_artifacts=set(
+                        request.executive_config.get("artifact_references", [])
+                    ),
+                )
+            result = run(request, agent_client=client, **runtime_args)
             runs_root = request.runs_root
         summary = {
             "event": "completed",

@@ -7,8 +7,18 @@ deterministic mock implementation below.
 
 from typing import Any, Literal, Protocol
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
+from shortcutminer.protocol.experiment import (
+    EmptyExperimentParameters,
+    ExperimentParameters,
+    MetadataAblationParameters,
+    MetadataInterventionParameters,
+    MetricComputationParameters,
+    PredictiveProbeParameters,
+    StatisticalCheckParameters,
+    SubgroupEvaluationParameters,
+)
 from shortcutminer.protocol.executive import TaskId
 from shortcutminer.protocol.identify import (
     CandidateId,
@@ -35,7 +45,25 @@ class ExperimentExecutionRequest(StrictProtocolModel):
     candidate_id: CandidateId
     task_id: TaskId
     experiment_type: ExperimentType
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: ExperimentParameters = Field(
+        default_factory=EmptyExperimentParameters
+    )
+
+    @model_validator(mode="after")
+    def validate_parameters_for_type(self):
+        expected = {
+            "statistical_check": StatisticalCheckParameters,
+            "subgroup_evaluation": SubgroupEvaluationParameters,
+            "model_evaluation": PredictiveProbeParameters,
+            "intervention": MetadataInterventionParameters,
+            "ablation": MetadataAblationParameters,
+            "metric_computation": MetricComputationParameters,
+        }[self.experiment_type]
+        if not isinstance(self.parameters, (expected, EmptyExperimentParameters)):
+            raise ValueError(
+                f"parameters do not match experiment_type={self.experiment_type}"
+            )
+        return self
 
 
 class ExperimentExecutionOutput(StrictProtocolModel):
@@ -50,6 +78,8 @@ class ExperimentExecutor(Protocol):
     def execute(
         self,
         request: ExperimentExecutionRequest,
+        *,
+        context=None,
     ) -> ExperimentExecutionOutput: ...
 
 
@@ -69,6 +99,8 @@ class MockExperimentExecutor:
     def execute(
         self,
         request: ExperimentExecutionRequest,
+        *,
+        context=None,
     ) -> ExperimentExecutionOutput:
         self.calls.append(request)
         return ExperimentExecutionOutput(

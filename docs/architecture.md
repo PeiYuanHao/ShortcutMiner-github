@@ -95,6 +95,7 @@ quantitative/
 qualitative/
 summarize/
 tools/
+experiments/
 ```
 
 Stage inputs, raw outputs, validated outputs, and ToolResults are stored as JSON artifacts. Events record run, stage, and tool lifecycle changes. The SQLite LangGraph checkpointer uses the run ID as its thread ID and supports local single-machine resume without serializing clients or tool implementations.
@@ -103,7 +104,11 @@ The profile is written once before Identify invocation. If Identify is retried a
 
 ## Experiment boundary
 
-`run_experiment` delegates to the `ExperimentExecutor` Protocol. Phase 7 provides a deterministic `MockExperimentExecutor` for contract and workflow testing. Real statistical, model-evaluation, intervention, and ablation backends remain future research work.
+`run_experiment` delegates to the `ExperimentExecutor` Protocol. `MockExperimentExecutor` remains the isolated test backend. `RealExperimentExecutor` uses a static registry of CPU implementations for association, subgroup analysis, lightweight out-of-sample probes, metadata permutation, metadata-feature ablation, and allowlisted prediction metrics.
+
+Agent and backend responsibilities remain separate: Executive defines a scoped AnalysisTask; Quantitative requests an approved experiment type with exact resolved fields; deterministic code validates parameters and computes evidence; Quantitative interprets the returned measurements; Summarize combines evidence. The backend never emits a final shortcut judgment or evidence level.
+
+Real experiment artifacts are stored under `experiments/<task_id>/` and keyed by experiment type plus a deterministic parameter hash. Inputs remain dataset-relative or explicitly approved run-relative references. The implementation is metadata/tabular-first, bounded, network-free and CPU-only; large model retraining and image interventions are outside the current runtime.
 
 ## Runtime scope
 

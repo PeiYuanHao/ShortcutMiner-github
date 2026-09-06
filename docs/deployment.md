@@ -68,6 +68,7 @@ The image includes no raw datasets, host virtual environments, or `.env` files.
 The CLI is a local batch process. No HTTP health endpoint, supervisor, external
 database service, distributed runtime, or GPU stack is introduced.
 
-The current repository scope remains local Docker execution. Real scientific
-experiment backends and real-model integration require separate validation and
-are not part of these container acceptance instructions.
+The current repository scope remains local Docker execution. The bounded real CPU
+quantitative backend is included in the image and test suite; real-model API
+integration and visual scientific backends require separate validation and are
+not part of these container acceptance instructions.

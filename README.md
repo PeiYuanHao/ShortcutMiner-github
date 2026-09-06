@@ -143,9 +143,11 @@ The current profiler recognizes image-, tabular-, and text-like structures using
 
 ## Experiment Runtime
 
-`ExperimentExecutor` is the typed boundary between `run_experiment` and a scientific execution backend. The validated test backend is currently `MockExperimentExecutor`, which is deterministic, offline, and schema-identical to a future real backend.
+`ExperimentExecutor` is the typed boundary between `run_experiment` and scientific execution. `MockExperimentExecutor` remains available for deterministic unit tests. `RealExperimentExecutor` is the local CPU backend used by configured live CLI runs.
 
-Real statistical checks, probes, model evaluations, interventions, ablations, and subgroup evaluations are not yet implemented. Placeholder modules under `tools/quantitative/`, `shortcutminer/evaluation/`, and selected scripts are retained for future research development and must not be interpreted as completed backends.
+The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, and an allowlisted prediction metric computation. Every experiment uses an experiment-specific strict parameter schema and writes a reusable artifact under `experiments/<task_id>/`. Statistics, p-values, effect sizes, predictive accuracy, and intervention deltas are evidence—not automatic shortcut decisions.
+
+The backend is CSV-first and CPU-only. It does not perform large neural-model retraining, image intervention, arbitrary Python/shell execution, or Phase 10 visual analysis.
 
 ## Repository Structure
 
@@ -241,14 +243,15 @@ python -m pytest -q
 
 ## Current Development Validation
 
-Latest Phase 8 validation:
+Latest Phase 9 validation:
 
 ```text
-Host:   365 passed, 4 skipped
-Docker: 369 passed
+Host:   389 passed, 5 skipped
+Docker: 394 passed
 ```
 
-Automatic tests use deterministic mock clients and tools. They do not call real LLM APIs or run expensive training.
+Automatic tests use deterministic mock Agent clients plus synthetic data for the
+real quantitative backend. They do not call real LLM APIs or run expensive training.
 
 ## Project Status
 
@@ -259,13 +262,13 @@ Implemented and tested:
 - deterministic workspace loading;
 - AgentClient abstraction and offline mock client;
 - Tool Runtime, Registry, budgets, and per-Agent permissions;
+- real CPU quantitative experiments for bounded tabular/metadata evidence;
 - run, artifact, event, and final-report storage;
 - SQLite checkpoint and resume behavior;
 - local Docker build, mock execution, and container tests.
 
 Not yet implemented as production research capability:
 
-- real quantitative experiment backends;
 - real visual or multimodal qualitative integration;
 - provider-native LLM function/tool-call adapters;
 - the full ICDM experimental evaluation;

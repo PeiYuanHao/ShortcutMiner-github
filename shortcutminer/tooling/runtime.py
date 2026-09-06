@@ -119,6 +119,13 @@ class ToolRuntime:
                 }
             )
             save_tool_result(self.context.runs_root, result)
+        if result.status == "success" and result.artifacts:
+            self.context = replace(
+                self.context,
+                approved_artifacts=frozenset(
+                    {*self.context.approved_artifacts, *result.artifacts}
+                ),
+            )
         self.history.append(result)
         self._event(
             "TOOL_COMPLETED" if result.status == "success" else "TOOL_FAILED",

@@ -12,6 +12,10 @@ from shortcutminer.experiment.tool_executor import (
     ExperimentExecutor,
     ExperimentType,
 )
+from shortcutminer.protocol.experiment import (
+    EmptyExperimentParameters,
+    ExperimentParameters,
+)
 from shortcutminer.protocol.executive import TaskId
 from shortcutminer.protocol.identify import (
     CandidateId,
@@ -145,7 +149,9 @@ class ExperimentToolInput(StrictProtocolModel):
     candidate_id: CandidateId
     task_id: TaskId
     experiment_type: ExperimentType
-    parameters: dict[str, Any] = Field(default_factory=dict)
+    parameters: ExperimentParameters = Field(
+        default_factory=EmptyExperimentParameters
+    )
 
 
 class ExperimentToolOutput(StrictProtocolModel):
@@ -343,14 +349,14 @@ def _experiment_handler(executor: ExperimentExecutor):
             experiment_type=arguments.experiment_type,
             parameters=arguments.parameters,
         )
-        result = executor.execute(request)
+        result = executor.execute(request, context=context)
         return ExperimentToolOutput.model_validate(result.model_dump(mode="json"))
 
     return execute
 
 
 class _UnavailableExperimentExecutor:
-    def execute(self, _request):
+    def execute(self, _request, *, context=None):
         raise RuntimeError("No ExperimentExecutor is configured for this runtime")
 
 

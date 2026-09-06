@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.experiment.real_executor import RealExperimentExecutor
 from shortcutminer.experiment.run_manager import generate_run_id
 from shortcutminer.experiment.loader import load_run_request
 from shortcutminer.orchestrator import (
@@ -14,6 +15,7 @@ from shortcutminer.orchestrator import (
 )
 from shortcutminer.protocol.run import RunExecutionResult, RunRequest
 from shortcutminer.tooling.protocol import AgentName
+from shortcutminer.tooling.builtins import build_default_tool_registry
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.state import ShortcutMinerState
 
@@ -36,6 +38,36 @@ def _clients(
         "qualitative_client": qualitative_client,
         "summarize_client": summarize_client,
         "tool_runtimes": tool_runtimes,
+    }
+
+
+def build_local_tool_runtimes(
+    *,
+    run_id: str,
+    dataset_root: str | Path,
+    runs_root: str | Path,
+    approved_artifacts: set[str] | None = None,
+) -> dict[AgentName, ToolRuntime]:
+    """Create least-privilege local runtimes with the real CPU backend."""
+    registry = build_default_tool_registry(
+        experiment_executor=RealExperimentExecutor()
+    )
+    return {
+        agent: ToolRuntime(
+            registry,
+            run_id=run_id,
+            agent_name=agent,
+            dataset_root=dataset_root,
+            runs_root=runs_root,
+            approved_artifacts=approved_artifacts or set(),
+        )
+        for agent in (
+            "identify",
+            "executive",
+            "quantitative",
+            "qualitative",
+            "summarize",
+        )
     }
 
 
@@ -137,4 +169,9 @@ def run_workflow(
     return ShortcutMinerState(**result.workflow_state)
 
 
-__all__ = ["resume_run", "run", "run_workflow"]
+__all__ = [
+    "build_local_tool_runtimes",
+    "resume_run",
+    "run",
+    "run_workflow",
+]

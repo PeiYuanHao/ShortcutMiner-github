@@ -113,6 +113,7 @@ class ToolRegistry:
             json.dumps(serialized, allow_nan=False)
             status = "success"
             error = None
+            artifacts = list(getattr(output, "artifact_references", []))
         except FutureTimeoutError:
             future.cancel()
             serialized = None
@@ -123,6 +124,7 @@ class ToolRegistry:
                     f"Tool {call.tool_name} exceeded {timeout_seconds:g} seconds"
                 ),
             )
+            artifacts = []
         except Exception as exc:
             serialized = None
             status = "failed"
@@ -130,6 +132,7 @@ class ToolRegistry:
                 error_type="ToolExecutionError",
                 message=str(exc).strip() or type(exc).__name__,
             )
+            artifacts = []
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
@@ -143,7 +146,7 @@ class ToolRegistry:
             status=status,
             output=serialized,
             error=error,
-            artifacts=[],
+            artifacts=artifacts,
             metadata={"timeout_seconds": timeout_seconds},
             started_at=started_at,
             completed_at=_utc_now(),

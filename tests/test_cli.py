@@ -59,8 +59,9 @@ def test_cli_passes_model_configuration_without_calling_api(tmp_path: Path, monk
     def client(config):
         captured["config"] = config
         return object()
-    def run(request, *, agent_client):
+    def run(request, *, agent_client, tool_runtimes):
         captured["request"] = request
+        captured["tool_runtimes"] = tool_runtimes
         from types import SimpleNamespace
         return SimpleNamespace(run_id=request.run_id, status="COMPLETED")
     monkeypatch.setattr(cli, "OpenAICompatibleClient", client)
@@ -69,6 +70,7 @@ def test_cli_passes_model_configuration_without_calling_api(tmp_path: Path, monk
                      "--model-config", str(model_path)]) == 0
     assert captured["config"].model_dump() == settings
     assert captured["request"].model_runtime == captured["config"]
+    assert captured["tool_runtimes"]["quantitative"].agent_name == "quantitative"
 
 
 def test_mock_rejects_unsafe_run_id_before_creating_data(tmp_path: Path):
