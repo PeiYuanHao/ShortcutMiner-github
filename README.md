@@ -1,1378 +1,249 @@
 # ShortcutMiner
 
-ShortcutMiner is a multi-agent framework for automatically discovering, routing, validating, and reporting potential dataset shortcuts.
+ShortcutMiner is a multi-agent framework for automated dataset shortcut discovery, validation, and evidence synthesis.
 
-The framework contains five specialized agents:
+ShortcutMiner is under active research revision and experimental development. The repository currently provides a tested orchestration, contract, storage, tool, and local-container foundation; it is not a finished experimental evaluation or a release-ready research artifact.
 
-* **Identify** — discovers potential shortcut candidates from dataset information.
-* **Executive** — evaluates candidates and determines the appropriate validation route.
-* **Quantitative** — performs statistical and model-based quantitative validation.
-* **Qualitative** — collects sample-level, visual, and metadata-based qualitative evidence.
-* **Summarize** — integrates evidence and generates the final shortcut audit report.
+## Overview
 
-ShortcutMiner uses **LangGraph** for workflow orchestration. A deterministic Python control layer is responsible for experiment execution, agent scheduling, configuration management, artifact storage, logging, and reproducibility.
+Dataset shortcuts are unintended signals that a model can exploit instead of the intended task signal. ShortcutMiner organizes an audit into five traceable stages:
 
-> **Project Status**
->
-> ShortcutMiner is currently undergoing a repository and runtime redesign.
-> The current goal is to establish a stable and reproducible execution framework before migrating and refining the full ICDM experimental pipeline.
+- discover potential shortcut candidates;
+- plan suitable validation paths;
+- execute quantitative and qualitative audits;
+- combine supporting and counter-evidence;
+- produce a structured, traceable report.
 
----
+The deterministic Python control layer owns execution, validation, storage, checkpoints, and tool permissions. Agent outputs cannot directly change workflow control or access unrestricted runtime capabilities.
 
 ## Architecture
 
-The logical agent workflow is:
-
 ```text
-Dataset / Audit Task
-        │
-        ▼
-     Identify
-        │
-        ▼
-    Executive
-     /      \
-    ▼        ▼
+Dataset / Audit Request
+          |
+          v
+        Runner
+          |
+          v
+     Orchestrator
+          |
+          v
+       LangGraph
+          |
+          v
+       Identify
+          |
+          v
+      Executive
+       /      \
+      v        v
 Quantitative  Qualitative
-     \        /
-      \      /
-       ▼    ▼
-      Summarize
-          │
-          ▼
-     Audit Report
+      \        /
+       v      v
+       Summarize
+          |
+          v
+     SummaryReport
 ```
 
-ShortcutMiner contains exactly **five research agents**.
+Runner and Orchestrator are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph provides the typed execution graph: Executive fans out to Quantitative and Qualitative, and Summarize runs after both branches join.
 
-`Runner` and `Orchestrator` are deterministic Python components used to execute this workflow reliably. They are **not additional agents**.
+See [Architecture](docs/architecture.md) for component boundaries and persistence behavior.
 
-The system therefore separates:
+## Five Agents
+
+| Agent | Responsibility | Formal output |
+|---|---|---|
+| Identify | Discover evidence-grounded shortcut candidates | `CandidateReport` |
+| Executive | Validate candidates and produce an executable routing plan | `RoutingPlan` |
+| Quantitative | Interpret controlled experiment and statistical evidence | `QuantitativeResult` |
+| Qualitative | Inspect approved samples, metadata, and artifacts | `QualitativeResult` |
+| Summarize | Synthesize upstream evidence and limitations | `SummaryReport` |
+
+Detailed operating behavior is maintained in each Agent workspace and the [communication protocol](docs/protocol.md).
+
+## Workflow State and Contracts
+
+All inter-Agent communication uses strict, serializable schemas. The workflow does not rely on hidden sessions, provider-specific memory, function objects, file handles, or model clients in checkpoint state.
+
+The principal output contracts are:
 
 ```text
-Agent reasoning
-      │
-      ▼
-Structured decisions
-      │
-      ▼
-Deterministic execution
-      │
-      ▼
-Tools / Artifacts / Results
+CandidateReport
+RoutingPlan
+QuantitativeResult
+QualitativeResult
+SummaryReport
 ```
 
----
+Each message carries explicit run and stage correlation data. Executors validate schema and cross-object invariants before results enter workflow state or Storage. SQLite checkpoints support local single-machine resume.
+
+## Tool Runtime
+
+ShortcutMiner owns a provider-independent Tool Runtime and Tool Registry. The current registry contains:
+
+```text
+inspect_tool_capabilities
+inspect_dataset
+inspect_metadata
+get_column_distribution
+select_samples
+inspect_sample_metadata
+read_artifact
+read_run_trace
+run_experiment
+```
+
+The Registry performs registration, schema publication, input/output validation, permission enforcement, bounded execution, and structured result creation. Runtime tracing is written through the existing Storage and Event systems. Tool permissions are enforced by ShortcutMiner rather than delegated to model output.
+
+See [Tool Runtime](docs/tool-runtime.md) for the exact permission matrix and file-access boundary.
+
+## Current Tool Permission Model
+
+- **Identify** can inspect the approved dataset, metadata, distributions, and samples to support candidate discovery.
+- **Executive** can inspect available capabilities and approved run information, but cannot run experiments.
+- **Quantitative** is the only Agent permitted to call `run_experiment`; it cannot execute arbitrary shell or Python code.
+- **Qualitative** can inspect approved samples, metadata, artifacts, and structured experiment output without mutating upstream data.
+- **Summarize** can read approved artifacts and run traces for report synthesis, but cannot run experiments or mutate datasets.
+
+All file access is root-constrained, relative-path validated, allowlisted where appropriate, and bounded by runtime budgets.
+
+## Experiment Runtime
+
+`ExperimentExecutor` is the typed boundary between `run_experiment` and a scientific execution backend. The validated test backend is currently `MockExperimentExecutor`, which is deterministic, offline, and schema-identical to a future real backend.
+
+Real statistical checks, probes, model evaluations, interventions, ablations, and subgroup evaluations are not yet implemented. Placeholder modules under `tools/quantitative/`, `shortcutminer/evaluation/`, and selected scripts are retained for future research development and must not be interpreted as completed backends.
 
 ## Repository Structure
 
 ```text
-ShortcutMiner/
-│
-├── README.md
-├── pyproject.toml
-├── requirements.txt
-├── .gitignore
-├── .env.example
-│
-├── agents/
-│   ├── identify/
-│   ├── executive/
-│   ├── quantitative/
-│   ├── qualitative/
-│   └── summarize/
-│
-├── shortcutminer/
-│   ├── runner.py
-│   ├── orchestrator.py
-│   ├── agent_client.py
-│   ├── context.py
-│   ├── workflow/
-│   ├── protocol/
-│   ├── experiment/
-│   ├── storage/
-│   └── evaluation/
-│
+ShortcutMiner-github/
+├── agents/                       # Five ShortcutMiner workspaces
 ├── configs/
-│   ├── base.yaml
-│   ├── datasets/
-│   ├── models/
-│   └── experiments/
-│
-├── tools/
-│   ├── common/
-│   ├── quantitative/
-│   └── qualitative/
-│
-├── infrastructure/
-│   └── docker/
-│
-├── scripts/
-├── tests/
-├── data/
-├── runs/
-├── results/
-└── docs/
+│   ├── datasets/                 # Dataset descriptors
+│   ├── experiments/              # Research and local-run configurations
+│   └── models/                   # Explicit model endpoint configurations
+├── data/                         # Dataset-mount guidance; no raw datasets
+├── docs/                         # Architecture, protocol, tools, and Docker docs
+├── infrastructure/docker/        # Container image definition
+├── scripts/                      # Acceptance helpers and future research entry points
+├── shortcutminer/
+│   ├── experiment/               # Stage executors and experiment boundary
+│   ├── protocol/                 # Structured contracts
+│   ├── runtime/                  # AgentClient implementations
+│   ├── storage/                  # Run, event, artifact, and checkpoint persistence
+│   ├── tooling/                  # Tool protocol, registry, runtime, and built-ins
+│   ├── workflow/                 # LangGraph state, nodes, graph, and checkpoint
+│   ├── agent_client.py
+│   ├── cli.py
+│   ├── orchestrator.py
+│   └── runner.py
+├── tests/                        # Unit, contract, security, and workflow tests
+├── tools/                        # Reusable bounded data/evidence operations
+├── .dockerignore
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── pyproject.toml
+└── requirements.txt
 ```
 
-### Directory Summary
+Some research-oriented files remain explicit placeholders. The tested entry point is `python -m shortcutminer`, not the placeholder matrix or aggregation scripts.
 
-| Directory         | Purpose                                                                   |
-| ----------------- | ------------------------------------------------------------------------- |
-| `agents/`         | Preserved workspace documents for the five agents                         |
-| `shortcutminer/`  | Core deterministic execution framework                                    |
-| `configs/`        | Dataset, model, and experiment configurations                             |
-| `tools/`          | Deterministic tools callable by agents                                    |
-| `infrastructure/` | Docker deployment configuration                                           |
-| `scripts/`        | User-facing experiment entry points                                       |
-| `tests/`          | Unit, integration, and mock pipeline tests                                |
-| `data/`           | Dataset preparation instructions                                          |
-| `runs/`           | Raw experiment records                                                    |
-| `results/`        | Aggregated research results                                               |
-| `docs/`           | Detailed architecture, protocol, experiment, and deployment documentation |
+## Agent Workspaces
 
----
-
-# Agents
-
-All five agents are stored under:
+Every Agent owns the following files under `agents/<agent>/workspace/`:
 
 ```text
-agents/
+AGENTS.md
+IDENTITY.md
+SOUL.md
+USER.md
+TOOLS.md
+MEMORY.md
+HEARTBEAT.md
 ```
 
-Each agent has an independent set of preserved workspace documents. Future migration phases will load these documents directly when constructing prompts.
-
-Example:
+They are loaded in this stable order:
 
 ```text
-agents/identify/workspace/
-├── AGENTS.md
-├── IDENTITY.md
-├── SOUL.md
-├── USER.md
-├── TOOLS.md
-├── MEMORY.md
-└── HEARTBEAT.md
+AGENTS -> IDENTITY -> SOUL -> USER -> TOOLS -> MEMORY -> HEARTBEAT
 ```
 
-The same structure is used for:
+These documents define ShortcutMiner's own stable Agent behavior, responsibilities, evidence limits, and tool policy. They are loaded explicitly by the workspace loader and are included in consistency tests.
 
-```text
-identify
-executive
-quantitative
-qualitative
-summarize
-```
+## Docker: Recommended Validation Path
 
-### Workspace Files
-
-`AGENTS.md`
-
-Defines the agent's main operational behavior, including:
-
-* responsibilities
-* expected inputs
-* workflow
-* output format
-* communication rules
-* failure behavior
-* prohibited actions
-
-`IDENTITY.md`
-
-Defines the permanent role and identity of the agent.
-
-`SOUL.md`
-
-Defines stable behavioral principles.
-
-`TOOLS.md`
-
-Defines which tools the agent can use and how those tools should be used.
-
-`MEMORY.md`
-
-Defines memory behavior.
-
-Formal experiments should avoid uncontrolled cross-run memory contamination.
-
-`USER.md`
-
-Defines how task and upstream user context should be interpreted.
-
-`HEARTBEAT.md`
-
-Defines optional runtime health-check behavior.
-
----
-
-# Core Framework
-
-The deterministic execution layer is implemented in:
-
-```text
-shortcutminer/
-```
-
-## `runner.py`
-
-Runs a single ShortcutMiner experiment.
-
-Its responsibilities include:
-
-```text
-Load configuration
-        │
-        ▼
-Create run
-        │
-        ▼
-Initialize storage
-        │
-        ▼
-Execute pipeline
-        │
-        ▼
-Persist artifacts
-        │
-        ▼
-Finalize run status
-```
-
----
-
-## `orchestrator.py`
-
-Executes the five-agent workflow.
-
-Conceptually:
-
-```text
-Identify
-   │
-   ▼
-Executive
- /      \
-▼        ▼
-Quant.  Qual.
- \        /
-  \      /
-   ▼    ▼
-  Summarize
-```
-
-The **Executive Agent makes routing decisions**.
-
-The Orchestrator only ensures that those decisions are executed reliably.
-
-The current Executive `1.0` implementation stops at a validated routing plan:
-it preserves every Identify candidate, selects `quantitative`, `qualitative`,
-`both`, or `unresolved`, and emits complete downstream task messages.
-
-The Qualitative `1.0` stage can consume one planned qualitative task, prepare a
-bounded metadata-linked sample manifest, invoke the Qualitative Agent, validate
-its sample-level evidence, and persist a result for Summarize. Physical
-multi-task dispatch and result tracking remain part of the deferred Orchestrator
-skeleton.
-
----
-
-## `agent_client.py`
-
-Defines the minimal runtime-agnostic `AgentClient` Protocol used by the existing
-stage executors. Concrete OpenAI, DeepSeek, or other model backends can implement
-this interface in later phases without changing the experiment contracts.
-
-## `workflow/`
-
-Contains the shared workflow state, Phase 1 placeholder nodes, and the compiled
-LangGraph `StateGraph`. The placeholders establish control flow only; the five
-agents' existing business logic has not yet been migrated into the graph.
-
----
-
-## `context.py`
-
-Maintains run-level context.
-
-Typical fields include:
-
-```text
-run_id
-dataset
-model
-seed
-repeat
-artifact paths
-workflow execution state
-experiment configuration
-```
-
-Each experimental run receives an independent context.
-
----
-
-# Communication Protocol
-
-Structured communication is defined under:
-
-```text
-shortcutminer/protocol/
-```
-
-```text
-protocol/
-├── identify.py
-├── executive.py
-├── messages.py
-├── schemas.py
-├── artifacts.py
-└── states.py
-```
-
-ShortcutMiner should avoid using unrestricted natural-language messages as the only control mechanism between agents.
-
-Agent communication should contain explicit fields such as:
-
-```text
-protocol_version
-run_id
-message_id
-source
-target
-message_type
-stage-specific body fields
-artifact references
-```
-
-Example:
-
-```json
-{
-  "protocol_version": "1.0",
-  "run_id": "waterbirds__model-a__seed42__r01",
-  "message_id": "msg_00001",
-  "source": "identify",
-  "target": "executive",
-  "message_type": "candidate_report",
-  "in_reply_to": "msg_identify_request_00001",
-  "artifact_references": [],
-  "dataset_summary": {
-    "dataset": "waterbirds",
-    "samples_inspected": 0,
-    "metadata_used": true
-  },
-  "candidates": [],
-  "limitations": []
-}
-```
-
-Expected structured entities include:
-
-```text
-Candidate
-CandidateReport
-ExecutiveRequest
-RoutingDecision
-RoutingPlan
-AnalysisTask
-QuantitativeResult
-QualitativeResult
-SummaryReport
-ArtifactReference
-```
-
-Detailed protocol definitions belong in:
-
-```text
-docs/protocol.md
-```
-
----
-
-# Configuration
-
-Experiment configuration is stored under:
-
-```text
-configs/
-```
-
-```text
-configs/
-├── base.yaml
-├── datasets/
-├── models/
-└── experiments/
-```
-
-The main design goal is:
-
-> Changing datasets, seeds, models, or experiment repetitions should not require rewriting the five agent workspaces.
-
----
-
-## Base Configuration
-
-Shared default settings are stored in:
-
-```text
-configs/base.yaml
-```
-
-Examples include:
-
-```text
-timeout
-retry policy
-artifact root
-logging settings
-default execution budget
-```
-
----
-
-## Dataset Configuration
-
-Each dataset has its own configuration file.
-
-```text
-configs/datasets/
-├── waterbirds.yaml
-├── colored_mnist.yaml
-└── synthetic_patch.yaml
-```
-
-Example:
-
-```yaml
-name: waterbirds
-root: /datasets/waterbirds
-
-metadata_file: metadata.csv
-label_column: y
-```
-
-Raw datasets are **not stored in this Git repository**.
-
----
-
-## Model Configuration
-
-Different LLM backends are configured under:
-
-```text
-configs/models/
-```
-
-Example:
-
-```yaml
-provider: openai
-model: example-model
-temperature: 0
-max_tokens: 4096
-```
-
-API keys must not be stored in these YAML files.
-
----
-
-## Experiment Configuration
-
-Experiment matrices are defined under:
-
-```text
-configs/experiments/
-```
-
-The repository initially contains:
-
-```text
-smoke_test.yaml
-icdm_main.yaml
-```
-
-Example experiment matrix:
-
-```yaml
-datasets:
-  - waterbirds
-  - colored_mnist
-  - synthetic_patch
-
-models:
-  - model_a
-  - model_b
-  - model_c
-
-seeds:
-  - 42
-  - 3407
-  - 2026
-
-repeats: 3
-```
-
-The framework expands the configuration into independent runs automatically.
-
----
-
-# Tools
-
-Agent-callable deterministic tools are stored under:
-
-```text
-tools/
-```
-
-```text
-tools/
-├── common/
-├── quantitative/
-└── qualitative/
-```
-
-The general design principle is:
-
-```text
-Agent decides what should be analyzed
-                │
-                ▼
-Python tool performs the computation
-                │
-                ▼
-Agent interprets the returned evidence
-```
-
-LLMs should not manually perform calculations when deterministic implementations are available.
-
-Tool ownership is stage-specific. In the current Identify `1.0` integration,
-the deterministic control layer runs the bounded dataset and metadata
-preparation plan before invocation and sends the resulting immutable
-`discovery_context` to the Agent. Identify interprets that evidence but does
-not directly rerun the Python tools. Moving inspection choices into the Agent
-requires an explicit runtime-tool binding and protocol revision so budgets and
-run isolation remain enforceable.
-
----
-
-## Common Tools
-
-```text
-tools/common/
-```
-
-Examples:
-
-* file reading
-* JSON / CSV handling
-* dataset metadata inspection
-* dataset summary extraction
-
----
-
-## Quantitative Tools
-
-```text
-tools/quantitative/
-```
-
-Planned functionality includes:
-
-* association analysis
-* Cramér's V
-* mutual information
-* correlation analysis
-* significance tests
-* confidence intervals
-* accuracy
-* AUC
-* ID/OOD evaluation
-* intervention-based evaluation
-
----
-
-## Qualitative Tools
-
-```text
-tools/qualitative/
-```
-
-Implemented functionality includes:
-
-* bounded, deterministic random or group-balanced sampling
-* metadata-field and split validation
-* dataset-contained sample-reference resolution
-* representative evidence manifests with group coverage
-* explicit unavailable/unsupported-sample limitations
-
-The control layer does not invent visual observations. It selects and verifies
-the evidence boundary; the Qualitative Agent inspects the referenced samples
-and returns traceable observations, interpretations, counterevidence, failures,
-and limitations under the strict `QualitativeResult` contract.
-
----
-
-# Installation
-
-## 1. Clone the Repository
+The current supported environment is local Docker Desktop or Docker Engine. From the repository root:
 
 ```bash
-git clone <repository-url>
-cd ShortcutMiner
+docker compose build
+docker compose run --rm shortcutminer pytest -q
 ```
 
----
-
-## 2. Create a Python Environment
-
-Recommended:
+Run the complete offline synthetic five-Agent workflow:
 
 ```bash
-conda create -n shortcutminer python=3.11
-conda activate shortcutminer
+docker compose run --rm shortcutminer python -m shortcutminer mock --run-id local-smoke --runs-root /runs
+docker compose run --rm shortcutminer python scripts/container_acceptance.py local-smoke
 ```
 
----
+The default Compose network mode is `none`. The mock workflow requires no credentials, real dataset, model API, or external network. Build-time access is needed only to obtain the base image and Python dependencies.
 
-## 3. Install Dependencies
+Compose mounts its named run volume at `/runs`, `./data` read-only at `/data`, and `./configs` read-only at `/config`. Do not use `docker compose down -v` unless deleting the local run volume is intentional.
+
+See [Local Docker Usage](docs/deployment.md) for persistence and resume checks.
+
+## Optional Local Python Development
+
+Python 3.11 or newer is required. Conda and `venv` are both suitable:
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+# Activate the environment using the command appropriate for your shell.
+python -m pip install -r requirements.txt
+python -m pip install -e .
+python -m pytest -q
 ```
 
-Install ShortcutMiner in editable mode:
+## Current Development Validation
 
-```bash
-pip install -e .
-```
-
----
-
-## 4. Configure Environment Variables
-
-Copy the environment template:
-
-```bash
-cp .env.example .env
-```
-
-Configure credentials for the model backend selected in a later migration phase.
-
-Example:
-
-```env
-OPENAI_API_KEY=
-DEEPSEEK_API_KEY=
-```
-
-Never commit the real `.env` file.
-
----
-
-# Dataset Preparation
-
-Raw datasets are not committed to GitHub.
-
-Dataset preparation instructions are stored in:
+Latest repository-refresh validation:
 
 ```text
-data/README.md
+Host:   346 passed, 3 skipped
+Docker: 349 passed
 ```
 
-The recommended server-side layout is:
+Automatic tests use deterministic mock clients and tools. They do not call real LLM APIs or run expensive training.
 
-```text
-/srv/shortcutminer/
-├── datasets/
-├── runtime/
-└── runs/
-```
+## Project Status
 
-Example:
+Implemented and tested:
 
-```text
-/srv/shortcutminer/datasets/
-├── waterbirds/
-├── colored_mnist/
-└── synthetic_patch/
-```
+- five-Agent LangGraph orchestration;
+- structured Agent and run contracts;
+- deterministic workspace loading;
+- AgentClient abstraction and offline mock client;
+- Tool Runtime, Registry, budgets, and per-Agent permissions;
+- run, artifact, event, and final-report storage;
+- SQLite checkpoint and resume behavior;
+- local Docker build, mock execution, and container tests.
 
-Dataset paths are defined through:
+Not yet implemented as production research capability:
 
-```text
-configs/datasets/
-```
+- real quantitative experiment backends;
+- real visual or multimodal qualitative integration;
+- provider-native LLM function/tool-call adapters;
+- the full ICDM experimental evaluation;
+- large-scale dataset/model/seed experiment matrices.
 
-Whenever possible, source datasets should be mounted into containers as **read-only** directories.
+## Datasets and Research Assets
 
----
+Large raw datasets are not committed to GitHub. Waterbirds, Camelyon17, Colorized-MNIST, and other real datasets must be stored locally and supplied through a configured dataset root, normally as a read-only Docker volume. Small synthetic fixtures used by tests remain in the repository where appropriate.
 
-# LangGraph Workflow
+Run outputs, checkpoints, raw artifacts, credentials, and local dataset directories are ignored by Git. Research and experiment assets may be maintained separately in the future; no external asset repository is declared yet.
 
-The Phase 1 workflow is defined under `shortcutminer/workflow/`. It compiles a
-minimal `StateGraph` with placeholder nodes in the intended five-stage topology.
-No concrete LLM backend is selected in this phase.
+## Development Scope
 
----
-
-# Docker Deployment
-
-Docker-related files are stored under:
-
-```text
-infrastructure/docker/
-```
-
-```text
-infrastructure/docker/
-├── Dockerfile
-└── docker-compose.yml
-```
-
-The intended server architecture is:
-
-```text
-Server
-│
-├── ShortcutMiner container
-│
-├── persistent datasets
-│
-├── persistent run storage
-└── runtime/cache storage
-```
-
-Persistent experiment results must not depend on the temporary container filesystem.
-
-Detailed deployment instructions belong in:
-
-```text
-docs/deployment.md
-```
-
----
-
-# Running ShortcutMiner
-
-## Health Check
-
-Before running experiments:
-
-```bash
-python scripts/health_check.py
-```
-
-The health check should verify:
-
-* LangGraph workflow compilation
-* model API availability
-* dataset paths
-* runtime directories
-* output write permissions
-* required configuration
-
----
-
-## Configuration Validation
-
-Validate configuration before starting a formal run:
-
-```bash
-python scripts/validate_config.py
-```
-
----
-
-## Smoke Test
-
-A smoke test should always be executed before large experiment matrices.
-
-```bash
-python scripts/run_matrix.py \
-    --config configs/experiments/smoke_test.yaml
-```
-
-The smoke test should contain only:
-
-```text
-1 dataset
-× 1 model
-× 1 seed
-× 1 repeat
-```
-
-Its purpose is to verify that the complete pipeline is operational.
-
----
-
-## Single Experiment
-
-Example:
-
-```bash
-python scripts/run_experiment.py \
-    --dataset waterbirds \
-    --model model_a \
-    --seed 42
-```
-
----
-
-## Experiment Matrix
-
-Run the complete configured experiment matrix with:
-
-```bash
-python scripts/run_matrix.py \
-    --config configs/experiments/icdm_main.yaml
-```
-
-For example:
-
-```text
-3 datasets
-×
-3 models
-×
-3 seeds
-×
-3 repeats
-
-= 81 independent runs
-```
-
-Each run must remain isolated from the others.
-
----
-
-# Experiment Runs
-
-Every experiment receives a unique `run_id`.
-
-Example:
-
-```text
-waterbirds__model-a__seed42__r01
-```
-
-Raw run artifacts are stored under:
-
-```text
-runs/
-```
-
-Example:
-
-```text
-runs/
-└── waterbirds__model-a__seed42__r01/
-    ├── manifest.json
-    ├── resolved_config.yaml
-    ├── status.json
-    ├── events.jsonl
-    │
-    ├── identify/
-    │   ├── input.json
-    │   ├── raw_output.json
-    │   └── output.json
-    │
-    ├── executive/
-    │   ├── input.json
-    │   ├── raw_output.json
-    │   └── routing.json
-    │
-    ├── quantitative/
-    │   ├── input.json
-    │   ├── result.json
-    │   └── artifacts/
-    │
-    ├── qualitative/
-    │   ├── input.json
-    │   ├── raw_output.json
-    │   ├── result.json
-    │   └── artifacts/
-    │
-    └── summarize/
-        ├── input.json
-        └── report.json
-```
-
-The exact internal artifact structure may evolve as the protocol is finalized.
-
----
-
-# Run Manifest
-
-Each experiment should generate:
-
-```text
-manifest.json
-```
-
-Example:
-
-```json
-{
-  "run_id": "waterbirds__model-a__seed42__r01",
-  "dataset": "waterbirds",
-  "model": "model-a",
-  "seed": 42,
-  "repeat": 1,
-
-  "shortcutminer_commit": "git-commit",
-  "langgraph_version": "pinned-version",
-
-  "started_at": "timestamp",
-  "finished_at": "timestamp",
-
-  "status": "completed"
-}
-```
-
-The manifest makes each experimental result traceable to its exact execution environment.
-
----
-
-# Event Logging
-
-Important runtime events are stored in:
-
-```text
-events.jsonl
-```
-
-Possible events include:
-
-```text
-RUN_CREATED
-
-IDENTIFY_STARTED
-IDENTIFY_COMPLETED
-
-EXECUTIVE_STARTED
-EXECUTIVE_COMPLETED
-
-QUANTITATIVE_STARTED
-QUANTITATIVE_COMPLETED
-
-QUALITATIVE_STARTED
-QUALITATIVE_COMPLETED
-
-SUMMARIZE_STARTED
-SUMMARIZE_COMPLETED
-
-AGENT_FAILED
-RETRY_REQUESTED
-
-RUN_COMPLETED
-RUN_FAILED
-```
-
-This log is used for debugging, failure analysis, and experiment traceability.
-
----
-
-# Results
-
-ShortcutMiner distinguishes between **raw experiment runs** and **aggregated research results**.
-
-## Raw Runs
-
-Stored under:
-
-```text
-runs/
-```
-
-These files may contain:
-
-* complete agent inputs and outputs
-* intermediate artifacts
-* execution logs
-* statistical files
-* qualitative evidence
-* runtime metadata
-
-Raw runs may become large and are normally excluded from Git.
-
----
-
-## Aggregated Results
-
-Generate aggregated results with:
-
-```bash
-python scripts/aggregate_results.py
-```
-
-Aggregated outputs are written to:
-
-```text
-results/
-├── tables/
-├── figures/
-└── summaries/
-```
-
-Examples:
-
-```text
-results/tables/main_results.csv
-results/tables/llm_comparison.csv
-results/tables/ablation.csv
-
-results/figures/
-
-results/summaries/main_summary.json
-```
-
-Small aggregated research outputs may be committed to Git.
-
-The intended data flow is:
-
-```text
-runs/
-  │
-  ▼
-Evaluation
-  │
-  ▼
-Aggregation
-  │
-  ▼
-results/
-```
-
----
-
-# Evaluation
-
-Cross-run evaluation is implemented under:
-
-```text
-shortcutminer/evaluation/
-```
-
-Framework-level evaluation may include:
-
-* detection performance
-* routing performance
-* execution success rate
-* completion rate
-* failure rate
-* runtime
-* token usage
-* cost
-* seed variance
-* model variance
-* dataset variance
-
-Dataset-specific metrics may additionally be produced by quantitative tools.
-
----
-
-# Testing
-
-Run the test suite with:
-
-```bash
-pytest
-```
-
-Important tests include:
-
-```text
-tests/
-├── test_protocol.py
-├── test_config.py
-├── test_runner.py
-├── test_storage.py
-└── test_pipeline_mock.py
-```
-
-## Mock Pipeline
-
-`test_pipeline_mock.py` is especially important during the current redesign.
-
-It should test:
-
-```text
-Mock Identify
-      │
-      ▼
-Mock Executive
-   /        \
-  ▼          ▼
-Mock Quant. Mock Qual.
-   \          /
-    \        /
-     ▼      ▼
-    Mock Summarize
-```
-
-without requiring:
-
-* external agent runtimes
-* external LLM APIs
-* real model inference
-
-The deterministic pipeline should work correctly before real agents are connected.
-
----
-
-# Development Workflow
-
-The current recommended development order is:
-
-```text
-Repository structure
-        │
-        ▼
-Communication protocol
-        │
-        ▼
-Runner / Orchestrator
-        │
-        ▼
-Storage and manifests
-        │
-        ▼
-Mock pipeline
-        │
-        ▼
-LangGraph workflow skeleton
-        │
-        ▼
-Five agent workspaces
-        │
-        ▼
-Smoke test
-        │
-        ▼
-Full experiment matrix
-```
-
-The previous implementation may be used as a reference, but new code should follow the architecture of the current repository instead of directly reproducing the previous local directory structure.
-
----
-
-# Collaboration Guidelines
-
-When contributing to ShortcutMiner, keep changes within the appropriate layer whenever possible.
-
-### Modify agent behavior
-
-```text
-agents/<agent>/workspace/
-```
-
-### Modify structured communication
-
-```text
-shortcutminer/protocol/
-```
-
-### Modify pipeline execution
-
-```text
-shortcutminer/runner.py
-shortcutminer/orchestrator.py
-```
-
-### Modify workflow orchestration
-
-```text
-shortcutminer/workflow/
-shortcutminer/orchestrator.py
-```
-
-### Add or modify datasets
-
-```text
-configs/datasets/
-```
-
-### Add or modify LLM configurations
-
-```text
-configs/models/
-```
-
-### Modify experiment matrices
-
-```text
-configs/experiments/
-```
-
-### Add deterministic analysis functions
-
-```text
-tools/
-```
-
-### Modify cross-run metrics
-
-```text
-shortcutminer/evaluation/
-```
-
-Avoid placing unrelated logic inside agent prompts when it can be implemented as reusable Python code.
-
----
-
-# Git Policy
-
-The repository should contain the information required to reproduce ShortcutMiner experiments.
-
-The following files should be committed:
-
-```text
-source code
-agent workspaces
-configuration files
-tests
-documentation
-Docker configuration
-small aggregated results
-```
-
-The following files should normally **not** be committed:
-
-```text
-.env
-API keys
-authentication tokens
-raw datasets
-runtime caches
-cache files
-temporary files
-large raw experiment runs
-private credentials
-```
-
----
-
-# Documentation
-
-Detailed design documentation is maintained separately:
-
-```text
-docs/
-├── architecture.md
-├── protocol.md
-├── experiment.md
-└── deployment.md
-```
-
-### `architecture.md`
-
-Explains:
-
-* system components
-* Runner and Orchestrator
-* LangGraph workflow integration
-* five-agent execution flow
-* storage architecture
-
-### `protocol.md`
-
-Explains:
-
-* message schema
-* agent input/output contracts
-* `run_id`
-* `message_id`
-* artifact references
-* pipeline states
-
-### `experiment.md`
-
-Explains:
-
-* datasets
-* random seeds
-* LLM configurations
-* repeated trials
-* evaluation metrics
-* experiment matrix
-
-### `deployment.md`
-
-Explains:
-
-* server setup
-* Docker
-* LangGraph runtime
-* persistent volumes
-* runtime storage
-* experiment startup and shutdown
-
----
-
-# Current Development Priorities
-
-The current development priorities are:
-
-1. Finalize repository structure.
-2. Finalize the structured agent communication protocol.
-3. Implement the deterministic Runner and Orchestrator.
-4. Implement persistent run storage and manifests.
-5. Pass the complete mock pipeline.
-6. Migrate each agent into the LangGraph workflow.
-7. Rebuild the five agent workspaces against the new protocol.
-8. Pass a single smoke-test experiment.
-9. Expand to multi-dataset, multi-seed, and multi-model experiments.
-
-Large-scale experiments should not begin until the smoke-test pipeline is stable.
-
----
-
-# Summary
-
-The responsibilities of the main directories can be summarized as:
-
-```text
-agents/
-    Defines how the five agents behave.
-
-shortcutminer/
-    Executes the five-agent system reliably.
-
-configs/
-    Defines what experiment should be executed.
-
-tools/
-    Provides deterministic operations for the agents.
-
-infrastructure/
-    Defines how ShortcutMiner is deployed.
-
-scripts/
-    Provides user-facing execution commands.
-
-tests/
-    Verifies that the framework works correctly.
-
-data/
-    Explains how datasets should be prepared.
-
-runs/
-    Records everything that happened in each experiment.
-
-results/
-    Stores aggregated research outputs.
-
-docs/
-    Explains the detailed system design.
-```
-
-In short:
-
-> **Git stores how to run the system.
-> Datasets define what is audited.
-> Runs record what happened.
-> Results summarize what was learned.**
+The repository is currently focused on validating the local research architecture before beginning full experiments. Contributions should preserve the separation between Agent reasoning, structured contracts, deterministic execution, tool permissions, and durable evidence. Large-scale research claims should only be added after their corresponding real backends and evaluations exist.

@@ -8,12 +8,16 @@ __pycache__/
 # Virtual environments and packaging output
 .venv/
 venv/
+env/
 build/
 dist/
 *.egg-info/
 
-# VS Code
+# IDE and OS temporary files
 .vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
 # Local credentials and environment overrides
 .env
@@ -23,10 +27,18 @@ dist/
 # Raw datasets (keep preparation documentation)
 data/*
 !data/README.md
+datasets/
 
 # Raw experiment runs (keep the directory scaffold)
 runs/*
 !runs/.gitkeep
+
+# Generated artifacts, checkpoints, results, and local container data
+artifacts/
+checkpoints/
+results/
+.docker-data/
+docker-data/
 
 # Logs and temporary files
 *.log
