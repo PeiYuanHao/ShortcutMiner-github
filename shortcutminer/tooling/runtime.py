@@ -4,9 +4,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from pydantic import Field
+from pydantic import Field, TypeAdapter
 
-from shortcutminer.protocol.identify import StrictProtocolModel
+from shortcutminer.protocol.identify import SafeRelativePath, StrictProtocolModel
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.tool_artifacts import (
     save_tool_result,
@@ -67,6 +67,37 @@ class ToolRuntime:
 
     def tool_specs(self) -> list[ToolSpec]:
         return self.registry.specs_for(self.agent_name)
+
+    def approve_samples(self, references: list[str]) -> None:
+        """Add control-layer-selected dataset references to the runtime boundary."""
+
+        validated = {
+            TypeAdapter(SafeRelativePath).validate_python(reference)
+            for reference in references
+        }
+        combined = {*self.context.approved_samples, *validated}
+        if len(combined) > self.budget.max_selected_samples:
+            raise ToolBudgetExceeded(
+                "Approved sample set exceeds the runtime sample budget"
+            )
+        self.context = replace(
+            self.context,
+            approved_samples=frozenset(combined),
+        )
+
+    def approve_artifacts(self, references: list[str]) -> None:
+        """Add control-layer-generated run artifacts to the readable allowlist."""
+
+        validated = {
+            TypeAdapter(SafeRelativePath).validate_python(reference)
+            for reference in references
+        }
+        self.context = replace(
+            self.context,
+            approved_artifacts=frozenset(
+                {*self.context.approved_artifacts, *validated}
+            ),
+        )
 
     def execute(self, call: ToolCall | dict[str, Any]) -> ToolResult:
         parsed = call if isinstance(call, ToolCall) else ToolCall.model_validate(call)

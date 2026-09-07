@@ -79,6 +79,11 @@ The optional Tool Runtime remains separate from AgentClient. When an Agent retur
 
 The runtime exposes dataset and metadata inspection, deterministic sample selection, controlled artifact/trace reads, sample metadata inspection, and a typed ExperimentExecutor entry point. It exposes no arbitrary shell, dynamic import, or unrestricted filesystem reader. The exact permission matrix is documented in [tool-runtime.md](tool-runtime.md).
 
+Qualitative additionally receives `inspect_sample`, a Qualitative-only tool for an
+already approved dataset-relative reference. Its strict allowlist exposes the same
+bounded descriptor families used by evidence preparation, never an arbitrary path
+or user-supplied computation.
+
 ## Storage and resume
 
 All durable run data is rooted under `runs_root/run_id`:
@@ -109,6 +114,38 @@ The profile is written once before Identify invocation. If Identify is retried a
 Agent and backend responsibilities remain separate: Executive defines a scoped AnalysisTask; Quantitative requests an approved experiment type with exact resolved fields; deterministic code validates parameters and computes evidence; Quantitative interprets the returned measurements; Summarize combines evidence. The backend never emits a final shortcut judgment or evidence level.
 
 Real experiment artifacts are stored under `experiments/<task_id>/` and keyed by experiment type plus a deterministic parameter hash. Inputs remain dataset-relative or explicitly approved run-relative references. The implementation is metadata/tabular-first, bounded, network-free and CPU-only; large model retraining and image interventions are outside the current runtime.
+
+## Qualitative evidence boundary
+
+The qualitative control path supports metadata-linked group-balanced selection and
+metadata-free random selection. Both are deterministic, duplicate-free, and bounded.
+Selected images and UTF-8 text are resolved beneath the approved dataset root;
+tabular-only tasks retain selected row evidence without inventing visual content.
+
+`qualitative_backend.py` uses Pillow and NumPy locally on CPU. It emits only
+descriptor facts: dimensions and channels, brightness/contrast, RGB statistics,
+histogram entropy, mathematically defined edge density, and fixed fractional spatial
+regions. Group summaries and pairwise differences are descriptive. They never carry
+an evidence status, shortcut score, model-reliance claim, or causal conclusion.
+
+Each task may persist:
+
+```text
+qualitative/<task_id>/inspection.json
+qualitative/<task_id>/contact_sheet.png
+```
+
+The structured artifact records request identity, sampling and coverage (including
+failures), descriptor definitions, per-sample evidence, group comparisons, warnings,
+limitations, and safe run-relative references. A retry validates schema, run,
+candidate, task, sampling options, request limitations, and referenced files before
+reuse; mismatch fails explicitly. The contact sheet has a fixed bounded layout and
+only sample/group/label annotations.
+
+Dataset content remains quoted untrusted input. The Agent receives descriptors and
+artifact references through its normal text payload, not arbitrary filesystem access
+or provider-native image input. Semantic recognition, OCR, VLM inference, neural
+representations, and image-editing interventions remain outside this phase.
 
 ## Runtime scope
 

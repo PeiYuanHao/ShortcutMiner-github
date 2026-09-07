@@ -69,6 +69,8 @@ The CLI is a local batch process. No HTTP health endpoint, supervisor, external
 database service, distributed runtime, or GPU stack is introduced.
 
 The current repository scope remains local Docker execution. The bounded real CPU
-quantitative backend is included in the image and test suite; real-model API
-integration and visual scientific backends require separate validation and are
-not part of these container acceptance instructions.
+quantitative backend and Pillow/NumPy qualitative descriptor backend are included in
+the image and test suite. The qualitative backend can create task-scoped inspection
+JSON and contact sheets in `/runs` while source datasets remain read-only under
+`/data`. Provider-native VLM integration and large scientific evaluations remain
+outside these container acceptance instructions.

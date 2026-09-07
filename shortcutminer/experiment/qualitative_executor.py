@@ -8,6 +8,7 @@ from shortcutminer.experiment.qualitative_context import (
     QualitativeEvidenceContext,
     build_qualitative_context,
 )
+from shortcutminer.experiment.qualitative_backend import sample_has_inspection_evidence
 from shortcutminer.protocol.qualitative import (
     QualitativeRequest,
     QualitativeResult,
@@ -113,7 +114,10 @@ def validate_qualitative_context(
         raise QualitativeExecutionError(
             "Qualitative evidence exceeds max_evidence_records."
         )
-    available_count = sum(sample.sample_available for sample in context.selected_samples)
+    available_count = sum(
+        sample.sample_available and sample.media_type in {"image", "text"}
+        for sample in context.selected_samples
+    )
     if context.sample_files_available != available_count:
         raise QualitativeExecutionError(
             "Qualitative sample_files_available is inconsistent."
@@ -122,6 +126,21 @@ def validate_qualitative_context(
     if len(sample_ids) != len(set(sample_ids)):
         raise QualitativeExecutionError(
             "QualitativeEvidenceContext contains duplicate sample IDs."
+        )
+    inspected_count = sum(
+        sample_has_inspection_evidence(sample) for sample in context.selected_samples
+    )
+    failed_count = sum(
+        sample.inspection_status == "failed"
+        for sample in context.selected_samples
+    )
+    if context.samples_inspected != inspected_count:
+        raise QualitativeExecutionError(
+            "Qualitative samples_inspected is inconsistent."
+        )
+    if context.failed_inspections != failed_count:
+        raise QualitativeExecutionError(
+            "Qualitative failed_inspections is inconsistent."
         )
     if context.authoritative_artifact_references != request.task.inputs.artifact_references:
         raise QualitativeExecutionError(
@@ -225,7 +244,11 @@ def validate_qualitative_result(
         unavailable = [
             sample_id
             for sample_id in sampled_ids
-            if not selected_by_id[sample_id].sample_available
+            if (
+                not selected_by_id[sample_id].sample_available
+                or selected_by_id[sample_id].inspection_status == "failed"
+                or not sample_has_inspection_evidence(selected_by_id[sample_id])
+            )
         ]
         if unavailable:
             raise QualitativeExecutionError(
@@ -265,6 +288,28 @@ def validate_qualitative_result(
                 "Qualitative observation group does not match its referenced "
                 "samples."
             )
+        referenced_statuses = {
+            selected_by_id[sample_id].inspection_status
+            for sample_id in observation.sample_refs
+        }
+        if any(
+            not sample_has_inspection_evidence(selected_by_id[sample_id])
+            for sample_id in observation.sample_refs
+        ):
+            raise QualitativeExecutionError(
+                "Qualitative observation references a sample without inspection evidence."
+            )
+        if "failed" in referenced_statuses:
+            raise QualitativeExecutionError(
+                "Qualitative observation references a failed inspection."
+            )
+        if (
+            observation.inspection_quality == "sufficient"
+            and referenced_statuses != {"completed"}
+        ):
+            raise QualitativeExecutionError(
+                "Sufficient observation quality requires completed inspections."
+            )
     for interpretation in payload.interpretations:
         if not set(interpretation.supporting_observation_ids).issubset(
             observation_id_set
@@ -290,6 +335,10 @@ def validate_qualitative_result(
             raise QualitativeExecutionError(
                 "Metadata evidence references an uninspected record."
             )
+    if not context.metadata_available and payload.metadata_evidence:
+        raise QualitativeExecutionError(
+            "Metadata evidence must be empty when qualitative metadata is unavailable."
+        )
 
     for failure in payload.failures:
         if not set(failure.sample_refs).issubset(selected_ids):
@@ -339,7 +388,7 @@ def validate_qualitative_result(
 
     if (
         request.task.inputs.requires_sample_access
-        and context.sample_files_available == 0
+        and context.samples_inspected == 0
         and payload.evidence_status != "insufficient_evidence"
     ):
         raise QualitativeExecutionError(
@@ -365,8 +414,19 @@ def execute_qualitative(
             )
 
         validate_qualitative_request(request)
-        context = build_qualitative_context(request)
+        context = build_qualitative_context(request, runs_root=runs_root)
         validate_qualitative_context(context, request)
+        if tool_runtime is not None:
+            tool_runtime.approve_samples(
+                [
+                    sample.sample_reference
+                    for sample in context.selected_samples
+                    if sample.sample_reference is not None
+                ]
+            )
+            tool_runtime.approve_artifacts(
+                context.inspection_artifact_references
+            )
         payload = build_qualitative_agent_payload(request, context)
         system_prompt = load_agent_workspace_prompt(
             "qualitative", workspace_dir
@@ -410,6 +470,22 @@ def execute_qualitative(
             raise QualitativeExecutionError(
                 "Qualitative agent returned an invalid QualitativeResult."
             ) from exc
+        result = result.model_copy(
+            update={
+                "payload": result.payload.model_copy(
+                    update={
+                        "artifact_references": list(
+                            dict.fromkeys(
+                                [
+                                    *result.payload.artifact_references,
+                                    *context.inspection_artifact_references,
+                                ]
+                            )
+                        )
+                    }
+                )
+            }
+        )
 
         validate_qualitative_result(
             result,

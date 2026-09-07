@@ -38,6 +38,7 @@ types. A future provider-native function-calling adapter belongs in the model cl
 | `get_column_distribution` | yes | no | yes | yes | no |
 | `select_samples` | yes | no | yes | yes | no |
 | `inspect_sample_metadata` | yes | no | yes | yes | no |
+| `inspect_sample` | no | no | no | yes | no |
 | `read_artifact` | yes | yes | yes | yes | yes |
 | `read_run_trace` | no | yes | yes | yes | yes |
 | `run_experiment` | no | no | yes | no | no |
@@ -51,6 +52,8 @@ This matrix is enforced by the registry, not trusted model output.
 - `get_column_distribution` reuses the bounded metadata loader.
 - `select_samples` wraps `tools.common.sample_selector.select_samples`.
 - `inspect_sample_metadata` wraps the existing qualitative evidence manifest.
+- `inspect_sample` resolves one already approved sample and computes only requested
+  allowlisted local descriptors within file, pixel, frame, and text budgets.
 - `read_artifact` and `read_run_trace` use approved run-relative storage paths.
 - `run_experiment` delegates to the `ExperimentExecutor` protocol. The mock backend
   remains available for tests; configured local live runs use the CPU-first
@@ -86,8 +89,20 @@ Dataset tools receive their root from `ToolExecutionContext`; it is not selected
 the Agent. Metadata and sample arguments are safe relative paths resolved beneath
 that root. Artifact reads must both resolve beneath `runs_root/run_id` and appear in
 the runtime's explicit allowlist. Absolute paths, drive-qualified paths, traversal,
-unapproved artifacts, and unsupported formats are rejected. Image access exposes
-only file metadata/signature status, not visual understanding.
+unapproved artifacts, and unsupported formats are rejected.
+
+`inspect_sample_metadata` exposes only file metadata/signature status.
+`inspect_sample` is separately restricted to Qualitative and returns deterministic
+image descriptors or bounded text facts for an already control-layer-approved
+reference. Supported descriptor names are `dimensions`, `intensity`, `rgb_stats`,
+`entropy`, `edge_density`, and `spatial_stats`; unknown names fail schema validation.
+It provides no semantic vision, OCR, arbitrary transformation, shortcut decision,
+shell, dynamic import, or network capability.
+
+Prepared qualitative artifacts live under
+`qualitative/<task_id>/inspection.json` and optional `contact_sheet.png`. They are
+added to the validated QualitativeResult artifact references. Runtime approval is
+dynamic and limited to the selected sample references and generated task artifacts.
 
 ## Trace and failures
 

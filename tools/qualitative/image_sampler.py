@@ -10,6 +10,8 @@ def _display_value(value: Any) -> str:
 
 
 def _group_key(row, group_columns: list[str]) -> str:
+    if not group_columns:
+        return "ungrouped"
     return " | ".join(
         f"{column}={_display_value(row[column])}" for column in group_columns
     )
@@ -51,6 +53,7 @@ def select_qualitative_samples(
     sample_path_column: str | None,
     split_column: str | None = None,
     split: str | None = None,
+    max_groups: int = 100,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """Select reproducible metadata-linked samples for qualitative review."""
 
@@ -58,6 +61,10 @@ def select_qualitative_samples(
         raise ValueError("max_samples must be at least 1.")
     if strategy not in {"random", "group_balanced"}:
         raise ValueError(f"Unsupported qualitative strategy: {strategy}")
+    if strategy == "group_balanced" and not group_columns:
+        raise ValueError("group_balanced sampling requires explicit group columns.")
+    if not isinstance(max_groups, int) or isinstance(max_groups, bool) or max_groups < 1:
+        raise ValueError("max_groups must be at least 1.")
 
     required = list(dict.fromkeys([
         *group_columns,
@@ -86,6 +93,18 @@ def select_qualitative_samples(
     groups: dict[str, list[int]] = {}
     for row_index, row in dataframe.iterrows():
         groups.setdefault(_group_key(row, group_columns), []).append(int(row_index))
+
+    omitted_group_count = max(0, len(groups) - max_groups)
+    if omitted_group_count:
+        ordered_groups = sorted(
+            groups,
+            key=lambda key: (-len(groups[key]), key.casefold(), key),
+        )[:max_groups]
+        groups = {key: groups[key] for key in ordered_groups}
+        kept_indexes = {index for indexes in groups.values() for index in indexes}
+        dataframe = dataframe.loc[
+            [index for index in dataframe.index if int(index) in kept_indexes]
+        ]
 
     limit = min(max_samples, len(dataframe))
     if strategy == "random":
@@ -138,4 +157,4 @@ def select_qualitative_samples(
         f"available::{key}": count for key, count in available_coverage.items()
     } | {
         f"selected::{key}": count for key, count in sorted(selected_coverage.items())
-    }
+    } | ({"groups_omitted": omitted_group_count} if omitted_group_count else {})

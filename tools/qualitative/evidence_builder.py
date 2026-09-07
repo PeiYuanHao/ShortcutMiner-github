@@ -67,7 +67,11 @@ def build_evidence_manifest(
 
         if raw_reference is None or not str(raw_reference).strip():
             entry["sample_reference"] = None
-            limitations.append(f"Sample {sample_id} has no sample path in metadata.")
+            if record.get("metadata_only"):
+                entry["sample_available"] = True
+                entry["media_type"] = "tabular"
+            else:
+                limitations.append(f"Sample {sample_id} has no sample path in metadata.")
             manifest.append(entry)
             continue
 

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from PIL import Image
+
 from shortcutminer.experiment.qualitative_context import (
     build_qualitative_context,
     build_qualitative_request,
@@ -96,7 +98,9 @@ def _dataset(root: Path) -> None:
     )
     (root / "images").mkdir()
     for name in ("s1.png", "s2.png", "s3.png", "s4.png"):
-        (root / "images" / name).write_bytes(b"\x89PNG\r\n\x1a\nmock")
+        Image.new("RGB", (16, 16), color=(64, 96, 128)).save(
+            root / "images" / name
+        )
 
 
 def test_context_builds_balanced_traceable_manifest(tmp_path: Path):

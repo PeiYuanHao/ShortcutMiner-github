@@ -32,4 +32,6 @@ def test_tool_contract_preserves_control_layer_evidence_boundary():
 
     assert "Do not resample" in instructions
     assert "allowed_output_artifact_prefix" in instructions
-    assert "qualitative/\n  artifacts/\n    <candidate_id>/" in instructions
+    assert "qualitative/<task_id>" in instructions
+    assert "inspect_sample" in instructions
+    assert "descriptor difference != causal shortcut" in instructions

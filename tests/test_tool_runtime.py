@@ -7,6 +7,7 @@ from threading import Lock
 from time import sleep
 
 import pytest
+from PIL import Image
 from pydantic import Field
 
 from shortcutminer.experiment.tool_executor import MockExperimentExecutor
@@ -38,7 +39,7 @@ from test_pipeline_mock import _initial_state
 def _dataset(root: Path) -> Path:
     root.mkdir(parents=True)
     (root / "images").mkdir()
-    (root / "images" / "one.png").write_bytes(b"\x89PNG\r\n\x1a\nmock")
+    Image.new("RGB", (8, 8), (32, 64, 96)).save(root / "images" / "one.png")
     (root / "metadata.csv").write_text(
         "id,label,group,path\n1,0,A,images/one.png\n2,1,B,images/one.png\n",
         encoding="utf-8",
@@ -116,6 +117,13 @@ def test_permission_matrix_is_least_privilege(registry):
             "identify": True,
             "executive": False,
             "quantitative": True,
+            "qualitative": True,
+            "summarize": False,
+        },
+        "inspect_sample": {
+            "identify": False,
+            "executive": False,
+            "quantitative": False,
             "qualitative": True,
             "summarize": False,
         },
@@ -317,6 +325,61 @@ def test_artifact_and_sample_readers_are_bounded_and_allowlisted(
     assert denied.error.error_type == "ToolExecutionError"
     assert sample.output["sample_available"] is True
     assert sample.output["media_type"] == "image"
+
+
+def test_inspect_sample_is_qualitative_only_bounded_and_allowlisted(
+    registry, tmp_path: Path
+):
+    dataset = _dataset(tmp_path / "dataset")
+    runtime = ToolRuntime(
+        registry,
+        run_id="tool_test_run",
+        agent_name="qualitative",
+        dataset_root=dataset,
+        approved_samples={"images/one.png"},
+    )
+    result = runtime.execute(
+        _call(
+            tool_name="inspect_sample",
+            agent_name="qualitative",
+            arguments={
+                "sample_id": "S1",
+                "sample_reference": "images/one.png",
+                "requested_descriptors": ["dimensions", "rgb_stats"],
+                "max_pixels": 64,
+            },
+        )
+    )
+    denied = runtime.execute(
+        _call(
+            tool_name="inspect_sample",
+            agent_name="qualitative",
+            call_id="tool-call-002",
+            arguments={
+                "sample_id": "S2",
+                "sample_reference": "metadata.csv",
+            },
+        )
+    )
+
+    assert result.status == "success"
+    assert set(result.output["visual_descriptors"]) == {"dimensions", "rgb_stats"}
+    assert result.output["visual_descriptors"]["dimensions"]["width"] == 8
+    assert denied.status == "failed"
+    assert "approved reference set" in denied.error.message
+    with pytest.raises(ToolInputValidationError, match="requested_descriptors"):
+        runtime.execute(
+            _call(
+                tool_name="inspect_sample",
+                agent_name="qualitative",
+                call_id="tool-call-003",
+                arguments={
+                    "sample_id": "S1",
+                    "sample_reference": "images/one.png",
+                    "requested_descriptors": ["shortcut_score"],
+                },
+            )
+        )
 
 
 def test_experiment_inconclusive_is_a_successful_tool_execution(

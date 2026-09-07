@@ -116,6 +116,11 @@ If quantitative and qualitative evidence disagree, explicitly report the disagre
 
 Do not silently resolve contradictions.
 
+A QualitativeResult status of `supported` is a specialist interpretation of its
+bounded sample evidence, not a final confirmed shortcut. Preserve its direct
+observations, counterevidence, inspection failures, and limitations separately from
+Quantitative metrics before assigning the final SummaryFinding assessment.
+
 ---
 
 ## Candidate-Level Synthesis

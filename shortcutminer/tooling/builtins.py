@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import pandas as pd
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from shortcutminer.experiment.tool_executor import (
     ExperimentExecutionRequest,
@@ -23,6 +23,11 @@ from shortcutminer.protocol.identify import (
     SafeRelativePath,
     StrictProtocolModel,
 )
+from shortcutminer.protocol.qualitative import (
+    ImageDescriptorName,
+    QualitativePreparationOptions,
+)
+from shortcutminer.protocol.qualitative_inspection import SampleEvidence
 from shortcutminer.tooling.base import StructuredTool, ToolExecutionContext
 from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.registry import ToolRegistry
@@ -31,6 +36,7 @@ from tools.common.metadata_profiler import profile_metadata
 from tools.common.metadata_profiler import _normalize_value, load_metadata
 from tools.common.sample_selector import select_samples
 from tools.qualitative.evidence_builder import build_evidence_manifest
+from shortcutminer.experiment.qualitative_backend import inspect_sample_record
 
 
 class EmptyInput(StrictProtocolModel):
@@ -130,6 +136,32 @@ class SampleMetadataOutput(StrictProtocolModel):
     media_type: str | None
     byte_size: int | None
     limitations: list[str]
+
+
+class SampleInspectionInput(StrictProtocolModel):
+    sample_id: NonEmptyText
+    sample_reference: SafeRelativePath
+    requested_descriptors: list[ImageDescriptorName] = Field(
+        default_factory=lambda: [
+            "dimensions",
+            "intensity",
+            "rgb_stats",
+            "entropy",
+            "edge_density",
+            "spatial_stats",
+        ]
+    )
+    max_file_bytes: int = Field(default=25_000_000, ge=1, le=100_000_000)
+    max_pixels: int = Field(default=20_000_000, ge=1, le=100_000_000)
+    max_frames: int = Field(default=1, ge=1, le=100)
+    max_text_bytes: int = Field(default=16_384, ge=1, le=1_000_000)
+
+    @field_validator("requested_descriptors")
+    @classmethod
+    def validate_unique_descriptors(cls, values: list[str]) -> list[str]:
+        if len(values) != len(set(values)):
+            raise ValueError("requested_descriptors must not contain duplicates")
+        return values
 
 
 class TraceReadInput(StrictProtocolModel):
@@ -322,6 +354,48 @@ def _inspect_sample_metadata(arguments, context):
     )
 
 
+def _inspect_sample(arguments, context):
+    if arguments.sample_reference not in context.approved_samples:
+        raise PermissionError("Sample is not in the approved reference set")
+    records, manifest_limitations = build_evidence_manifest(
+        str(_dataset_root(context)),
+        [
+            {
+                "sample_id": arguments.sample_id,
+                "metadata_row_index": None,
+                "group": "ungrouped",
+                "group_values": {},
+                "sample_reference": arguments.sample_reference,
+                "metadata": {},
+                "selection_reason": "random",
+            }
+        ],
+    )
+    options = QualitativePreparationOptions(
+        sampling_strategy="random",
+        seed=0,
+        requested_descriptors=arguments.requested_descriptors,
+        max_file_bytes=arguments.max_file_bytes,
+        max_pixels=arguments.max_pixels,
+        max_frames=arguments.max_frames,
+        max_text_bytes=arguments.max_text_bytes,
+        max_total_inspection_bytes=arguments.max_file_bytes,
+        create_contact_sheet=False,
+    )
+    evidence = inspect_sample_record(
+        str(_dataset_root(context)),
+        records[0],
+        options,
+    )
+    return evidence.model_copy(
+        update={
+            "limitations": list(
+                dict.fromkeys([*manifest_limitations, *evidence.limitations])
+            )
+        }
+    )
+
+
 def _read_trace(arguments, context):
     path = _run_root(context) / "events.jsonl"
     if not path.is_file():
@@ -434,6 +508,14 @@ def build_default_tool_registry(
         SampleMetadataOutput,
         _inspect_sample_metadata,
         {"identify", "quantitative", "qualitative"},
+    )
+    add(
+        "inspect_sample",
+        "Inspect one approved local image or text sample with allowlisted bounded descriptors.",
+        SampleInspectionInput,
+        SampleEvidence,
+        _inspect_sample,
+        {"qualitative"},
     )
     add(
         "read_run_trace",

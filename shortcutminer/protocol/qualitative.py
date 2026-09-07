@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from shortcutminer.protocol.executive import AnalysisTask, TaskId
 from shortcutminer.protocol.identify import (
@@ -24,6 +24,15 @@ EvidenceStatus = Literal[
 InterpretationConfidence = Literal["high", "medium", "low"]
 SamplingStrategy = Literal["random", "group_balanced"]
 InspectionQuality = Literal["sufficient", "limited", "unusable"]
+InspectionStatus = Literal["completed", "limited", "failed", "not_applicable"]
+ImageDescriptorName = Literal[
+    "dimensions",
+    "intensity",
+    "rgb_stats",
+    "entropy",
+    "edge_density",
+    "spatial_stats",
+]
 FailureCategory = Literal[
     "missing_samples",
     "missing_metadata",
@@ -51,19 +60,57 @@ def _reject_duplicates(values: list[str], field_name: str) -> list[str]:
 
 
 class QualitativePreparationOptions(StrictProtocolModel):
-    sampling_strategy: SamplingStrategy = "group_balanced"
+    sampling_strategy: SamplingStrategy = "random"
     seed: int
     sample_id_column: NonEmptyText | None = None
     sample_path_column: NonEmptyText | None = None
     split_column: NonEmptyText | None = None
-    group_columns: list[NonEmptyText] = Field(min_length=1)
-    max_evidence_records: int = Field(default=40, ge=1)
-    max_metadata_rows: int = Field(default=100_000, ge=1)
+    group_columns: list[NonEmptyText] = Field(default_factory=list)
+    requested_descriptors: list[ImageDescriptorName] = Field(
+        default_factory=lambda: [
+            "dimensions",
+            "intensity",
+            "rgb_stats",
+            "entropy",
+            "edge_density",
+            "spatial_stats",
+        ]
+    )
+    max_evidence_records: int = Field(default=40, ge=1, le=100)
+    max_metadata_rows: int = Field(default=100_000, ge=1, le=1_000_000)
+    max_groups: int = Field(default=100, ge=1, le=1_000)
+    max_comparison_groups: int = Field(default=20, ge=2, le=50)
+    max_sample_candidates: int = Field(default=10_000, ge=1, le=100_000)
+    max_file_bytes: int = Field(default=25_000_000, ge=1, le=100_000_000)
+    max_pixels: int = Field(default=20_000_000, ge=1, le=100_000_000)
+    max_frames: int = Field(default=1, ge=1, le=100)
+    max_text_bytes: int = Field(default=16_384, ge=1, le=1_000_000)
+    max_total_inspection_bytes: int = Field(
+        default=100_000_000,
+        ge=1,
+        le=500_000_000,
+    )
+    create_contact_sheet: bool = True
+    max_contact_sheet_samples: int = Field(default=24, ge=1, le=40)
+    thumbnail_size: int = Field(default=160, ge=32, le=512)
 
     @field_validator("group_columns")
     @classmethod
     def validate_unique_groups(cls, values: list[str]) -> list[str]:
         return _reject_duplicates(values, "group_columns")
+
+    @field_validator("requested_descriptors")
+    @classmethod
+    def validate_unique_descriptors(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "requested_descriptors")
+
+    @model_validator(mode="after")
+    def validate_group_sampling(self):
+        if self.sampling_strategy == "group_balanced" and not self.group_columns:
+            raise ValueError(
+                "group_balanced sampling requires at least one explicit group column"
+            )
+        return self
 
 
 class QualitativeRequest(StrictProtocolModel):

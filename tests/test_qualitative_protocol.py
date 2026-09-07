@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from shortcutminer.protocol.qualitative import (
+    QualitativePreparationOptions,
     QualitativeRequest,
     QualitativeResult,
 )
@@ -165,3 +166,14 @@ def test_evidence_status_is_canonical():
     data["payload"]["evidence_status"] = "likely"
     with pytest.raises(ValidationError, match="evidence_status"):
         QualitativeResult.model_validate(data)
+
+
+def test_random_sampling_does_not_require_group_columns():
+    options = QualitativePreparationOptions(seed=42)
+    assert options.sampling_strategy == "random"
+    assert options.group_columns == []
+
+
+def test_group_balanced_requires_explicit_group_columns():
+    with pytest.raises(ValidationError, match="requires at least one explicit"):
+        QualitativePreparationOptions(seed=42, sampling_strategy="group_balanced")

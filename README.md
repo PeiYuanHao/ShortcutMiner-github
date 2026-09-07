@@ -98,6 +98,7 @@ inspect_metadata
 get_column_distribution
 select_samples
 inspect_sample_metadata
+inspect_sample
 read_artifact
 read_run_trace
 run_experiment
@@ -112,7 +113,9 @@ See [Tool Runtime](docs/tool-runtime.md) for the exact permission matrix and fil
 - **Identify** can inspect the approved dataset, metadata, distributions, and samples to support candidate discovery.
 - **Executive** can inspect available capabilities and approved run information, but cannot run experiments.
 - **Quantitative** is the only Agent permitted to call `run_experiment`; it cannot execute arbitrary shell or Python code.
-- **Qualitative** can inspect approved samples, metadata, artifacts, and structured experiment output without mutating upstream data.
+- **Qualitative** alone can call `inspect_sample` for allowlisted, bounded local
+  descriptors of already selected samples; it can also inspect approved metadata
+  and artifacts without mutating upstream data.
 - **Summarize** can read approved artifacts and run traces for report synthesis, but cannot run experiments or mutate datasets.
 
 All file access is root-constrained, relative-path validated, allowlisted where appropriate, and bounded by runtime budgets.
@@ -147,7 +150,35 @@ The current profiler recognizes image-, tabular-, and text-like structures using
 
 The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, and an allowlisted prediction metric computation. Every experiment uses an experiment-specific strict parameter schema and writes a reusable artifact under `experiments/<task_id>/`. Statistics, p-values, effect sizes, predictive accuracy, and intervention deltas are evidence—not automatic shortcut decisions.
 
-The backend is CSV-first and CPU-only. It does not perform large neural-model retraining, image intervention, arbitrary Python/shell execution, or Phase 10 visual analysis.
+The quantitative backend is CSV-first and CPU-only. It does not perform large
+neural-model retraining, image intervention, or arbitrary Python/shell execution.
+
+## Qualitative Evidence Runtime
+
+Qualitative preparation supports deterministic `random` sampling without metadata
+or grouping, and `group_balanced` sampling only when explicit group columns are
+configured. CSV-backed tasks may inspect linked image/text samples or selected
+tabular rows; metadata-free datasets use a bounded, root-constrained scan of
+supported files.
+
+The real local image backend uses Pillow and NumPy on CPU to compute dimensions,
+mode/channels, intensity and RGB summaries, 256-bin grayscale entropy, deterministic
+edge density, and fixed center/border/side/corner statistics. It handles corrupt,
+oversized, decompression-bomb, truncated, and multi-frame inputs as explicit partial
+or failed evidence rather than crashing the task. Text previews and scanning are
+bounded by task budgets, and all dataset-derived strings are marked as untrusted.
+
+Each persisted task writes
+`qualitative/<task_id>/inspection.json` and, when inspectable images exist, a fixed
+bounded `contact_sheet.png`. Matching artifacts are validated and reused on retry
+or resume. The backend produces sample facts, group summaries, and descriptor
+differences only; the Qualitative Agent interprets evidence status and Summarize
+performs final synthesis.
+
+Current limits are deliberate: there is no VLM, OCR, semantic object recognition,
+image editing intervention, or neural visual representation. AgentClient remains
+text-oriented and receives deterministic descriptors plus artifact references, not
+unrestricted local files.
 
 ## Repository Structure
 
@@ -243,15 +274,24 @@ python -m pytest -q
 
 ## Current Development Validation
 
-Latest Phase 9 validation:
+Run the current Phase 10 validation with:
+
+```bash
+python -m pytest -q
+docker compose build
+docker compose run --rm shortcutminer pytest -q
+```
+
+Latest verified results:
 
 ```text
-Host:   389 passed, 5 skipped
-Docker: 394 passed
+Host:   406 passed, 6 skipped
+Docker: 412 passed
 ```
 
 Automatic tests use deterministic mock Agent clients plus synthetic data for the
-real quantitative backend. They do not call real LLM APIs or run expensive training.
+real quantitative and qualitative backends. They do not call real LLM APIs or run
+expensive training.
 
 ## Project Status
 
@@ -263,13 +303,15 @@ Implemented and tested:
 - AgentClient abstraction and offline mock client;
 - Tool Runtime, Registry, budgets, and per-Agent permissions;
 - real CPU quantitative experiments for bounded tabular/metadata evidence;
+- real CPU qualitative image/text/tabular evidence with sample traceability,
+  descriptor comparisons, contact sheets, and resume reuse;
 - run, artifact, event, and final-report storage;
 - SQLite checkpoint and resume behavior;
 - local Docker build, mock execution, and container tests.
 
 Not yet implemented as production research capability:
 
-- real visual or multimodal qualitative integration;
+- provider-native multimodal/VLM qualitative interpretation;
 - provider-native LLM function/tool-call adapters;
 - the full ICDM experimental evaluation;
 - large-scale dataset/model/seed experiment matrices.

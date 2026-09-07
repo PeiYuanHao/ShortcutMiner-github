@@ -308,7 +308,8 @@ def _qualitative_preparation(
         )
     values = dict(raw)
     values.setdefault("seed", state["identify_config"]["seed"])
-    values.setdefault("group_columns", [task.inputs.label_column])
+    values.setdefault("sampling_strategy", "random")
+    values.setdefault("group_columns", [])
     if "max_evidence_records" not in values:
         values["max_evidence_records"] = min(
             40,
