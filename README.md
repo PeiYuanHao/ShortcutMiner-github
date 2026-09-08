@@ -164,6 +164,21 @@ See [Evidence calibration](docs/evidence-calibration.md).
 The quantitative backend is CSV-first and CPU-only. It does not perform large
 neural-model retraining, image intervention, or arbitrary Python/shell execution.
 
+## Blind Evaluation Infrastructure
+
+The repository includes an evaluation-only blind challenge framework for
+open-ended shortcut discovery. It generates deterministic metadata, spatial,
+acquisition, mixed, and clean-control challenges with a strict physical firewall
+between the public dataset and private ground truth. Private truth is loaded only
+after the production workflow has completed, and leakage tests require identical
+production outputs when that truth is present, absent, or replaced.
+
+The framework provides exact candidate-to-truth matching, optional manual and
+multi-rater adjudication, discovery/localization/funnel/false-positive metrics,
+snapshot-frozen batch aggregation, and independent-challenge bootstrap intervals.
+Controlled smoke fixtures validate the infrastructure only; they are not a
+ShortcutMiner performance claim. See [Blind shortcut discovery evaluation](docs/blind-evaluation.md).
+
 ## Qualitative Evidence Runtime
 
 Qualitative preparation supports deterministic `random` sampling without metadata
