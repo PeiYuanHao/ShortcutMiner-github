@@ -179,7 +179,9 @@ def test_full_workflow_has_real_quantitative_and_qualitative_evidence(tmp_path: 
     run_dir = Path(state["identify_config"]["runs_root"]) / state["run_id"]
     inspection = run_dir / "qualitative" / "TASK-C001-QL" / "inspection.json"
     sheet = run_dir / "qualitative" / "TASK-C001-QL" / "contact_sheet.png"
+    ledger = run_dir / "evidence" / "ledger.json"
     mtimes = (inspection.stat().st_mtime_ns, sheet.stat().st_mtime_ns)
+    ledger_mtime = ledger.stat().st_mtime_ns
     inspection_data = json.loads(inspection.read_text(encoding="utf-8"))
 
     assert quantitative["metrics"]["effect_size_name"] == "cramers_v"
@@ -190,6 +192,8 @@ def test_full_workflow_has_real_quantitative_and_qualitative_evidence(tmp_path: 
     assert qualitative["counterevidence"]
     assert "qualitative/TASK-C001-QL/inspection.json" in qualitative["artifact_references"]
     assert result["final_result"]["message_type"] == "summary_report"
+    assert result["summarize_request"]["evidence_ledger"]["candidates"][0]["profile"]["consistency"] == "mixed"
+    assert json.loads(ledger.read_text(encoding="utf-8"))["fingerprint"]
 
     resumed = resume_run(
         state["run_id"],
@@ -199,4 +203,5 @@ def test_full_workflow_has_real_quantitative_and_qualitative_evidence(tmp_path: 
     )
     assert resumed.status == "COMPLETED"
     assert (inspection.stat().st_mtime_ns, sheet.stat().st_mtime_ns) == mtimes
+    assert ledger.stat().st_mtime_ns == ledger_mtime
     assert len(runtimes["quantitative"].history) == 1

@@ -416,6 +416,10 @@ def test_artifact_is_machine_readable_and_reused(tmp_path: Path):
     )
     assert readable.status == "success"
     assert readable.output["content"]["backend"] == "real_cpu_v1"
+    uncertainty = readable.output["content"]["uncertainty"][0]
+    assert uncertainty["available"] is True
+    assert uncertainty["bootstrap_iterations"] == 200
+    assert uncertainty["resampling_unit"] == "sample_row"
 
     second_runtime, _ = _runtime(tmp_path, _probe_frame(True))
     second = _execute(

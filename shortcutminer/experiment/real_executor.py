@@ -45,6 +45,8 @@ from shortcutminer.protocol.identify import (
 )
 from shortcutminer.storage.json_artifacts import atomic_write_json
 from shortcutminer.tooling.base import ToolExecutionContext
+from shortcutminer.evaluation.calibration import bootstrap_interval
+from shortcutminer.protocol.evidence import UncertaintyEstimate
 
 
 class RealExperimentError(RuntimeError):
@@ -64,6 +66,7 @@ class BackendEvidence:
     warnings: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
     input_references: list[str] = field(default_factory=list)
+    uncertainty: list[UncertaintyEstimate] = field(default_factory=list)
 
 
 class QuantitativeBackend(Protocol):
@@ -90,6 +93,7 @@ class RealExperimentArtifact(StrictProtocolModel):
     created_at: NonEmptyText
     input_references: list[str]
     details: dict[str, Any]
+    uncertainty: list[UncertaintyEstimate] = Field(default_factory=list)
     output: ExperimentExecutionOutput
 
 
@@ -178,6 +182,37 @@ def _finite(value: float) -> float | None:
     return float(value) if np.isfinite(value) else None
 
 
+def _association_effect(frame: pd.DataFrame, cue: str, label: str, mode: str) -> float | None:
+    """Compute only the effect statistic for bootstrap replicates."""
+    if frame.empty:
+        return None
+    if mode == "categorical_categorical":
+        table = pd.crosstab(frame[cue], frame[label])
+        if min(table.shape) < 2:
+            return None
+        chi2 = float(stats.chi2_contingency(table, correction=False)[0])
+        denominator = len(frame) * min(table.shape[0] - 1, table.shape[1] - 1)
+        return float(np.sqrt(chi2 / denominator)) if denominator else None
+    if mode == "numeric_categorical":
+        values = pd.to_numeric(frame[cue], errors="coerce")
+        usable = frame.assign(**{cue: values}).dropna(subset=[cue])
+        if usable[label].nunique() < 2:
+            return None
+        array = usable[cue].to_numpy(dtype=float)
+        total = float(np.sum((array - np.mean(array)) ** 2))
+        if total == 0:
+            return None
+        between = sum(
+            len(group) * (float(group[cue].mean()) - float(np.mean(array))) ** 2
+            for _, group in usable.groupby(label, sort=True)
+        )
+        return float(between / total)
+    numeric = frame[[cue, label]].apply(pd.to_numeric, errors="coerce").dropna()
+    if len(numeric) < 2 or numeric[cue].nunique() < 2 or numeric[label].nunique() < 2:
+        return None
+    return float(stats.pearsonr(numeric[cue], numeric[label]).statistic)
+
+
 def _row_budget_warnings(
     frame: pd.DataFrame,
     *,
@@ -230,6 +265,7 @@ def _association_evidence(
     parameters: StatisticalCheckParameters | MetadataInterventionParameters,
     *,
     include_tests: bool,
+    estimate_uncertainty: bool = True,
 ) -> BackendEvidence:
     cue = parameters.cue_field
     label = parameters.label_column
@@ -399,12 +435,24 @@ def _association_evidence(
             label: {"mean": float(numeric[label].mean()), "std": float(numeric[label].std())},
         }
 
+    uncertainty = []
+    if estimate_uncertainty:
+        uncertainty.append(bootstrap_interval(
+            metric="effect_size",
+            sample_count=len(valid),
+            statistic=lambda indices: _association_effect(valid.iloc[indices].reset_index(drop=True), cue, label, mode),
+            confidence_level=parameters.confidence_level,
+            iterations=parameters.bootstrap_iterations,
+            seed=parameters.seed,
+            resampling_unit="sample_row",
+        ))
     return BackendEvidence(
         outcome="completed",
         metrics=metrics,
         summary="Association statistics and effect size were computed; they are evidence, not a shortcut judgment.",
         details=details,
         warnings=warnings,
+        uncertainty=uncertainty,
     )
 
 
@@ -429,7 +477,12 @@ def _statistical_backend(parameters: StatisticalCheckParameters, access: Experim
             permuted[parameters.label_column] = random.permutation(
                 permuted[parameters.label_column].to_numpy()
             )
-            null = _association_evidence(permuted, parameters, include_tests=False)
+            null = _association_evidence(
+                permuted,
+                parameters,
+                include_tests=False,
+                estimate_uncertainty=False,
+            )
             if null.outcome == "completed" and null.metrics["effect_size"] is not None:
                 null_values.append(abs(float(null.metrics["effect_size"])))
         if null_values:
@@ -552,6 +605,38 @@ def _subgroup_backend(parameters: SubgroupEvaluationParameters, access: Experime
     )
     if tiny:
         warnings.append(f"{tiny} subgroups are smaller than min_group_size={parameters.min_group_size}.")
+    labels = valid[parameters.label_column].to_numpy()
+    predictions_array = valid[parameters.prediction_column].to_numpy()
+    groups_array = valid[parameters.group_field].astype(str).to_numpy()
+
+    def subgroup_stat(indices: np.ndarray, name: str) -> float | None:
+        selected_groups = groups_array[indices]
+        selected_labels = labels[indices]
+        selected_predictions = predictions_array[indices]
+        unique_groups = sorted(set(selected_groups))
+        if name == "overall_accuracy":
+            return float(accuracy_score(selected_labels, selected_predictions))
+        values = [
+            float(accuracy_score(selected_labels[selected_groups == group], selected_predictions[selected_groups == group]))
+            for group in unique_groups
+            if np.any(selected_groups == group)
+        ]
+        if len(values) < 2:
+            return None
+        return min(values) if name == "worst_group_accuracy" else max(values) - min(values)
+
+    uncertainty = [
+        bootstrap_interval(
+            metric=name,
+            sample_count=len(valid),
+            statistic=lambda indices, metric=name: subgroup_stat(indices, metric),
+            confidence_level=parameters.confidence_level,
+            iterations=parameters.bootstrap_iterations,
+            seed=parameters.seed + offset,
+            resampling_unit="prediction_row_preserving_group_identity",
+        )
+        for offset, name in enumerate(("overall_accuracy", "worst_group_accuracy", "group_accuracy_gap"))
+    ]
     return BackendEvidence(
         outcome="completed",
         metrics={
@@ -570,6 +655,7 @@ def _subgroup_backend(parameters: SubgroupEvaluationParameters, access: Experime
         details={"groups": group_results},
         warnings=warnings,
         input_references=[parameters.metadata_file, reference],
+        uncertainty=uncertainty,
     )
 
 
@@ -704,6 +790,42 @@ def _probe_evidence(
     accuracy = float(accuracy_score(test_y, prediction))
     baseline_accuracy = float(accuracy_score(test_y, baseline))
     balanced = float(balanced_accuracy_score(test_y, prediction))
+    labels = test_y.to_numpy()
+    uncertainty = []
+    for offset, (name, values) in enumerate((
+        ("probe_accuracy", prediction),
+        ("majority_baseline_accuracy", baseline),
+    )):
+        uncertainty.append(bootstrap_interval(
+            metric=name,
+            sample_count=len(labels),
+            statistic=lambda indices, predicted=np.asarray(values): float(accuracy_score(labels[indices], predicted[indices])),
+            confidence_level=parameters.confidence_level,
+            iterations=parameters.bootstrap_iterations,
+            seed=parameters.seed + offset,
+            resampling_unit="held_out_prediction_row",
+        ))
+    uncertainty.append(bootstrap_interval(
+        metric="improvement",
+        sample_count=len(labels),
+        statistic=lambda indices: float(
+            accuracy_score(labels[indices], np.asarray(prediction)[indices])
+            - accuracy_score(labels[indices], np.asarray(baseline)[indices])
+        ),
+        confidence_level=parameters.confidence_level,
+        iterations=parameters.bootstrap_iterations,
+        seed=parameters.seed + 2,
+        resampling_unit="paired_held_out_prediction_row",
+    ))
+    uncertainty.append(bootstrap_interval(
+        metric="balanced_accuracy",
+        sample_count=len(labels),
+        statistic=lambda indices: float(balanced_accuracy_score(labels[indices], np.asarray(prediction)[indices])),
+        confidence_level=parameters.confidence_level,
+        iterations=parameters.bootstrap_iterations,
+        seed=parameters.seed + 3,
+        resampling_unit="held_out_prediction_row",
+    ))
     return BackendEvidence(
         outcome="completed",
         metrics={
@@ -726,6 +848,7 @@ def _probe_evidence(
             "train_class_distribution": _counts(train_y),
             "test_class_distribution": _counts(test_y),
         },
+        uncertainty=uncertainty,
     )
 
 
@@ -789,6 +912,24 @@ def _intervention_backend(parameters: MetadataInterventionParameters, access: Ex
     before_effect = float(before.metrics["effect_size"])
     after_effect = float(after.metrics["effect_size"])
     rows_affected = int((original != intervened[parameters.cue_field]).fillna(False).sum())
+    before_valid = frame[[parameters.cue_field, parameters.label_column]].dropna()
+    after_valid = intervened.loc[before_valid.index, [parameters.cue_field, parameters.label_column]]
+    mode = _infer_association_mode(before_valid, parameters)
+
+    def intervention_delta(indices: np.ndarray) -> float | None:
+        before_value = _association_effect(before_valid.iloc[indices].reset_index(drop=True), parameters.cue_field, parameters.label_column, mode)
+        after_value = _association_effect(after_valid.iloc[indices].reset_index(drop=True), parameters.cue_field, parameters.label_column, mode)
+        return None if before_value is None or after_value is None else after_value - before_value
+
+    uncertainty = [bootstrap_interval(
+        metric="effect_size_delta",
+        sample_count=len(before_valid),
+        statistic=intervention_delta,
+        confidence_level=parameters.confidence_level,
+        iterations=parameters.bootstrap_iterations,
+        seed=parameters.seed,
+        resampling_unit="paired_sample_row",
+    )]
     return BackendEvidence(
         outcome="completed",
         metrics={
@@ -808,6 +949,7 @@ def _intervention_backend(parameters: MetadataInterventionParameters, access: Ex
         },
         warnings=[*before.warnings, *after.warnings],
         input_references=[parameters.metadata_file],
+        uncertainty=uncertainty,
     )
 
 
@@ -832,6 +974,21 @@ def _ablation_backend(parameters: MetadataAblationParameters, access: Experiment
         )
     full_accuracy = float(full.metrics["probe_accuracy"])
     ablated_accuracy = float(ablated.metrics["probe_accuracy"])
+    uncertainty = [
+        estimate.model_copy(update={"metric": "full_probe_accuracy"})
+        for estimate in full.uncertainty
+        if estimate.metric == "probe_accuracy"
+    ]
+    uncertainty.extend(
+        estimate.model_copy(update={"metric": "ablated_probe_accuracy"})
+        for estimate in ablated.uncertainty
+        if estimate.metric == "probe_accuracy"
+    )
+    uncertainty.append(UncertaintyEstimate(
+        metric="accuracy_delta",
+        available=False,
+        reason_unavailable="Paired held-out predictions were not retained across both probe fits.",
+    ))
     return BackendEvidence(
         outcome="completed",
         metrics={
@@ -846,6 +1003,7 @@ def _ablation_backend(parameters: MetadataAblationParameters, access: Experiment
         details={"ablate_field": parameters.ablate_field, "remaining_features": remaining},
         warnings=[*full.warnings, *ablated.warnings, *row_warnings],
         input_references=[parameters.metadata_file],
+        uncertainty=uncertainty,
     )
 
 
@@ -878,6 +1036,17 @@ def _metric_backend(parameters: MetricComputationParameters, access: ExperimentA
             valid[parameters.label_column], valid[parameters.prediction_column]
         )
     )
+    labels = valid[parameters.label_column].to_numpy()
+    predicted = valid[parameters.prediction_column].to_numpy()
+    uncertainty = [bootstrap_interval(
+        metric="metric_value",
+        sample_count=len(valid),
+        statistic=lambda indices: float(metric_functions[parameters.metric](labels[indices], predicted[indices])),
+        confidence_level=parameters.confidence_level,
+        iterations=parameters.bootstrap_iterations,
+        seed=parameters.seed,
+        resampling_unit="prediction_row",
+    )]
     return BackendEvidence(
         outcome="completed",
         metrics={
@@ -889,6 +1058,7 @@ def _metric_backend(parameters: MetricComputationParameters, access: ExperimentA
         summary="An allowlisted prediction metric was computed on valid bounded rows.",
         warnings=row_warnings,
         input_references=[parameters.predictions_file],
+        uncertainty=uncertainty,
     )
 
 
@@ -949,6 +1119,9 @@ class RealExperimentExecutor:
                 "experiment_type": request.experiment_type,
                 "warnings": evidence.warnings,
                 "limitations": evidence.limitations,
+                "uncertainty": [
+                    item.model_dump(mode="json") for item in evidence.uncertainty
+                ],
                 "reused": False,
             },
         )
@@ -968,6 +1141,7 @@ class RealExperimentExecutor:
             created_at=datetime.now(timezone.utc).isoformat(),
             input_references=evidence.input_references,
             details=evidence.details,
+            uncertainty=evidence.uncertainty,
             output=output,
         )
         atomic_write_json(

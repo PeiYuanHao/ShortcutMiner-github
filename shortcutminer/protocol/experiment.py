@@ -15,7 +15,12 @@ class EmptyExperimentParameters(StrictProtocolModel):
     """Compatibility shape used by mocks and explicit missing-input results."""
 
 
-class StatisticalCheckParameters(StrictProtocolModel):
+class UncertaintyOptions(StrictProtocolModel):
+    confidence_level: float = Field(default=0.95, ge=0.8, lt=1.0)
+    bootstrap_iterations: int = Field(default=200, ge=0, le=1_000)
+
+
+class StatisticalCheckParameters(UncertaintyOptions):
     metadata_file: SafeRelativePath
     cue_field: NonEmptyText
     label_column: NonEmptyText
@@ -32,7 +37,7 @@ class StatisticalCheckParameters(StrictProtocolModel):
     seed: int = 0
 
 
-class SubgroupEvaluationParameters(StrictProtocolModel):
+class SubgroupEvaluationParameters(UncertaintyOptions):
     metadata_file: SafeRelativePath
     group_field: NonEmptyText
     label_column: NonEmptyText
@@ -44,6 +49,7 @@ class SubgroupEvaluationParameters(StrictProtocolModel):
     max_rows: int = Field(default=100_000, ge=2, le=1_000_000)
     max_categories: int = Field(default=100, ge=2, le=1_000)
     min_group_size: int = Field(default=2, ge=1, le=100_000)
+    seed: int = 0
 
     @model_validator(mode="after")
     def validate_prediction_join(self):
@@ -56,7 +62,7 @@ class SubgroupEvaluationParameters(StrictProtocolModel):
         return self
 
 
-class PredictiveProbeParameters(StrictProtocolModel):
+class PredictiveProbeParameters(UncertaintyOptions):
     metadata_file: SafeRelativePath
     feature_fields: list[NonEmptyText] = Field(min_length=1)
     label_column: NonEmptyText
@@ -97,7 +103,7 @@ class PredictiveProbeParameters(StrictProtocolModel):
         return self
 
 
-class MetadataInterventionParameters(StrictProtocolModel):
+class MetadataInterventionParameters(UncertaintyOptions):
     metadata_file: SafeRelativePath
     cue_field: NonEmptyText
     label_column: NonEmptyText
@@ -127,13 +133,14 @@ class MetadataAblationParameters(PredictiveProbeParameters):
         return self
 
 
-class MetricComputationParameters(StrictProtocolModel):
+class MetricComputationParameters(UncertaintyOptions):
     predictions_file: SafeRelativePath
     predictions_source: Literal["dataset", "run"] = "dataset"
     label_column: NonEmptyText
     prediction_column: NonEmptyText
     metric: Literal["accuracy", "balanced_accuracy"] = "accuracy"
     max_rows: int = Field(default=100_000, ge=1, le=1_000_000)
+    seed: int = 0
 
 
 ExperimentParameters: TypeAlias = (
@@ -156,4 +163,5 @@ __all__ = [
     "PredictiveProbeParameters",
     "StatisticalCheckParameters",
     "SubgroupEvaluationParameters",
+    "UncertaintyOptions",
 ]

@@ -751,3 +751,22 @@ Failure to confirm a proposed candidate is a valid result.
 Your objective is not to prove that every candidate is a shortcut.
 
 Your objective is to determine what the available real-world evidence actually supports.
+
+---
+
+## 19. Evidence Calibration Boundary
+
+Inspection quality and evidence direction are independent. A sufficient
+inspection may contradict a candidate; a limited inspection may contain a
+supporting observation while remaining low-confidence. Failed, blocked, missing,
+or unusable inspection lowers coverage and never becomes counterevidence.
+Inconclusive evidence is not evidence that the shortcut is absent.
+
+Preserve supporting observations, counterevidence, failures, sample coverage,
+artifact provenance, and limitations simultaneously. Do not let quantitative
+results overwrite qualitative evidence, and do not overwrite quantitative
+results. Evidence derived from the same metadata field, selected rows, or
+inspection artifact shares an input source and must not be described as fully
+independent corroboration. Do not create numeric confidence, risk, probability,
+or weighted shortcut scores, and never use descriptor differences as a magic
+shortcut threshold.

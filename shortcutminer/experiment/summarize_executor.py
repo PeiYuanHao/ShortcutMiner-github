@@ -34,6 +34,15 @@ def validate_summarize_request(request: SummarizeRequest) -> None:
     )
     if any(item.run_id != request.run_id for item in inputs):
         raise SummarizeExecutionError("Summarize inputs do not share one run_id.")
+    if request.evidence_ledger is not None:
+        if request.evidence_ledger.run_id != request.run_id:
+            raise SummarizeExecutionError("EvidenceLedger run_id does not match request.")
+        ledger_ids = [entry.candidate_id for entry in request.evidence_ledger.candidates]
+        candidate_ids = [candidate.candidate_id for candidate in request.identify_result.candidates]
+        if ledger_ids != candidate_ids:
+            raise SummarizeExecutionError(
+                "EvidenceLedger must contain every candidate in report order."
+            )
     quantitative_tasks = [
         task.task_id
         for task in request.executive_result.tasks
@@ -147,6 +156,43 @@ def validate_summary_report(
                 "Summary finding does not reference its qualitative result."
             )
 
+    if request.evidence_ledger is not None:
+        entries = {entry.candidate_id: entry for entry in request.evidence_ledger.candidates}
+        for finding in report.payload.findings:
+            entry = entries[finding.candidate_id]
+            profile = entry.profile
+            has_support = bool(profile.supporting_record_ids or profile.mixed_record_ids)
+            has_contradiction = bool(profile.contradicting_record_ids or profile.mixed_record_ids)
+            if finding.assessment in {"supported", "partially_supported"} and not has_support:
+                raise SummarizeExecutionError(
+                    f"Summary overclaim: {finding.candidate_id} has no supporting evidence."
+                )
+            if finding.assessment == "contradicted" and not has_contradiction:
+                raise SummarizeExecutionError(
+                    f"Summary overclaim: {finding.candidate_id} has no contradictory evidence."
+                )
+            if profile.consistency == "no_usable_evidence" and finding.assessment != "insufficient_evidence":
+                raise SummarizeExecutionError(
+                    f"Summary overclaim: {finding.candidate_id} has no usable evidence."
+                )
+            if profile.consistency == "inconclusive" and finding.assessment not in {
+                "inconclusive", "insufficient_evidence"
+            }:
+                raise SummarizeExecutionError(
+                    f"Summary overclaim: {finding.candidate_id} has only inconclusive evidence."
+                )
+            if profile.consistency == "mixed" and finding.assessment not in {
+                "partially_supported", "inconclusive"
+            }:
+                raise SummarizeExecutionError(
+                    f"Summary overclaim: {finding.candidate_id} must preserve mixed evidence."
+                )
+            unknown_records = set(finding.evidence_record_ids) - set(entry.record_ids)
+            if unknown_records:
+                raise SummarizeExecutionError(
+                    f"Summary finding references unknown EvidenceRecord IDs for {finding.candidate_id}."
+                )
+
     allowed_artifacts = set(request.identify_result.artifact_references)
     allowed_artifacts.update(request.executive_result.artifact_references)
     for task in request.executive_result.tasks:
@@ -157,12 +203,19 @@ def validate_summary_report(
         allowed_artifacts.update(result.payload.artifact_references)
         for failure in result.payload.failures:
             allowed_artifacts.update(failure.artifact_references)
+    if request.evidence_ledger is not None:
+        allowed_artifacts.add(request.evidence_ledger.artifact_reference)
     unknown_artifacts = set(report.payload.artifact_references) - allowed_artifacts
     if unknown_artifacts:
         raise SummarizeExecutionError(
             "SummaryReport references artifacts absent from validated upstream "
             "inputs: " + ", ".join(sorted(unknown_artifacts))
         )
+    if report.payload.evidence_ledger_reference is not None:
+        if request.evidence_ledger is None or report.payload.evidence_ledger_reference != request.evidence_ledger.artifact_reference:
+            raise SummarizeExecutionError(
+                "SummaryReport evidence ledger reference does not match its request."
+            )
 
 
 def execute_summarize(

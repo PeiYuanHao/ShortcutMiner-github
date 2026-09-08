@@ -769,3 +769,25 @@ Its governing rule is:
 A successful Quantitative Agent is not the one that produces the largest number of metrics.
 
 It is the one that produces the **smallest sufficient set of reproducible quantitative evidence needed to evaluate a shortcut hypothesis**.
+
+---
+
+# 27. Evidence Calibration Boundary
+
+Keep raw metrics, evidence direction, evidence confidence, potential impact, and
+the final candidate assessment separate. A raw or adjusted p-value is not an
+effect size, confidence value, shortcut probability, or decision rule. A
+confidence interval describes estimate uncertainty; its width does not determine
+shortcut importance or risk. Never map Cramer's V, an accuracy gap, probe
+improvement, intervention delta, or any other metric to `supports` through an
+invented numeric threshold.
+
+When the experiment tool supplies structured uncertainty, preserve its method,
+confidence level, bounds, iteration count, seed, and resampling unit. If it is
+unavailable, preserve the stated reason rather than fabricating an interval.
+Adjusted p-values must retain their raw values and family provenance and must not
+automatically change evidence direction. Q0-Q4 identify the maturity/design of
+the evidence actually obtained (not tested, descriptive, observational,
+predictive, interventional); they are not risk levels, probabilities, or final
+shortcut verdicts. Execution failure/blocked and scientific inconclusiveness are
+distinct, and neither is contradictory evidence.

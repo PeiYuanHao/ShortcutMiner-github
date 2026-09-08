@@ -43,6 +43,8 @@ from shortcutminer.storage.dataset_profiles import (
 )
 from shortcutminer.protocol.qualitative import QualitativePreparationOptions
 from shortcutminer.protocol.summarize import SummarizeRequest
+from shortcutminer.protocol.evidence import EvidenceLedger
+from shortcutminer.evaluation.evidence_ledger import EvidenceLedgerBuilder
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.state import ShortcutMinerState
 
@@ -385,6 +387,18 @@ def build_summarize_request_from_state(
             state["qualitative_result"]
         )
         config = _stage_config(state, "summarize_config")
+        if state.get("evidence_ledger") is not None:
+            evidence_ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
+        else:
+            evidence_ledger = EvidenceLedgerBuilder(
+                apply_bh_fdr=bool(config.get("apply_bh_fdr", True))
+            ).build(
+                identify_result,
+                executive_result,
+                quantitative_result,
+                qualitative_result,
+                runs_root=_runs_root(state, config),
+            )
         return SummarizeRequest(
             protocol_version="1.0",
             run_id=state["run_id"],
@@ -399,11 +413,37 @@ def build_summarize_request_from_state(
             executive_result=executive_result,
             quantitative_result=quantitative_result,
             qualitative_result=qualitative_result,
+            evidence_ledger=evidence_ledger,
         )
     except (KeyError, TypeError, ValidationError, ValueError) as exc:
         raise SummarizeNodeError(
             f"Summarize requires complete branch state: {exc}"
         ) from exc
+
+
+def evidence_calibration_node(state: ShortcutMinerState) -> dict[str, Any]:
+    """Build or reuse the deterministic evidence ledger after branch fan-in."""
+    try:
+        identify_result = CandidateReport.model_validate(state["identify_result"])
+        executive_result = RoutingPlan.model_validate(state["executive_result"])
+        quantitative_result = QuantitativeResultBatch.model_validate(state["quantitative_result"])
+        qualitative_result = QualitativeResultBatch.model_validate(state["qualitative_result"])
+        config = _stage_config(state, "summarize_config")
+        ledger = EvidenceLedgerBuilder(
+            apply_bh_fdr=bool(config.get("apply_bh_fdr", True))
+        ).build(
+            identify_result,
+            executive_result,
+            quantitative_result,
+            qualitative_result,
+            runs_root=_runs_root(state, config),
+        )
+        return {
+            "evidence_ledger": ledger.model_dump(mode="json"),
+            "stage_status": {"evidence_calibration": "completed"},
+        }
+    except (KeyError, TypeError, ValidationError, ValueError, RuntimeError) as exc:
+        raise SummarizeNodeError(f"Evidence calibration requires complete branch state: {exc}") from exc
 
 
 def summarize_node(
@@ -425,6 +465,7 @@ def summarize_node(
     )
     serialized = report.model_dump(mode="json")
     return {
+        "evidence_ledger": request.evidence_ledger.model_dump(mode="json") if request.evidence_ledger else None,
         "summarize_request": request.model_dump(mode="json"),
         "summarize_result": serialized,
         "final_result": serialized,

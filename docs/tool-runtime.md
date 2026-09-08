@@ -78,7 +78,13 @@ The static backend registry supports:
 | `metric_computation` | allowlisted accuracy or balanced accuracy |
 
 Budgets cap rows, categories, permutations, probe input fields, and solver
-iterations. Sparse, constant, single-class, and insufficient samples produce a
+iterations. Statistical schemas also cap percentile-bootstrap iterations at 1,000,
+use a configurable confidence level in `[0.8, 1.0)`, and record the seed and
+resampling unit. Association effects use sample-row resampling; subgroup and
+prediction metrics use prediction rows; probes bootstrap held-out predictions
+without retraining. Metrics for which the required paired predictions are not
+retained report uncertainty as unavailable rather than silently retraining.
+Sparse, constant, single-class, and insufficient samples produce a
 successful `outcome: inconclusive`; parse/access failures produce a failed
 ToolResult. The backend never assigns evidence levels/directions or applies a
 threshold that confirms a shortcut.
@@ -116,6 +122,7 @@ typed output has `outcome: inconclusive`.
 
 Real experiment evidence is additionally stored as
 `runs/<run_id>/experiments/<task_id>/<experiment_type>-<parameter_hash>.json`.
-The artifact contains bounded structured details such as contingency tables and
-group summaries while the Tool output keeps scalar metrics. A completed matching
+The artifact contains bounded structured details such as contingency tables,
+group summaries, and uncertainty contracts while the Tool output keeps scalar
+metrics and exposes uncertainty through metadata. A completed matching
 artifact is validated and reused on retry/resume rather than recomputed.

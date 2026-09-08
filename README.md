@@ -46,13 +46,16 @@ Generic Dataset Intake
 Quantitative  Qualitative
       \        /
        v      v
+ EvidenceLedgerBuilder
+          |
+          v
        Summarize
           |
           v
      SummaryReport
 ```
 
-Runner and Orchestrator are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph provides the typed execution graph: Executive fans out to Quantitative and Qualitative, and Summarize runs after both branches join.
+Runner and Orchestrator are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph provides the typed execution graph: Executive fans out to Quantitative and Qualitative. At the join, deterministic evidence calibration builds a threshold-free `EvidenceLedger` before Summarize runs; it is infrastructure, not a sixth Agent.
 
 The production control path accepts user-provided local datasets through a generic intake contract; dataset names are not selected from a benchmark whitelist. Intake performs bounded, deterministic inspection of supported local structures and CSV metadata, emits a strict `DatasetProfile`, and gives that factual profile to Identify as untrusted evidence. It does not infer or rank shortcut candidates. Unknown or unsupported structures are reported through warnings and limitations rather than being treated as a known benchmark.
 
@@ -82,6 +85,7 @@ CandidateReport
 RoutingPlan
 QuantitativeResult
 QualitativeResult
+EvidenceLedger
 SummaryReport
 ```
 
@@ -148,7 +152,14 @@ The current profiler recognizes image-, tabular-, and text-like structures using
 
 `ExperimentExecutor` is the typed boundary between `run_experiment` and scientific execution. `MockExperimentExecutor` remains available for deterministic unit tests. `RealExperimentExecutor` is the local CPU backend used by configured live CLI runs.
 
-The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, and an allowlisted prediction metric computation. Every experiment uses an experiment-specific strict parameter schema and writes a reusable artifact under `experiments/<task_id>/`. Statistics, p-values, effect sizes, predictive accuracy, and intervention deltas are evidence—not automatic shortcut decisions.
+The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, and an allowlisted prediction metric computation. Every experiment uses an experiment-specific strict parameter schema and writes a reusable artifact under `experiments/<task_id>/`. Supported metrics carry bounded, seeded percentile-bootstrap uncertainty; unavailable intervals include an explicit reason. Statistics, raw/adjusted p-values, effect sizes, predictive accuracy, and intervention deltas are evidence—not automatic shortcut decisions.
+
+The evidence ledger is stored at `evidence/ledger.json`. It preserves direction,
+execution state, coverage, uncertainty, provenance, artifacts, failures,
+counterevidence, and shared input families separately. Benjamini-Hochberg FDR is
+applied transparently within candidate-level related-test families while retaining
+raw p-values. Neither intervals nor adjusted p-values trigger a shortcut verdict.
+See [Evidence calibration](docs/evidence-calibration.md).
 
 The quantitative backend is CSV-first and CPU-only. It does not perform large
 neural-model retraining, image intervention, or arbitrary Python/shell execution.

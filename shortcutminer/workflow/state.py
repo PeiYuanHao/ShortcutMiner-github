@@ -73,6 +73,7 @@ class ShortcutMinerState(TypedDict, total=False):
     executive_result: NotRequired[dict[str, Any]]
     quantitative_result: NotRequired[dict[str, Any]]
     qualitative_result: NotRequired[dict[str, Any]]
+    evidence_ledger: NotRequired[dict[str, Any]]
     summarize_request: NotRequired[dict[str, Any]]
     summarize_result: NotRequired[dict[str, Any]]
     # Backward-compatible export alias. summarize_result is the canonical

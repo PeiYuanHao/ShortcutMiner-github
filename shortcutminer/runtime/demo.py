@@ -289,6 +289,15 @@ class DemoAgentClient(MockAgentClient):
         request = payload["request"]
         quantitative = request["quantitative_result"]["results"][0]
         qualitative = request["qualitative_result"]["results"][0]
+        ledger_entry = request.get("evidence_ledger", {}).get("candidates", [{}])[0]
+        profile = ledger_entry.get("profile", {})
+        consistency = profile.get("consistency")
+        assessment = {
+            "mixed": "partially_supported",
+            "inconclusive": "inconclusive",
+            "no_usable_evidence": "insufficient_evidence",
+            "consistent_contradiction": "contradicted",
+        }.get(consistency, "supported")
         return {
             "protocol_version": "1.0",
             "run_id": request["run_id"],
@@ -302,15 +311,21 @@ class DemoAgentClient(MockAgentClient):
                 "findings": [
                     {
                         "candidate_id": "C001",
-                        "assessment": "supported",
-                        "summary": "Site is a plausible shortcut.",
+                        "assessment": assessment,
+                        "summary": (
+                            "Supporting and contradictory evidence are both retained."
+                            if consistency == "mixed"
+                            else "Site is a plausible shortcut."
+                        ),
                         "quantitative_result_ids": [quantitative["message_id"]],
                         "qualitative_result_ids": [qualitative["message_id"]],
+                        "evidence_record_ids": ledger_entry.get("record_ids", []),
                         "limitations": [],
                         "recommendations": ["Validate on a held-out site."],
                     }
                 ],
                 "limitations": [],
-                "artifact_references": [],
+                "artifact_references": ["evidence/ledger.json"],
+                "evidence_ledger_reference": "evidence/ledger.json",
             },
         }

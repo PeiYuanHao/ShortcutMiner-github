@@ -9,6 +9,7 @@ from shortcutminer.protocol.batches import (
     QuantitativeResultBatch,
 )
 from shortcutminer.protocol.executive import RoutingPlan
+from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.protocol.identify import (
     CandidateId,
     CandidateReport,
@@ -47,6 +48,7 @@ class SummarizeRequest(StrictProtocolModel):
     executive_result: RoutingPlan
     quantitative_result: QuantitativeResultBatch
     qualitative_result: QualitativeResultBatch
+    evidence_ledger: EvidenceLedger | None = None
 
 
 class SummaryFinding(StrictProtocolModel):
@@ -55,12 +57,14 @@ class SummaryFinding(StrictProtocolModel):
     summary: NonEmptyText
     quantitative_result_ids: list[NonEmptyText]
     qualitative_result_ids: list[NonEmptyText]
+    evidence_record_ids: list[NonEmptyText] = Field(default_factory=list)
     limitations: list[NonEmptyText]
     recommendations: list[NonEmptyText]
 
     @field_validator(
         "quantitative_result_ids",
         "qualitative_result_ids",
+        "evidence_record_ids",
         "limitations",
         "recommendations",
     )
@@ -74,6 +78,7 @@ class SummaryReportPayload(StrictProtocolModel):
     findings: list[SummaryFinding]
     limitations: list[NonEmptyText]
     artifact_references: list[SafeRelativePath]
+    evidence_ledger_reference: SafeRelativePath | None = None
 
     @field_validator("limitations", "artifact_references")
     @classmethod

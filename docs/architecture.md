@@ -32,6 +32,9 @@ Dataset / Audit Request
 Quantitative  Qualitative
       \        /
        v      v
+ EvidenceLedgerBuilder
+          |
+          v
        Summarize
           |
           v
@@ -41,7 +44,7 @@ Quantitative  Qualitative
  Storage / Events / Checkpoint
 ```
 
-Runner and Orchestrator are not Agents. Runner validates a run request and exposes run/resume entry points. Orchestrator owns run lifecycle and invokes the compiled LangGraph. The graph contains five Agent-backed nodes, an Executive fan-out, and a Quantitative/Qualitative fan-in before Summarize.
+Runner and Orchestrator are not Agents. Runner validates a run request and exposes run/resume entry points. Orchestrator owns run lifecycle and invokes the compiled LangGraph. The graph contains five Agent-backed nodes, an Executive fan-out, and a Quantitative/Qualitative fan-in before Summarize. `EvidenceLedgerBuilder` runs deterministically at that fan-in inside the control layer; it is not an Agent and does not execute or interpret new experiments.
 
 Dataset Intake is deterministic infrastructure, not a sixth Agent. `DatasetProfiler` performs a root-constrained, bounded scan with no network, LLM, arbitrary code execution, or dataset-specific adapter. Its strict `DatasetProfile` records structure, inferred modality, bounded metadata facts, label validity/distribution, explicit split data, safe representative file references, warnings, limitations, and the inspection budget. It contains no candidate, shortcut judgment, ranking, or benchmark answer.
 
@@ -98,6 +101,7 @@ identify/
 executive/
 quantitative/
 qualitative/
+evidence/ledger.json
 summarize/
 tools/
 experiments/
@@ -105,7 +109,18 @@ experiments/
 
 Stage inputs, raw outputs, validated outputs, and ToolResults are stored as JSON artifacts. Events record run, stage, and tool lifecycle changes. The SQLite LangGraph checkpointer uses the run ID as its thread ID and supports local single-machine resume without serializing clients or tool implementations.
 
-The profile is written once before Identify invocation. If Identify is retried after interruption, the control layer validates and reuses the stored profile. An incompatible or malformed stored profile fails explicitly rather than silently mixing evidence from different intake settings.
+The profile is written once before Identify invocation. If Identify is retried after interruption, the control layer validates and reuses the stored profile. An incompatible or malformed stored profile fails explicitly rather than silently mixing evidence from different intake settings. The Evidence Ledger uses a deterministic fingerprint over the candidate report, routing plan, and both result batches. A matching ledger is reused; any upstream identity or content change rebuilds it.
+
+## Evidence calibration boundary
+
+The versioned Evidence Ledger contains one entry for every Identify candidate,
+including candidates with no task or only blocked/failed work. Records keep
+research design, execution state, evidence direction, coverage, uncertainty,
+artifact provenance, and shared input sources as separate fields. Logical
+consistency aggregation can describe support, contradiction, mixed,
+inconclusive, or no usable evidence, but it never derives direction from a raw
+metric threshold. The Summarize validator rejects impossible overclaims such as
+support with no supporting record or a substantive verdict when all work failed.
 
 ## Experiment boundary
 
