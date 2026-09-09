@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
-from urllib.error import HTTPError
+import socket
+from urllib.error import HTTPError, URLError
 
 from PIL import Image
 import pytest
@@ -23,7 +24,7 @@ from shortcutminer.protocol.visual_discovery import (
     SemanticVisionOptions,
     VisualDiscoveryOptions,
 )
-from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
+from shortcutminer.runtime.openai_compatible import ModelRuntimeError, OpenAICompatibleClient
 from shortcutminer.storage.model_calls import load_run_model_telemetry
 
 
@@ -49,6 +50,14 @@ class RaisingTransport:
     def post_json(self, url, *, headers, body, timeout):
         self.calls += 1
         raise self.error
+
+
+class RawSemanticTransport:
+    def __init__(self, *contents):
+        self.contents = list(contents)
+
+    def post_json(self, url, *, headers, body, timeout):
+        return {"choices": [{"message": {"content": self.contents.pop(0)}}]}
 
 
 def _config(**updates):
@@ -149,6 +158,50 @@ def test_semantic_schema_retry_rejects_observation_outside_approved_batch(tmp_pa
     assert [item.status for item in client.invocations] == [
         "protocol_schema_failed", "completed"
     ]
+
+
+def test_semantic_invalid_json_uses_schema_retry(tmp_path: Path):
+    dataset = tmp_path / "dataset"
+    _images(dataset)
+    transport = RawSemanticTransport(
+        "not-json",
+        json.dumps({"schema_version": "1.0", "observations": []}),
+    )
+    client = OpenAICompatibleClient(
+        _config(model_call_budget={"max_schema_retries": 1}),
+        api_key="secret", transport=transport,
+    )
+    output = OpenAICompatibleSemanticVisualInspector(client).inspect(
+        dataset_root=dataset, request=_request()
+    )
+    assert output == []
+    assert [item.status for item in client.invocations] == ["invalid_json", "completed"]
+
+
+@pytest.mark.parametrize(
+    ("error", "category"),
+    [
+        (HTTPError("https://vision.example", 401, "x", {}, None), "authentication_failed"),
+        (HTTPError("https://vision.example", 403, "x", {}, None), "authorization_failed"),
+        (HTTPError("https://vision.example", 429, "x", {}, None), "rate_limited"),
+        (HTTPError("https://vision.example", 500, "x", {}, None), "provider_5xx"),
+        (HTTPError("https://vision.example", 503, "x", {}, None), "provider_5xx"),
+        (URLError(socket.timeout()), "timed_out"),
+        (URLError("dns failure"), "transport_failed"),
+    ],
+)
+def test_semantic_multimodal_failure_taxonomy(tmp_path: Path, error, category):
+    dataset = tmp_path / "dataset"
+    _images(dataset)
+    client = OpenAICompatibleClient(
+        _config(), api_key="secret", transport=RaisingTransport(error)
+    )
+    with pytest.raises(ModelRuntimeError) as exc:
+        OpenAICompatibleSemanticVisualInspector(client).inspect(
+            dataset_root=dataset, request=_request()
+        )
+    assert exc.value.failure.category == category
+    assert client.invocations[0].runtime_kind == "semantic_vlm"
 
 
 def test_semantic_rejects_capability_and_limits_before_provider_call(tmp_path: Path):
