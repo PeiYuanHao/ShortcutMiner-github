@@ -253,6 +253,8 @@ def _request_fingerprint(
             {
                 "provider": semantic_inspector.provider_name,
                 "version": semantic_inspector.version,
+                "runtime_kind": semantic_inspector.runtime_kind,
+                "model": semantic_inspector.model_name,
             }
             if semantic_inspector is not None and options.semantic_enabled
             else None
@@ -364,6 +366,17 @@ def _semantic_status(
         for item in observations
         if item.decoded
     ]
+    if not samples:
+        return SemanticDiscoveryStatus(
+            requested=True,
+            available=False,
+            runtime_kind=inspector.runtime_kind,
+            provider=inspector.provider_name,
+            model=inspector.model_name,
+            version=inspector.version,
+            reason_unavailable="No approved decoded image was available for semantic inspection.",
+            observations=[],
+        ), ["Optional semantic inspection had no approved decoded image input."]
     semantic_request = SemanticInspectionRequest(
         run_id=request.run_id,
         dataset_name=request.dataset.name,
@@ -386,7 +399,9 @@ def _semantic_status(
         return SemanticDiscoveryStatus(
             requested=True,
             available=True,
+            runtime_kind=inspector.runtime_kind,
             provider=inspector.provider_name,
+            model=inspector.model_name,
             version=inspector.version,
             observations=parsed,
         ), []
@@ -394,6 +409,10 @@ def _semantic_status(
         return SemanticDiscoveryStatus(
             requested=True,
             available=False,
+            runtime_kind=inspector.runtime_kind,
+            provider=inspector.provider_name,
+            model=inspector.model_name,
+            version=inspector.version,
             reason_unavailable=f"Semantic inspection failed safely: {type(exc).__name__}.",
             observations=[],
         ), ["Optional semantic inspection failed; deterministic descriptors were retained."]

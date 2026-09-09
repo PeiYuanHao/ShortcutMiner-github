@@ -208,10 +208,25 @@ class SemanticInspectionRequest(StrictProtocolModel):
     )
 
 
+class SemanticObservationBatch(StrictProtocolModel):
+    schema_version: Literal["1.0"] = "1.0"
+    observations: list[SemanticObservation] = Field(max_length=200)
+
+
+class SemanticVisionOptions(StrictProtocolModel):
+    max_images_per_request: int = Field(default=4, ge=1, le=10)
+    max_image_bytes: int = Field(default=5_000_000, ge=1, le=25_000_000)
+    max_total_image_bytes: int = Field(default=15_000_000, ge=1, le=100_000_000)
+    max_pixels: int = Field(default=12_000_000, ge=1, le=50_000_000)
+    max_requests_per_inspection: int = Field(default=10, ge=1, le=100)
+
+
 class SemanticDiscoveryStatus(StrictProtocolModel):
     requested: bool
     available: bool
+    runtime_kind: Literal["disabled", "mock", "real_provider"] = "disabled"
     provider: NonEmptyText | None = None
+    model: NonEmptyText | None = None
     version: NonEmptyText | None = None
     reason_unavailable: NonEmptyText | None = None
     observations: list[SemanticObservation]
@@ -220,6 +235,10 @@ class SemanticDiscoveryStatus(StrictProtocolModel):
     def validate_availability(self):
         if self.available and (not self.provider or not self.version):
             raise ValueError("available semantic inspection requires provider and version")
+        if self.available and self.runtime_kind == "disabled":
+            raise ValueError("available semantic inspection requires a runtime kind")
+        if self.runtime_kind == "real_provider" and not self.model:
+            raise ValueError("real-provider semantic inspection requires a model")
         if not self.available and not self.reason_unavailable:
             raise ValueError("unavailable semantic inspection requires a reason")
         if not self.available and self.observations:
@@ -273,7 +292,9 @@ __all__ = [
     "SemanticInspectionRequest",
     "SemanticInspectionSample",
     "SemanticObservation",
+    "SemanticObservationBatch",
     "SemanticObservationType",
+    "SemanticVisionOptions",
     "VisualCoverage",
     "VisualDescriptorDifference",
     "VisualDescriptorName",

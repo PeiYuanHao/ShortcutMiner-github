@@ -59,7 +59,7 @@ Runner and Orchestrator are deterministic control components, not agents. Shortc
 
 The production control path accepts user-provided local datasets through a generic intake contract; dataset names are not selected from a benchmark whitelist. Intake performs bounded, deterministic inspection of supported local structures and CSV metadata, emits a strict `DatasetProfile`, and gives that factual profile to Identify as untrusted evidence. It does not infer or rank shortcut candidates. Unknown or unsupported structures are reported through warnings and limitations rather than being treated as a known benchmark.
 
-For image or mixed datasets, Identify can also receive a real `VisualDiscoveryProfile`: safely decoded low-level descriptors, explicit coverage, and label-aware descriptive summaries produced by bounded CPU infrastructure. Metadata-free image folders use deterministic bounded sampling without inferring labels from directory names. Descriptor ranking is only screening salience, never statistical validation or a shortcut verdict. The optional semantic-inspection contract is tested with a deterministic mock; no real semantic VLM is implemented in Phase 13. See [Visual Discovery](docs/visual-discovery.md).
+For image or mixed datasets, Identify can also receive a real `VisualDiscoveryProfile`: safely decoded low-level descriptors, explicit coverage, and label-aware descriptive summaries produced by bounded CPU infrastructure. Metadata-free image folders use deterministic bounded sampling without inferring labels from directory names. Descriptor ranking is only screening salience, never statistical validation or a shortcut verdict. Optional provider-backed semantic vision adds strictly scoped visible observations while leaving candidate generation with Identify. See [Visual Discovery](docs/visual-discovery.md) and [Semantic Vision](docs/semantic-vision.md).
 
 See [Architecture](docs/architecture.md) for component boundaries and persistence behavior.
 
@@ -178,8 +178,11 @@ production outputs when that truth is present, absent, or replaced.
 The framework provides exact candidate-to-truth matching, optional manual and
 multi-rater adjudication, discovery/localization/funnel/false-positive metrics,
 snapshot-frozen batch aggregation, and independent-challenge bootstrap intervals.
+It also provides a sequential, resumable repeated-audit matrix with raw discovery,
+localization, final-assessment, false-positive, and runtime-reliability distributions.
 Controlled smoke fixtures validate the infrastructure only; they are not a
-ShortcutMiner performance claim. See [Blind shortcut discovery evaluation](docs/blind-evaluation.md).
+ShortcutMiner performance claim. See [Blind shortcut discovery evaluation](docs/blind-evaluation.md)
+and [Repeated Blind Evaluation](docs/repeated-evaluation.md).
 
 ## Qualitative Evidence Runtime
 
@@ -203,10 +206,10 @@ or resume. The backend produces sample facts, group summaries, and descriptor
 differences only; the Qualitative Agent interprets evidence status and Summarize
 performs final synthesis.
 
-Current limits are deliberate: there is no VLM, OCR, semantic object recognition,
-image editing intervention, or neural visual representation. AgentClient remains
-text-oriented and receives deterministic descriptors plus artifact references, not
-unrestricted local files.
+Current limits are deliberate: provider-backed semantic vision is optional and
+observation-only; there is no OCR guarantee, image editing intervention, segmentation,
+or neural visual representation benchmark. Agents receive bounded descriptors and
+structured observations, never unrestricted local files.
 
 ## Repository Structure
 

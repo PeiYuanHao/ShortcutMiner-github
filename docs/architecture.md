@@ -52,7 +52,7 @@ Dataset Intake and Visual Discovery are deterministic infrastructure, not additi
 DatasetProfiler -> DatasetProfile -> VisualDiscoveryProfiler -> VisualDiscoveryProfile -> Identify
 ```
 
-Both profiler outputs contain facts only. Visual group differences and ranking are descriptive context compression, not a hypothesis test, candidate, or shortcut judgment. A provider-neutral semantic-inspection capability can be injected, but Phase 13 has only a deterministic contract mock and no real semantic VLM.
+Both profiler outputs contain facts only. Visual group differences and ranking are descriptive context compression, not a hypothesis test, candidate, or shortcut judgment. A provider-neutral semantic-inspection capability can be injected as either a deterministic mock or a bounded provider-backed multimodal runtime. It emits observations only and does not alter the five-Agent topology.
 
 Identify receives the dataset profile and, when applicable, the visual profile inside its discovery context. Every dataset-derived name, path, column, example value, filename, and visual observation is explicitly untrusted evidence, so dataset content cannot become an instruction. Identify alone reasons from those facts and produces the `CandidateReport`.
 
@@ -78,7 +78,7 @@ Protocol definitions live under `shortcutminer/protocol/`. The main cross-stage 
 
 ## AgentClient and workspaces
 
-`shortcutminer/agent_client.py` defines the minimal provider-independent AgentClient boundary. `shortcutminer/runtime/` contains the deterministic demo/mock implementations and an explicitly configured OpenAI-compatible JSON client. Automatic tests use only offline clients.
+`shortcutminer/agent_client.py` defines the minimal provider-independent AgentClient boundary. `shortcutminer/runtime/` contains deterministic demo/mock implementations and an explicitly configured OpenAI-compatible JSON client. The real client records secret-free per-call artifacts, usage when supplied, monotonic latency, classified failures, bounded retries, budgets, and a frozen runtime snapshot. Automatic tests use only offline clients. See [model-runtime.md](model-runtime.md).
 
 Each Agent workspace lives under `agents/<agent>/workspace/`. The workspace loader reads `AGENTS.md`, `IDENTITY.md`, `SOUL.md`, `USER.md`, `TOOLS.md`, `MEMORY.md`, and `HEARTBEAT.md` in that order. These files are ShortcutMiner configuration and do not hold hidden runtime state.
 
@@ -111,6 +111,8 @@ evidence/ledger.json
 summarize/
 tools/
 experiments/
+model_calls/
+evaluation/repeated/
 ```
 
 Stage inputs, raw outputs, validated outputs, and ToolResults are stored as JSON artifacts. Events record run, stage, and tool lifecycle changes. The SQLite LangGraph checkpointer uses the run ID as its thread ID and supports local single-machine resume without serializing clients or tool implementations.

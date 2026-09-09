@@ -24,6 +24,8 @@ PROTOCOL_FILES = (
     "shortcutminer/protocol/qualitative.py",
     "shortcutminer/protocol/evidence.py",
     "shortcutminer/protocol/summarize.py",
+    "shortcutminer/protocol/model.py",
+    "shortcutminer/protocol/model_runtime.py",
 )
 
 
@@ -76,6 +78,15 @@ def _validated_git_commit(value: str) -> str:
 
 def _sanitize(value: Any, *, key: str = "") -> Any:
     lowered = key.casefold()
+    if lowered == "api_key_env":
+        if (
+            isinstance(value, str)
+            and value
+            and not value[0].isdigit()
+            and value.replace("_", "a").isalnum()
+        ):
+            return value
+        return None
     if any(token in lowered for token in ("api_key", "token", "secret", "password")):
         return None
     if isinstance(value, dict):
@@ -110,6 +121,7 @@ def build_evaluation_snapshot(
     git_commit: str | None = None,
     runtime_config: dict[str, Any],
     model_config: dict[str, Any] | None,
+    model_runtime_snapshot: dict[str, Any] | None = None,
     challenge_public_hash: str,
     runtime_sampling_seed: int,
     evaluation_bootstrap_seed: int,
@@ -128,6 +140,20 @@ def build_evaluation_snapshot(
     }
     sanitized_runtime = _sanitize(runtime_config)
     sanitized_model = _sanitize(model_config) if model_config is not None else None
+    sanitized_model_snapshot = (
+        _sanitize(model_runtime_snapshot)
+        if model_runtime_snapshot is not None
+        else None
+    )
+    model_runtime_snapshot_id = (
+        sanitized_model_snapshot.get("snapshot_id")
+        if isinstance(sanitized_model_snapshot, dict)
+        else None
+    )
+    if model_runtime_snapshot_id is not None and not isinstance(
+        model_runtime_snapshot_id, str
+    ):
+        raise SnapshotError("model runtime snapshot_id must be text")
     sanitized_budgets = _sanitize(budget_settings)
     payload = {
         "git_commit": _validated_git_commit(
@@ -140,6 +166,12 @@ def build_evaluation_snapshot(
         "evidence_calibration_version": "evidence_ledger_v1",
         "runtime_config_hash": _canonical_hash(sanitized_runtime),
         "sanitized_model_config": sanitized_model,
+        "model_runtime_snapshot_id": model_runtime_snapshot_id,
+        "model_runtime_snapshot_hash": (
+            _canonical_hash(sanitized_model_snapshot)
+            if sanitized_model_snapshot is not None
+            else None
+        ),
         "challenge_public_hash": challenge_public_hash,
         "runtime_sampling_seed": runtime_sampling_seed,
         "evaluation_bootstrap_seed": evaluation_bootstrap_seed,

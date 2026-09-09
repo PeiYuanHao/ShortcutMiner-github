@@ -23,7 +23,9 @@ An Agent requests work by returning `{"tool_calls": [ToolCall]}`. ShortcutMiner
 validates identity, permission and arguments, executes through `ToolRegistry`,
 validates and serializes the output, persists a `ToolResult`, and invokes the Agent
 again. A normal Agent result ends the loop and continues through its existing
-schema validator. `max_tool_calls` and per-call timeout bound the loop.
+schema validator. `max_tool_calls` and per-call timeout bound the loop. The hardened
+model runtime also applies total, per-Agent, transport-retry, schema-retry, and
+optional provider-reported token budgets, so both sides of the loop are bounded.
 
 The core protocol contains no OpenAI, LangChain, AutoGen, CrewAI, or provider SDK
 types. A future provider-native function-calling adapter belongs in the model client.
@@ -49,7 +51,7 @@ This matrix is enforced by the registry, not trusted model output.
 
 Visual Discovery is prepared before Identify invocation and is not a new raw-image Agent tool. Identify's registered Tool Runtime permissions remain unchanged. The control layer places the strict, bounded `VisualDiscoveryProfile` in `discovery_context`; Identify interprets that precomputed evidence and cannot reopen images, expand the selected set, or bypass the registry. The image descriptor implementation is shared with Qualitative so identical samples and options use the same definitions.
 
-The optional `SemanticVisualInspector` is a separately injected control-layer capability, not a generally callable tool. Phase 13 includes a deterministic mock contract only and performs no real semantic VLM or network call by default.
+The optional `SemanticVisualInspector` is a separately injected control-layer capability, not a generally callable tool. It supports a deterministic mock and an explicitly configured provider-backed implementation; no network call occurs by default. Its model-call and image budgets are independent of Tool Runtime permissions.
 
 - `inspect_dataset` wraps `tools.common.dataset_inspector.inspect_dataset`.
 - `inspect_metadata` wraps `tools.common.metadata_profiler.profile_metadata`.

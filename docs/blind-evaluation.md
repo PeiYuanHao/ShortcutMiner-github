@@ -135,6 +135,9 @@ Secrets and absolute paths are removed. Private truth is never an input to the
 snapshot. The snapshot ID deliberately excludes the per-challenge public hash so
 one frozen production configuration can identify a batch; each saved per-run
 snapshot still records and verifies its own public dataset hash.
+When supplied, the frozen model-runtime snapshot ID and sanitized snapshot hash
+are recorded explicitly. A model runtime configuration change therefore changes
+the evaluation snapshot identity.
 
 Batch aggregation refuses mixed snapshot IDs and reports positive and clean
 strata independently. Percentile bootstrap intervals reuse the Phase 11
@@ -154,3 +157,8 @@ run comparison baselines, or claim scientific effectiveness. A credible discover
 claim requires a separately designed blind batch with fixed configuration,
 independent challenges, predefined adjudication, adequate uncertainty, and honest
 reporting of misses and clean-control false positives.
+
+`RepeatedBlindAuditRunner` adds sequential, checkpointed repetitions under the
+same frozen snapshot. It retains runtime failures independently and reports raw
+discovery, localization, final-assessment, false-positive, and runtime-reliability
+distributions. See [repeated-evaluation.md](repeated-evaluation.md).

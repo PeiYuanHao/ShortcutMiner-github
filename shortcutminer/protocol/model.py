@@ -6,6 +6,16 @@ from urllib.parse import urlsplit
 from pydantic import ConfigDict, Field, field_validator
 
 from shortcutminer.protocol.identify import NonEmptyText, StrictProtocolModel
+from shortcutminer.protocol.model_runtime import (
+    ModelCallBudget,
+    ModelCapabilities,
+    ModelRetryPolicy,
+)
+
+
+TextAgentName = Literal[
+    "identify", "executive", "quantitative", "qualitative", "summarize"
+]
 
 
 class OpenAICompatibleModelConfig(StrictProtocolModel):
@@ -25,6 +35,10 @@ class OpenAICompatibleModelConfig(StrictProtocolModel):
     timeout: float = Field(default=60.0, gt=0)
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_tokens: int = Field(default=4096, gt=0)
+    model_seed: int | None = None
+    capabilities: ModelCapabilities = Field(default_factory=ModelCapabilities)
+    retry_policy: ModelRetryPolicy = Field(default_factory=ModelRetryPolicy)
+    model_call_budget: ModelCallBudget = Field(default_factory=ModelCallBudget)
 
     @field_validator("base_url")
     @classmethod
@@ -32,6 +46,8 @@ class OpenAICompatibleModelConfig(StrictProtocolModel):
         parsed = urlsplit(value)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("base_url must be an absolute HTTP(S) URL")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("base_url must not contain endpoint credentials")
         if parsed.query or parsed.fragment:
             raise ValueError("base_url must not contain a query or fragment")
         return value.rstrip("/")
@@ -44,4 +60,20 @@ class OpenAICompatibleModelConfig(StrictProtocolModel):
         return value
 
 
-__all__ = ["OpenAICompatibleModelConfig"]
+class ModelRuntimeConfigSet(StrictProtocolModel):
+    """One shared model config with optional explicit per-Agent overrides."""
+
+    shared: OpenAICompatibleModelConfig
+    per_agent: dict[TextAgentName, OpenAICompatibleModelConfig] = Field(
+        default_factory=dict
+    )
+
+    def resolve(self, agent_name: TextAgentName) -> OpenAICompatibleModelConfig:
+        return self.per_agent.get(agent_name, self.shared)
+
+
+__all__ = [
+    "ModelRuntimeConfigSet",
+    "OpenAICompatibleModelConfig",
+    "TextAgentName",
+]

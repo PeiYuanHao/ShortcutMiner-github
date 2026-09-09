@@ -11,7 +11,10 @@ from shortcutminer.protocol.identify import (
     StrictProtocolModel,
     TaskSpec,
 )
-from shortcutminer.protocol.model import OpenAICompatibleModelConfig
+from shortcutminer.protocol.model import (
+    ModelRuntimeConfigSet,
+    OpenAICompatibleModelConfig,
+)
 
 
 RunStatus = Literal["PENDING", "RUNNING", "COMPLETED", "FAILED"]
@@ -25,7 +28,7 @@ class RunRequest(StrictProtocolModel):
     dataset_info: DatasetSpec
     task_input: TaskSpec
     seed: int
-    model_runtime: OpenAICompatibleModelConfig | None = None
+    model_runtime: OpenAICompatibleModelConfig | ModelRuntimeConfigSet | None = None
     identify_config: dict[str, Any] = Field(default_factory=dict)
     executive_config: dict[str, Any] = Field(default_factory=dict)
     quantitative_config: dict[str, Any] = Field(default_factory=dict)

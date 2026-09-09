@@ -2,6 +2,7 @@
 
 from shortcutminer.runtime.mock import MockAgentClient, MockAgentClientError
 from shortcutminer.runtime.openai_compatible import (
+    ModelBudgetState,
     ModelRuntimeError,
     OpenAICompatibleClient,
 )
@@ -9,6 +10,7 @@ from shortcutminer.runtime.openai_compatible import (
 __all__ = [
     "MockAgentClient",
     "MockAgentClientError",
+    "ModelBudgetState",
     "ModelRuntimeError",
     "OpenAICompatibleClient",
 ]

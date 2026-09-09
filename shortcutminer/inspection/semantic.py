@@ -22,6 +22,12 @@ class SemanticVisualInspector(Protocol):
     @property
     def version(self) -> str: ...
 
+    @property
+    def runtime_kind(self) -> str: ...
+
+    @property
+    def model_name(self) -> str | None: ...
+
     def inspect(
         self,
         *,
@@ -35,6 +41,8 @@ class MockSemanticVisualInspector:
 
     provider_name = "mock_semantic_visual_inspector"
     version = "mock_semantic_v1"
+    runtime_kind = "mock"
+    model_name = None
 
     def __init__(
         self,

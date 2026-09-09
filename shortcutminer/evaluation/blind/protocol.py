@@ -310,6 +310,8 @@ class EvaluationSnapshot(StrictProtocolModel):
     evidence_calibration_version: NonEmptyText
     runtime_config_hash: NonEmptyText
     sanitized_model_config: dict[str, Any] | None = None
+    model_runtime_snapshot_id: NonEmptyText | None = None
+    model_runtime_snapshot_hash: NonEmptyText | None = None
     challenge_public_hash: NonEmptyText
     runtime_sampling_seed: int
     evaluation_bootstrap_seed: int

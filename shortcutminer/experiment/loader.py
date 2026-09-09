@@ -6,7 +6,10 @@ from pathlib import Path
 import yaml
 from pydantic import ValidationError
 
-from shortcutminer.protocol.model import OpenAICompatibleModelConfig
+from shortcutminer.protocol.model import (
+    ModelRuntimeConfigSet,
+    OpenAICompatibleModelConfig,
+)
 from shortcutminer.protocol.run import RunRequest
 
 
@@ -49,10 +52,12 @@ def load_run_request(path: str | Path) -> RunRequest:
 
 def load_model_runtime_config(
     path: str | Path,
-) -> OpenAICompatibleModelConfig:
+) -> OpenAICompatibleModelConfig | ModelRuntimeConfigSet:
     """Load safe model settings; credentials remain environment references."""
     value = _load_config_object(path)
     try:
+        if "shared" in value or "per_agent" in value:
+            return ModelRuntimeConfigSet.model_validate(value)
         return OpenAICompatibleModelConfig.model_validate(value)
     except ValidationError as exc:
         raise RunConfigError("Model runtime configuration is invalid.") from exc

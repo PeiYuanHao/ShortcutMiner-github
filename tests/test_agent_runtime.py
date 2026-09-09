@@ -15,7 +15,7 @@ from shortcutminer.experiment.agent_workspace import (
     load_agent_workspace_prompt,
 )
 from shortcutminer.experiment.loader import load_model_runtime_config
-from shortcutminer.protocol.model import OpenAICompatibleModelConfig
+from shortcutminer.protocol.model import ModelRuntimeConfigSet, OpenAICompatibleModelConfig
 from shortcutminer.protocol.run import RunRequest
 from shortcutminer.runtime.mock import MockAgentClient, MockAgentClientError
 from shortcutminer.runtime.openai_compatible import (
@@ -149,7 +149,12 @@ def test_model_yaml_examples_validate_without_containing_credentials():
     for path in sorted((REPOSITORY_ROOT / "configs" / "models").glob("*.yaml")):
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
         config = load_model_runtime_config(path)
-        assert config.api_key_env.startswith("SHORTCUTMINER_")
+        configs = (
+            [config.shared, *config.per_agent.values()]
+            if isinstance(config, ModelRuntimeConfigSet)
+            else [config]
+        )
+        assert all(item.api_key_env.startswith("SHORTCUTMINER_") for item in configs)
         assert "api_key" not in raw
 
 

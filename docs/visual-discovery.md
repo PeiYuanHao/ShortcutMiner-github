@@ -1,6 +1,6 @@
 # Visual Discovery for Identify
 
-Phase 13 adds real, bounded image-content discovery before the Identify Agent is invoked. The control layer decodes approved public images on CPU and produces a strict `VisualDiscoveryProfile`; Identify may interpret that profile to propose an explicitly unverified candidate. The backend itself never constructs a candidate, applies a shortcut threshold, runs a hypothesis test, or returns a validation verdict.
+Visual Discovery performs real, bounded image-content discovery before the Identify Agent is invoked. The control layer decodes approved public images on CPU and produces a strict `VisualDiscoveryProfile`; Identify may interpret that profile to propose an explicitly unverified candidate. The backend itself never constructs a candidate, applies a shortcut threshold, runs a hypothesis test, or returns a validation verdict.
 
 ## Execution boundary
 
@@ -62,7 +62,7 @@ Image access is constrained to safe relative references beneath the approved dat
 
 `SemanticVisualInspector` is a provider-neutral optional protocol. A deterministic mock verifies selected-sample scoping and structured observation integration for categories such as foreground object, background context, text or marker, acquisition artifact, environment, accessory, and spatial context.
 
-Phase 13 does not implement or call a real semantic VLM. If no capability is injected, the profile records `semantic.available = false`. Low-level descriptors cannot reliably distinguish semantic differences such as grass versus an indoor room, so Identify must not claim semantic understanding or infer it from filenames.
+When explicitly configured, the provider-backed semantic inspector sends only the already approved sample set through the hardened multimodal runtime and returns strict visible observations. If no capability is injected or a VLM call fails, the profile records `semantic.available = false` and retains deterministic descriptors. Low-level descriptors cannot reliably distinguish semantic differences such as grass versus an indoor room, so Identify must not infer them from filenames. See [semantic-vision.md](semantic-vision.md).
 
 ## Persistence and resume
 
@@ -76,8 +76,8 @@ The request fingerprint covers the public dataset profile, bounded identities of
 
 ## Scientific scope
 
-Real in Phase 13: image decoding, low-level descriptors, coverage, label-aware descriptive summaries, metadata-free scanning, artifact persistence, and resume reuse.
+Real: image decoding, low-level descriptors, coverage, label-aware descriptive summaries, metadata-free scanning, artifact persistence, resume reuse, and an optional configured OpenAI-compatible semantic observation path.
 
-Ready as a tested contract: optional semantic inspection injection and structured semantic observations.
+Tested offline: mock and fake-provider semantic inspection, schema retries, scoping, safety limits, fallback, and telemetry.
 
-Not real in Phase 13: a semantic VLM, model training, model-reliance testing, ID/OOD evaluation, causal claims, counterfactual validation, or a shortcut verdict. SAM is not part of discovery because segmentation would be an intervention or localization aid for a later explicitly designed validation stage, not evidence that a shortcut exists.
+Not implemented or claimed: provider-independent universal VLM support, model training, model-reliance testing, ID/OOD evaluation, causal claims, counterfactual validation, or a shortcut verdict. Segmentation is not part of discovery because it would be an intervention or localization aid for a later explicitly designed validation stage, not evidence that a shortcut exists.

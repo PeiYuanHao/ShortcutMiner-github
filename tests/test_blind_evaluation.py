@@ -332,6 +332,11 @@ def test_snapshot_changes_with_workspace_or_runtime_but_not_private_truth(tmp_pa
     kwargs = dict(
         repository_root=repo, runtime_config={"temperature": 0, "path": r"C:\private\run"},
         model_config={"model": "mock", "api_key": "must-not-appear"},
+        model_runtime_snapshot={
+            "snapshot_id": "model-runtime-a",
+            "model": "mock",
+            "api_key_env": "SHORTCUTMINER_TEST_KEY",
+        },
         challenge_public_hash="b" * 64, runtime_sampling_seed=10,
         evaluation_bootstrap_seed=20, candidate_limit=5,
         validation_depth="standard", budget_settings={"max_samples": 40},
@@ -339,6 +344,9 @@ def test_snapshot_changes_with_workspace_or_runtime_but_not_private_truth(tmp_pa
     first = build_evaluation_snapshot(**kwargs)
     same_with_different_private_truth = build_evaluation_snapshot(**kwargs)
     assert first.snapshot_id == same_with_different_private_truth.snapshot_id
+    assert first.model_runtime_snapshot_id == "model-runtime-a"
+    assert first.model_runtime_snapshot_hash is not None
+    assert first.sanitized_model_config == {"model": "mock"}
     assert "must-not-appear" not in json.dumps(first.model_dump(mode="json"))
     workspace = repo / "agents" / "identify" / "workspace" / "AGENTS.md"
     workspace.write_text(workspace.read_text("utf-8") + "\nfreeze-change\n", encoding="utf-8")
@@ -347,6 +355,11 @@ def test_snapshot_changes_with_workspace_or_runtime_but_not_private_truth(tmp_pa
     changed = dict(kwargs)
     changed["runtime_config"] = {"temperature": 1}
     assert build_evaluation_snapshot(**changed).snapshot_id != first.snapshot_id
+    changed_model_runtime = dict(kwargs)
+    changed_model_runtime["model_runtime_snapshot"] = {
+        "snapshot_id": "model-runtime-b", "model": "other"
+    }
+    assert build_evaluation_snapshot(**changed_model_runtime).snapshot_id != first.snapshot_id
     with pytest.raises(SnapshotError, match="git_commit"):
         build_evaluation_snapshot(**kwargs, git_commit="unknown")
 

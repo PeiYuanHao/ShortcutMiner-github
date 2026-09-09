@@ -56,8 +56,9 @@ def test_cli_passes_model_configuration_without_calling_api(tmp_path: Path, monk
                 "timeout": 12.0, "max_tokens": 256}
     model_path.write_text(json.dumps(settings), encoding="utf-8")
     captured = {}
-    def client(config):
+    def client(config, **kwargs):
         captured["config"] = config
+        captured["client_kwargs"] = kwargs
         return object()
     def run(request, *, agent_client, tool_runtimes):
         captured["request"] = request
@@ -68,7 +69,9 @@ def test_cli_passes_model_configuration_without_calling_api(tmp_path: Path, monk
     monkeypatch.setattr(cli, "run", run)
     assert cli.main(["run", "--config", str(request_path),
                      "--model-config", str(model_path)]) == 0
-    assert captured["config"].model_dump() == settings
+    for key, value in settings.items():
+        assert captured["config"].model_dump()[key] == value
+    assert captured["client_kwargs"]["runs_root"] == request.runs_root
     assert captured["request"].model_runtime == captured["config"]
     assert captured["tool_runtimes"]["quantitative"].agent_name == "quantitative"
 
@@ -82,3 +85,36 @@ def test_api_resume_requires_explicit_model_config(tmp_path: Path):
     assert cli.main(["resume", "missing", "--runs-root", str(tmp_path),
                      "--runtime", "openai-compatible"]) == 1
     assert list(tmp_path.iterdir()) == []
+
+
+def test_cli_builds_explicit_per_agent_clients_with_one_shared_budget_state(monkeypatch):
+    from shortcutminer.protocol.model import (
+        ModelRuntimeConfigSet,
+        OpenAICompatibleModelConfig,
+    )
+
+    created = []
+
+    def fake_client(config, **kwargs):
+        value = {"config": config, "kwargs": kwargs}
+        created.append(value)
+        return value
+
+    shared = OpenAICompatibleModelConfig(
+        model="shared", base_url="https://example.test/v1",
+        api_key_env="SHORTCUTMINER_TEST_KEY",
+    )
+    identify = shared.model_copy(update={"model": "identify-special"})
+    monkeypatch.setattr(cli, "OpenAICompatibleClient", fake_client)
+    arguments = cli._text_client_arguments(
+        ModelRuntimeConfigSet(shared=shared, per_agent={"identify": identify}),
+        runs_root="runs",
+    )
+    assert set(arguments) == {
+        "identify_client", "executive_client", "quantitative_client",
+        "qualitative_client", "summarize_client",
+    }
+    assert arguments["identify_client"]["config"].model == "identify-special"
+    assert arguments["summarize_client"]["config"].model == "shared"
+    states = {id(item["kwargs"]["budget_state"]) for item in created}
+    assert len(states) == 1

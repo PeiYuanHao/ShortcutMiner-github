@@ -16,6 +16,14 @@ from shortcutminer.evaluation.blind.protocol import (
     HiddenShortcutTruth,
 )
 from shortcutminer.evaluation.blind.snapshot import build_evaluation_snapshot
+from shortcutminer.evaluation.blind.repeated import (
+    RepeatIdentity,
+    RepeatedBlindAuditConfig,
+    RepeatedBlindAuditResult,
+    RepeatedBlindAuditRunner,
+    RepeatedRunOutcome,
+    RepeatedStageFailure,
+)
 
 __all__ = [
     "BlindChallenge",
@@ -27,5 +35,11 @@ __all__ = [
     "BlindEvaluator",
     "EvaluationSnapshot",
     "HiddenShortcutTruth",
+    "RepeatIdentity",
+    "RepeatedBlindAuditConfig",
+    "RepeatedBlindAuditResult",
+    "RepeatedBlindAuditRunner",
+    "RepeatedRunOutcome",
+    "RepeatedStageFailure",
     "build_evaluation_snapshot",
 ]
