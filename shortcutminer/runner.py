@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.real_executor import RealExperimentExecutor
 from shortcutminer.experiment.run_manager import generate_run_id
 from shortcutminer.experiment.loader import load_run_request
@@ -29,6 +30,7 @@ def _clients(
     qualitative_client: AgentClient | None,
     summarize_client: AgentClient | None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None,
+    semantic_inspector: SemanticVisualInspector | None,
 ) -> dict[str, Any]:
     return {
         "agent_client": agent_client,
@@ -38,6 +40,7 @@ def _clients(
         "qualitative_client": qualitative_client,
         "summarize_client": summarize_client,
         "tool_runtimes": tool_runtimes,
+        "semantic_inspector": semantic_inspector,
     }
 
 
@@ -81,6 +84,7 @@ def run(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> RunExecutionResult:
     """Validate a formal request, create its run_id, and call Orchestrator."""
     if isinstance(request, RunRequest):
@@ -101,6 +105,7 @@ def run(
             qualitative_client=qualitative_client,
             summarize_client=summarize_client,
             tool_runtimes=tool_runtimes,
+            semantic_inspector=semantic_inspector,
         ),
     )
 
@@ -116,6 +121,7 @@ def resume_run(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> RunExecutionResult:
     """Resume the LangGraph thread associated with an existing run_id."""
     return resume_workflow_run(
@@ -129,6 +135,7 @@ def resume_run(
             qualitative_client=qualitative_client,
             summarize_client=summarize_client,
             tool_runtimes=tool_runtimes,
+            semantic_inspector=semantic_inspector,
         ),
     )
 
@@ -143,6 +150,7 @@ def run_workflow(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> ShortcutMinerState:
     """Backward-compatible state API routed through the formal Orchestrator."""
     identify_config = initial_state.get("identify_config", {})
@@ -164,6 +172,7 @@ def run_workflow(
             qualitative_client=qualitative_client,
             summarize_client=summarize_client,
             tool_runtimes=tool_runtimes,
+            semantic_inspector=semantic_inspector,
         ),
     )
     return ShortcutMinerState(**result.workflow_state)

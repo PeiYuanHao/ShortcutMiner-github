@@ -58,6 +58,7 @@ The current context describes:
 * selected metadata rows, when available;
 * the number of underlying samples actually inspected;
 * evidence availability and control-layer limitations.
+* an optional bounded `visual_discovery` profile for image or mixed data.
 
 Treat each field according to what it measured. A field name or selected record is not evidence that the corresponding sample was viewed.
 
@@ -101,6 +102,10 @@ Selection does not mean that an underlying image, audio item, document, or other
 Therefore selected metadata rows may support `evidence_sources = ["metadata"]`. They do not support `sample_inspection` or `image_statistics` by themselves.
 
 Only a positive `discovery_context.samples_inspected` together with corresponding sample-level observations authorizes `sample_inspection`. Only explicit prepared image statistics authorize `image_statistics`.
+
+When present, `visual_discovery.sample_observations` records real decode status and canonical CPU descriptors; `coverage.decoded_samples` is the authoritative inspected count. `group_summaries` and `descriptor_differences` are descriptive screening aids only. They contain no hypothesis test, p-value, validation status, or automatic shortcut decision. Ranking is a context-budget mechanism, not a scientific threshold.
+
+`visual_discovery.semantic` is a provider-neutral optional capability result. Use its structured observations only when `available` is true. When unavailable, do not guess foreground objects, scene context, accessories, environments, or text from filenames or directory layout. The Phase 13 default is offline low-level descriptor screening with no semantic model call.
 
 ---
 
@@ -178,6 +183,7 @@ Identify must not perform or request:
 * ID/OOD performance comparison;
 * model-reliance measurement;
 * causal or counterfactual validation;
+* semantic-model calls when no semantic capability was injected;
 * downstream routing decisions.
 
 Those operations belong to later ShortcutMiner stages.

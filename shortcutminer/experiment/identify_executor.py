@@ -98,6 +98,30 @@ def validate_candidate_report(
             "metadata-row selection budget."
         )
 
+    visual = context.visual_discovery
+    if visual is None:
+        if context.samples_inspected != 0:
+            raise IdentifyExecutionError(
+                "IdentifyDiscoveryContext reports inspected samples without a VisualDiscoveryProfile."
+            )
+    else:
+        if visual.run_id != request.run_id or visual.dataset_name != request.dataset.name:
+            raise IdentifyExecutionError(
+                "VisualDiscoveryProfile does not match the Identify request."
+            )
+        if visual.seed != context.seed:
+            raise IdentifyExecutionError(
+                "VisualDiscoveryProfile seed does not match the Identify context."
+            )
+        if visual.coverage.decoded_samples != context.samples_inspected:
+            raise IdentifyExecutionError(
+                "samples_inspected must equal successfully decoded visual samples."
+            )
+        if visual.coverage.selected_samples > request.budget.max_samples:
+            raise IdentifyExecutionError(
+                "VisualDiscoveryProfile exceeds the Identify sample budget."
+            )
+
     entries_scanned = context.dataset_inspection.get("entries_scanned")
     if (
         not isinstance(entries_scanned, int)
@@ -242,19 +266,27 @@ def validate_candidate_report(
                 "CandidateReport uses unavailable metadata evidence."
             )
 
-        if (
-            "sample_inspection" in evidence_sources
-            and context.samples_inspected == 0
+        if "sample_inspection" in evidence_sources and (
+            visual is None or visual.coverage.decoded_samples == 0
         ):
             raise IdentifyExecutionError(
                 "CandidateReport claims sample inspection evidence, but "
                 "no sample content was inspected."
             )
 
-        if "image_statistics" in evidence_sources:
+        usable_image_statistics = bool(
+            visual is not None
+            and visual.coverage.decoded_samples > 0
+            and any(
+                observation.descriptors is not None
+                and bool(observation.descriptors.values)
+                for observation in visual.sample_observations
+            )
+        )
+        if "image_statistics" in evidence_sources and not usable_image_statistics:
             raise IdentifyExecutionError(
-                "CandidateReport claims image statistics that are not "
-                "present in the current discovery context."
+                "CandidateReport claims image statistics without usable "
+                "VisualDiscoveryProfile descriptors."
             )
 
     missing_limitations = [

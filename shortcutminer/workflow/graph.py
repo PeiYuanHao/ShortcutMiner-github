@@ -5,6 +5,7 @@ from functools import partial
 from langgraph.graph import END, START, StateGraph
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.nodes import (
@@ -26,6 +27,7 @@ def create_workflow_graph(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> StateGraph:
     """Create the graph while keeping all runtime objects outside state."""
     shared_client = (
@@ -45,6 +47,7 @@ def create_workflow_graph(
             identify_node,
             client=select_client(identify_client),
             tool_runtime=runtimes.get("identify"),
+            semantic_inspector=semantic_inspector,
         ),
     )
     graph.add_node(

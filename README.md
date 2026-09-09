@@ -59,6 +59,8 @@ Runner and Orchestrator are deterministic control components, not agents. Shortc
 
 The production control path accepts user-provided local datasets through a generic intake contract; dataset names are not selected from a benchmark whitelist. Intake performs bounded, deterministic inspection of supported local structures and CSV metadata, emits a strict `DatasetProfile`, and gives that factual profile to Identify as untrusted evidence. It does not infer or rank shortcut candidates. Unknown or unsupported structures are reported through warnings and limitations rather than being treated as a known benchmark.
 
+For image or mixed datasets, Identify can also receive a real `VisualDiscoveryProfile`: safely decoded low-level descriptors, explicit coverage, and label-aware descriptive summaries produced by bounded CPU infrastructure. Metadata-free image folders use deterministic bounded sampling without inferring labels from directory names. Descriptor ranking is only screening salience, never statistical validation or a shortcut verdict. The optional semantic-inspection contract is tested with a deterministic mock; no real semantic VLM is implemented in Phase 13. See [Visual Discovery](docs/visual-discovery.md).
+
 See [Architecture](docs/architecture.md) for component boundaries and persistence behavior.
 
 ## Five Agents

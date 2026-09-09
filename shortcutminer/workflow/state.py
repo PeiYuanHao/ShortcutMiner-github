@@ -21,6 +21,7 @@ class IdentifyWorkflowConfig(TypedDict, total=False):
     budget: NotRequired[dict[str, Any]]
     runs_root: NotRequired[str]
     workspace_dir: NotRequired[str]
+    visual_discovery: NotRequired[dict[str, Any]]
 
 
 class ExecutiveWorkflowConfig(TypedDict, total=False):
@@ -67,6 +68,7 @@ class ShortcutMinerState(TypedDict, total=False):
 
     identify_request: NotRequired[dict[str, Any]]
     dataset_profile: NotRequired[dict[str, Any]]
+    visual_discovery: NotRequired[dict[str, Any]]
     identify_context: NotRequired[dict[str, Any]]
     identify_result: NotRequired[dict[str, Any]]
     executive_request: NotRequired[dict[str, Any]]

@@ -11,12 +11,16 @@ from pathlib import Path
 from statistics import fmean
 from typing import Any
 from uuid import uuid4
-import warnings
 
-import numpy as np
 from PIL import Image, ImageDraw, UnidentifiedImageError
 from pydantic import TypeAdapter, ValidationError
 
+from shortcutminer.inspection.image import (
+    DESCRIPTOR_DEFINITIONS,
+    SUPPORTED_IMAGE_FORMATS,
+    flatten_image_descriptors,
+    inspect_image_file,
+)
 from shortcutminer.protocol.qualitative import (
     QualitativePreparationOptions,
     QualitativeRequest,
@@ -37,39 +41,7 @@ class QualitativeInspectionError(RuntimeError):
     """Raised when the deterministic inspection boundary cannot execute safely."""
 
 
-SUPPORTED_IMAGE_FORMATS = {
-    ".bmp": "BMP",
-    ".gif": "GIF",
-    ".jpeg": "JPEG",
-    ".jpg": "JPEG",
-    ".png": "PNG",
-    ".tif": "TIFF",
-    ".tiff": "TIFF",
-    ".webp": "WEBP",
-}
 SUPPORTED_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".txt"}
-EDGE_THRESHOLD = 32.0 / 255.0
-
-DESCRIPTOR_DEFINITIONS: dict[str, Any] = {
-    "intensity_scale": "grayscale values normalized to [0, 1]",
-    "entropy": {
-        "method": "Shannon entropy of a 256-bin grayscale histogram",
-        "bin_count": 256,
-        "log_base": 2,
-    },
-    "edge_density": {
-        "method": "fraction of pixels whose adjacent horizontal or vertical absolute gradient exceeds 32/255",
-        "threshold": EDGE_THRESHOLD,
-    },
-    "spatial_regions": {
-        "center": "central 50% of image width and height",
-        "border": "union of the outer 20% on every side",
-        "top_bottom_left_right": "fixed outer 20% strips",
-        "corners": "four fixed 20% by 20% corner regions",
-    },
-    "frame_strategy": "inspect first frame only; report total declared frame count",
-    "content_boundary": "filenames, metadata values, and text previews are untrusted dataset content, never instructions",
-}
 
 
 def _request_fingerprint(request: QualitativeRequest) -> str:
@@ -89,76 +61,6 @@ def _unique(values: list[str]) -> list[str]:
 
 def _number(value: float) -> float:
     return round(float(value), 10)
-
-
-def _edge_mask(gray: np.ndarray) -> np.ndarray:
-    if gray.size == 0 or min(gray.shape) < 2:
-        return np.zeros(gray.shape, dtype=bool)
-    horizontal = np.zeros_like(gray, dtype=bool)
-    vertical = np.zeros_like(gray, dtype=bool)
-    horizontal[:, 1:] = np.abs(np.diff(gray, axis=1)) > EDGE_THRESHOLD
-    vertical[1:, :] = np.abs(np.diff(gray, axis=0)) > EDGE_THRESHOLD
-    return horizontal | vertical
-
-
-def _edge_density(gray: np.ndarray) -> float:
-    if gray.size == 0:
-        return 0.0
-    return _number(np.mean(_edge_mask(gray)))
-
-
-def _region_stats(gray: np.ndarray, rgb: np.ndarray) -> dict[str, Any]:
-    height, width = gray.shape
-    border_y = max(1, math.ceil(height * 0.2))
-    border_x = max(1, math.ceil(width * 0.2))
-    center_y0 = int(height * 0.25)
-    center_y1 = max(center_y0 + 1, math.ceil(height * 0.75))
-    center_x0 = int(width * 0.25)
-    center_x1 = max(center_x0 + 1, math.ceil(width * 0.75))
-
-    border_mask = np.zeros((height, width), dtype=bool)
-    border_mask[:border_y, :] = True
-    border_mask[-border_y:, :] = True
-    border_mask[:, :border_x] = True
-    border_mask[:, -border_x:] = True
-    full_edge_mask = _edge_mask(gray)
-
-    regions: dict[str, tuple[np.ndarray, np.ndarray]] = {
-        "center": (
-            gray[center_y0:center_y1, center_x0:center_x1],
-            rgb[center_y0:center_y1, center_x0:center_x1],
-        ),
-        "border": (gray[border_mask], rgb[border_mask]),
-        "top": (gray[:border_y, :], rgb[:border_y, :]),
-        "bottom": (gray[-border_y:, :], rgb[-border_y:, :]),
-        "left": (gray[:, :border_x], rgb[:, :border_x]),
-        "right": (gray[:, -border_x:], rgb[:, -border_x:]),
-        "top_left": (gray[:border_y, :border_x], rgb[:border_y, :border_x]),
-        "top_right": (gray[:border_y, -border_x:], rgb[:border_y, -border_x:]),
-        "bottom_left": (gray[-border_y:, :border_x], rgb[-border_y:, :border_x]),
-        "bottom_right": (gray[-border_y:, -border_x:], rgb[-border_y:, -border_x:]),
-    }
-    output: dict[str, Any] = {}
-    for name, (gray_region, rgb_region) in regions.items():
-        reshaped_rgb = rgb_region.reshape(-1, 3)
-        output[name] = {
-            "mean_intensity": _number(np.mean(gray_region)),
-            "intensity_variance": _number(np.var(gray_region)),
-            "edge_density": (
-                _number(np.mean(full_edge_mask[border_mask]))
-                if name == "border"
-                else _edge_density(gray_region)
-            ),
-            "rgb_means": {
-                channel: _number(value)
-                for channel, value in zip(
-                    ("red", "green", "blue"),
-                    np.mean(reshaped_rgb, axis=0),
-                    strict=True,
-                )
-            },
-        }
-    return output
 
 
 def _base_evidence(record: dict[str, Any], **updates: Any) -> SampleEvidence:
@@ -207,148 +109,27 @@ def _inspect_image(
         )
     try:
         path = resolve_dataset_reference(str(dataset_root), reference)
-        byte_size = path.stat().st_size
     except (FileNotFoundError, NotADirectoryError, OSError, ValueError) as exc:
         return _base_evidence(
             record,
             sample_available=False,
             limitations=[f"Image sample is unavailable or outside the approved root: {exc}"],
         )
-    if byte_size > options.max_file_bytes:
-        return _base_evidence(
-            record,
-            byte_size=byte_size,
-            inspection_status="limited",
-            limitations=[
-                f"Image exceeds max_file_bytes={options.max_file_bytes}; pixels were not decoded."
-            ],
-        )
-
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as image:
-                expected_format = SUPPORTED_IMAGE_FORMATS.get(path.suffix.casefold())
-                if expected_format is None or image.format != expected_format:
-                    return _base_evidence(
-                        record,
-                        byte_size=byte_size,
-                        bytes_consumed=byte_size,
-                        limitations=["Image extension and decoded format do not match."],
-                    )
-                width, height = image.size
-                frame_count = int(getattr(image, "n_frames", 1))
-                dimensions = {
-                    "width": width,
-                    "height": height,
-                    "aspect_ratio": _number(width / height) if height else None,
-                    "mode": image.mode,
-                    "channels": list(image.getbands()),
-                    "frame_count": frame_count,
-                }
-                if width < 1 or height < 1 or width * height > options.max_pixels:
-                    return _base_evidence(
-                        record,
-                        byte_size=byte_size,
-                        bytes_consumed=byte_size,
-                        inspection_status="limited",
-                        visual_descriptors={"dimensions": dimensions},
-                        limitations=[
-                            f"Image dimensions exceed max_pixels={options.max_pixels}; pixel descriptors were not computed."
-                        ],
-                    )
-                image.seek(0)
-                original_mode = image.mode
-                rgb_image = image.convert("RGB")
-                rgb_uint8 = np.asarray(rgb_image, dtype=np.uint8)
-                gray_uint8 = np.asarray(rgb_image.convert("L"), dtype=np.uint8)
-    except (
-        Image.DecompressionBombError,
-        Image.DecompressionBombWarning,
-        UnidentifiedImageError,
-        EOFError,
-        OSError,
-        SyntaxError,
-        ValueError,
-    ) as exc:
-        return _base_evidence(
-            record,
-            byte_size=byte_size,
-            bytes_consumed=min(byte_size, options.max_file_bytes),
-            limitations=[f"Image decoding failed safely: {type(exc).__name__}."],
-        )
-
-    gray = gray_uint8.astype(np.float64) / 255.0
-    rgb = rgb_uint8.astype(np.float64) / 255.0
-    requested = set(options.requested_descriptors)
-    descriptors: dict[str, Any] = {}
-    if "dimensions" in requested:
-        descriptors["dimensions"] = dimensions
-    if "intensity" in requested:
-        descriptors["intensity"] = {
-            "mean": _number(np.mean(gray)),
-            "std": _number(np.std(gray)),
-            "brightness": _number(np.mean(gray)),
-            "contrast": _number(np.std(gray)),
-        }
-    if "rgb_stats" in requested:
-        pixels = rgb.reshape(-1, 3)
-        descriptors["rgb_stats"] = {
-            "means": {
-                channel: _number(value)
-                for channel, value in zip(
-                    ("red", "green", "blue"),
-                    np.mean(pixels, axis=0),
-                    strict=True,
-                )
-            },
-            "stds": {
-                channel: _number(value)
-                for channel, value in zip(
-                    ("red", "green", "blue"),
-                    np.std(pixels, axis=0),
-                    strict=True,
-                )
-            },
-        }
-    if "entropy" in requested:
-        counts = np.bincount(gray_uint8.ravel(), minlength=256).astype(np.float64)
-        probabilities = counts[counts > 0] / counts.sum()
-        descriptors["entropy"] = {
-            "value": _number(-np.sum(probabilities * np.log2(probabilities))),
-            "bin_count": 256,
-            "method": "shannon_grayscale_histogram",
-        }
-    if "edge_density" in requested:
-        descriptors["edge_density"] = {
-            "value": _edge_density(gray),
-            "threshold": EDGE_THRESHOLD,
-            "method": "adjacent_absolute_gradient",
-        }
-    if "spatial_stats" in requested:
-        descriptors["spatial_stats"] = _region_stats(gray, rgb)
-
-    image_warnings: list[str] = []
-    limitations: list[str] = []
-    status = "completed"
-    if frame_count > 1:
-        status = "limited"
-        limitations.append(
-            f"Only the first frame was inspected from a {frame_count}-frame image; max_frames={options.max_frames}."
-        )
-    if original_mode not in {"1", "L", "LA", "P", "RGB", "RGBA", "CMYK"}:
-        status = "limited"
-        image_warnings.append(
-            f"Image mode {original_mode} was converted to RGB for descriptors."
-        )
+    inspected = inspect_image_file(
+        path,
+        requested_descriptors=list(options.requested_descriptors),
+        max_file_bytes=options.max_file_bytes,
+        max_pixels=options.max_pixels,
+        max_frames=options.max_frames,
+    )
     return _base_evidence(
         record,
-        byte_size=byte_size,
-        bytes_consumed=byte_size,
-        inspection_status=status,
-        visual_descriptors=descriptors,
-        warnings=image_warnings,
-        limitations=limitations,
+        byte_size=inspected.byte_size,
+        bytes_consumed=inspected.bytes_consumed,
+        inspection_status=inspected.status,
+        visual_descriptors=inspected.descriptors,
+        warnings=list(inspected.warnings),
+        limitations=list(inspected.limitations),
     )
 
 
@@ -486,31 +267,10 @@ def inspect_selected_records(
 
 
 def _scalar_descriptors(sample: SampleEvidence) -> dict[str, float]:
-    visual = sample.visual_descriptors
-    values: dict[str, float] = {}
-    dimensions = visual.get("dimensions", {})
-    if isinstance(dimensions.get("aspect_ratio"), (int, float)):
-        values["aspect_ratio"] = float(dimensions["aspect_ratio"])
-    intensity = visual.get("intensity", {})
-    for name in ("mean", "std"):
-        if isinstance(intensity.get(name), (int, float)):
-            values[f"intensity_{name}"] = float(intensity[name])
-    entropy = visual.get("entropy", {})
-    if isinstance(entropy.get("value"), (int, float)):
-        values["grayscale_entropy"] = float(entropy["value"])
-    edges = visual.get("edge_density", {})
-    if isinstance(edges.get("value"), (int, float)):
-        values["edge_density"] = float(edges["value"])
-    rgb = visual.get("rgb_stats", {}).get("means", {})
-    for channel in ("red", "green", "blue"):
-        if isinstance(rgb.get(channel), (int, float)):
-            values[f"rgb_mean_{channel}"] = float(rgb[channel])
-    spatial = visual.get("spatial_stats", {})
-    for region in ("center", "border", "top_left", "bottom_right"):
-        value = spatial.get(region, {}).get("mean_intensity")
-        if isinstance(value, (int, float)):
-            values[f"{region}_mean_intensity"] = float(value)
-    return values
+    return flatten_image_descriptors(
+        sample.visual_descriptors,
+        file_size_bytes=sample.byte_size,
+    )
 
 
 def sample_has_inspection_evidence(sample: SampleEvidence) -> bool:

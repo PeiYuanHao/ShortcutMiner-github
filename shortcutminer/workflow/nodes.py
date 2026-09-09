@@ -13,6 +13,8 @@ from shortcutminer.experiment.identify_context import (
 )
 from shortcutminer.experiment.dataset_profiler import build_dataset_profile
 from shortcutminer.experiment.identify_executor import execute_identify
+from shortcutminer.experiment.visual_discovery import VisualDiscoveryProfiler
+from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.qualitative_context import build_qualitative_request
 from shortcutminer.experiment.qualitative_executor import execute_qualitative
 from shortcutminer.experiment.quantitative_context import build_quantitative_request
@@ -36,6 +38,7 @@ from shortcutminer.protocol.identify import (
     TaskSpec,
 )
 from shortcutminer.protocol.dataset_profile import DatasetProfile
+from shortcutminer.protocol.visual_discovery import VisualDiscoveryOptions
 from shortcutminer.storage.dataset_profiles import (
     dataset_profile_exists,
     load_dataset_profile,
@@ -144,6 +147,7 @@ def identify_node(
     *,
     client: AgentClient | None,
     tool_runtime: ToolRuntime | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> dict[str, Any]:
     """Build deterministic context and invoke the Identify executor."""
     runtime = _require_client(client, "Identify", IdentifyNodeError)
@@ -161,10 +165,30 @@ def identify_node(
         profile = build_dataset_profile(request, seed=config["seed"])
         if runs_root is not None:
             save_dataset_profile(runs_root, request.run_id, profile)
+    raw_visual_options = config.get("visual_discovery", {})
+    if not isinstance(raw_visual_options, dict):
+        raise IdentifyNodeError("identify_config.visual_discovery must be an object")
+    visual_options_data = dict(raw_visual_options)
+    visual_options_data.setdefault("max_samples", request.budget.max_samples)
+    try:
+        visual_options = VisualDiscoveryOptions.model_validate(visual_options_data)
+    except ValidationError as exc:
+        raise IdentifyNodeError(f"Invalid visual discovery options: {exc}") from exc
+    visual_discovery = None
+    if profile.structure.modality in {"image", "mixed"} and visual_options.enabled:
+        visual_discovery = VisualDiscoveryProfiler().profile(
+            request,
+            profile,
+            seed=config["seed"],
+            options=visual_options,
+            runs_root=runs_root,
+            semantic_inspector=semantic_inspector,
+        )
     context = build_identify_context_from_profile(
         request,
         seed=config["seed"],
         profile=profile,
+        visual_discovery=visual_discovery,
     )
     report = execute_identify(
         request=request,
@@ -175,13 +199,14 @@ def identify_node(
         context=context,
         tool_runtime=tool_runtime,
     )
-    return {
+    output = {
         "identify_request": request.model_dump(mode="json"),
         "dataset_profile": profile.model_dump(mode="json"),
         "identify_context": context.model_dump(mode="json"),
         "identify_result": report.model_dump(mode="json"),
         "stage_status": {"identify": "completed"},
     }
+    return output
 
 
 def build_executive_request_from_state(

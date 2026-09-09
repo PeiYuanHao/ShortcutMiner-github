@@ -137,7 +137,9 @@ The actual top-level input is an object with exactly two members:
 
 The deterministic Python control layer prepares `discovery_context` before invoking the Agent. The Agent interprets that evidence; it does not directly call the Python inspection, profiling, or selection tools.
 
-Despite its compatibility name, `selected_samples` contains selected metadata-row wrappers of the form `{selection_kind, selection_id, metadata_row_index, metadata_row_number, record}`. `selection_kind` is always `metadata_row`; `metadata_row_index` is zero-based; `metadata_row_number` is one-based and excludes the CSV header; and `record` contains the selected metadata values. Selection makes a row available for reasoning; it does **not** mean that the referenced sample was opened, decoded, viewed, or otherwise inspected. The `seed` records the deterministic selection seed. `samples_inspected` is a separate counter and is the only context field that authorizes a non-zero inspected-sample claim. In the current control path it is always `0`.
+Despite its compatibility name, `selected_samples` contains selected metadata-row wrappers of the form `{selection_kind, selection_id, metadata_row_index, metadata_row_number, record}`. `selection_kind` is always `metadata_row`; `metadata_row_index` is zero-based; `metadata_row_number` is one-based and excludes the CSV header; and `record` contains the selected metadata values. Selection makes a row available for reasoning; it does **not** mean that the referenced sample was opened, decoded, viewed, or otherwise inspected. The `seed` records the deterministic selection seed. `samples_inspected` is a separate counter and is the only context field that authorizes a non-zero inspected-sample claim. For image or mixed datasets, an additive `visual_discovery` profile may contain the actual decoded sample observations that justify this count.
+
+`visual_discovery` is deterministic, bounded screening evidence prepared by the control layer. Its descriptors, group summaries, and ranked differences are descriptive observations, not significance tests, validation results, shortcut probabilities, or verdicts. Use `sample_inspection` only for successfully decoded observations and `image_statistics` only when numeric descriptor values are present. A metadata row, filename, extension, directory name, failed decode, or unavailable sample does not authorize either source. Semantic observations may be used only when `visual_discovery.semantic.available = true`; otherwise preserve the recorded semantic limitation and do not infer objects, environments, or background meaning from low-level pixels or filenames.
 
 The input is authoritative. Do not invent missing dataset paths, label columns, metadata files, evidence, seeds, inspected samples, or experiment parameters. The control layer treats a missing, non-directory, or wholly uninspectable dataset root as an unrecoverable context error and does not invoke the Agent. When the root is usable but optional or partial evidence is inaccessible, use the remaining prepared evidence, return fewer or zero candidates when needed, and report every context limitation explicitly.
 
@@ -395,7 +397,9 @@ metadata_rows_selected = number of metadata rows made available
 samples_inspected = number of underlying samples actually inspected
 ```
 
-In the current control path, metadata-row selection alone leaves `samples_inspected = 0`. It can support `evidence_sources = ["metadata"]`; it cannot support `sample_inspection` or `image_statistics`.
+Metadata-row selection alone leaves `samples_inspected = 0`. It can support `evidence_sources = ["metadata"]`; it cannot support `sample_inspection` or `image_statistics`.
+
+When `visual_discovery` is present, interpret its coverage literally: `requested_samples` is the budget request, `selected_samples` is the number selected, `available_samples` is the safely accessible subset, `decoded_samples` is the subset with real pixel descriptors, and `failed_samples` was not decoded. `samples_inspected` must equal `decoded_samples`, never `selected_samples`. Do not erase corrupt-image failures or scan truncation from the observation.
 
 Only use `sample_inspection` when `discovery_context.samples_inspected > 0` and the context contains the corresponding sample-level observations. Never report more inspected samples than either the context counter or `budget.max_samples`.
 
@@ -836,6 +840,9 @@ The Identify Agent must never:
 * perform Executive routing;
 * perform final quantitative validation;
 * perform final qualitative validation;
+* treat descriptor rank or magnitude as a validation threshold;
+* infer semantic content from filenames, directory names, or low-level descriptors;
+* perform OOD or counterfactual validation;
 * generate the final ShortcutMiner audit conclusion.
 
 ---

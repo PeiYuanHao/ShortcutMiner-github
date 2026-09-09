@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from shortcutminer.agent_client import AgentClient
+from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.dataset_profiler import build_dataset_profile
 from shortcutminer.experiment.run_manager import initialize_run, transition_run
 from shortcutminer.protocol.dataset_profile import DatasetProfile
@@ -96,6 +97,7 @@ def _client_arguments(
     qualitative_client: AgentClient | None,
     summarize_client: AgentClient | None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None,
+    semantic_inspector: SemanticVisualInspector | None,
 ) -> dict[str, Any]:
     return {
         "agent_client": agent_client,
@@ -105,6 +107,7 @@ def _client_arguments(
         "qualitative_client": qualitative_client,
         "summarize_client": summarize_client,
         "tool_runtimes": tool_runtimes,
+        "semantic_inspector": semantic_inspector,
     }
 
 
@@ -135,6 +138,7 @@ def execute_workflow_state(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> RunExecutionResult:
     """Create or resume a durable run using LangGraph checkpoint semantics."""
     database_path = checkpoint_path(runs_root, run_id)
@@ -177,6 +181,7 @@ def execute_workflow_state(
         qualitative_client=qualitative_client,
         summarize_client=summarize_client,
         tool_runtimes=tool_runtimes,
+        semantic_inspector=semantic_inspector,
     )
     try:
         transition_run(
@@ -273,6 +278,7 @@ def execute_run(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> RunExecutionResult:
     """Start a validated formal request through the compiled workflow."""
     if request.run_id is None:
@@ -293,6 +299,7 @@ def execute_run(
             qualitative_client=qualitative_client,
             summarize_client=summarize_client,
             tool_runtimes=tool_runtimes,
+            semantic_inspector=semantic_inspector,
         ),
     )
 
@@ -308,6 +315,7 @@ def resume_workflow_run(
     qualitative_client: AgentClient | None = None,
     summarize_client: AgentClient | None = None,
     tool_runtimes: dict[AgentName, ToolRuntime] | None = None,
+    semantic_inspector: SemanticVisualInspector | None = None,
 ) -> RunExecutionResult:
     """Resume a persisted graph thread identified by the existing run_id."""
     return execute_workflow_state(
@@ -323,6 +331,7 @@ def resume_workflow_run(
             qualitative_client=qualitative_client,
             summarize_client=summarize_client,
             tool_runtimes=tool_runtimes,
+            semantic_inspector=semantic_inspector,
         ),
     )
 

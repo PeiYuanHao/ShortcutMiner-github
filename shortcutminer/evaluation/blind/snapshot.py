@@ -16,7 +16,9 @@ WORKSPACE_FILES = (
     "AGENTS.md", "IDENTITY.md", "SOUL.md", "USER.md", "TOOLS.md", "MEMORY.md", "HEARTBEAT.md"
 )
 PROTOCOL_FILES = (
+    "shortcutminer/protocol/dataset_profile.py",
     "shortcutminer/protocol/identify.py",
+    "shortcutminer/protocol/visual_discovery.py",
     "shortcutminer/protocol/executive.py",
     "shortcutminer/protocol/quantitative.py",
     "shortcutminer/protocol/qualitative.py",

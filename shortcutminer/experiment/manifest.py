@@ -48,6 +48,7 @@ def build_run_manifest(
             "events": "events.jsonl",
             "workflow_state": "workflow_state.json",
             "dataset_profile": "dataset/profile.json",
+            "visual_discovery": "identify/visual_discovery.json",
             "evidence_ledger": "evidence/ledger.json",
             "final_result": "final_result.json",
             "manifest": "manifest.json",

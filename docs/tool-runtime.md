@@ -47,6 +47,10 @@ This matrix is enforced by the registry, not trusted model output.
 
 ## Reused implementations
 
+Visual Discovery is prepared before Identify invocation and is not a new raw-image Agent tool. Identify's registered Tool Runtime permissions remain unchanged. The control layer places the strict, bounded `VisualDiscoveryProfile` in `discovery_context`; Identify interprets that precomputed evidence and cannot reopen images, expand the selected set, or bypass the registry. The image descriptor implementation is shared with Qualitative so identical samples and options use the same definitions.
+
+The optional `SemanticVisualInspector` is a separately injected control-layer capability, not a generally callable tool. Phase 13 includes a deterministic mock contract only and performs no real semantic VLM or network call by default.
+
 - `inspect_dataset` wraps `tools.common.dataset_inspector.inspect_dataset`.
 - `inspect_metadata` wraps `tools.common.metadata_profiler.profile_metadata`.
 - `get_column_distribution` reuses the bounded metadata loader.

@@ -417,6 +417,50 @@ def test_truth_present_removed_and_replaced_have_identical_complete_runtime_outp
         assert "hidden_truth" not in json.dumps(execution.manifest.model_dump(mode="json"))
 
 
+def test_visual_profile_and_runtime_inputs_ignore_private_truth(tmp_path: Path):
+    generated = _generate(tmp_path / "visual-firewall", "spatial_visual")
+    truth_bytes = generated.hidden_truth_path.read_bytes()
+    fingerprints = []
+    for label in ("present", "removed", "replaced"):
+        if label == "removed":
+            generated.hidden_truth_path.unlink()
+        elif label == "replaced":
+            generated.hidden_truth_path.write_text(
+                '{"unrelated_private_marker":"different"}\n', encoding="utf-8"
+            )
+        request = _blind_run_request(generated, tmp_path / f"visual-runs-{label}")
+        request.identify_config["visual_discovery"] = {
+            "sample_id_column": "id",
+            "sample_path_column": "path",
+            "max_samples": 12,
+        }
+        client = DemoAgentClient()
+        execution = run(request, agent_client=client)
+        state = execution.workflow_state
+        visual = state["identify_context"]["visual_discovery"]
+        assert visual["coverage"]["decoded_samples"] > 0
+        identify_call = next(
+            call for call in client.calls if call["agent_name"] == "identify"
+        )
+        executive_call = next(
+            call for call in client.calls if call["agent_name"] == "executive"
+        )
+        fingerprints.append(
+            tuple(
+                hashlib.sha256(
+                    json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()
+                for value in (
+                    visual,
+                    identify_call["payload"],
+                    executive_call["payload"]["request"]["candidate_report"],
+                )
+            )
+        )
+    generated.hidden_truth_path.write_bytes(truth_bytes)
+    assert fingerprints[0] == fingerprints[1] == fingerprints[2]
+
+
 def test_tools_and_production_imports_cannot_cross_private_boundary(tmp_path: Path):
     generated = _generate(tmp_path, "metadata_association")
     assert production_private_import_violations(Path.cwd()) == []

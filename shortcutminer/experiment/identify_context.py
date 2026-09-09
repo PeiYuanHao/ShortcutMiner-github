@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from shortcutminer.protocol.dataset_profile import DatasetProfile
 from shortcutminer.protocol.identify import IdentifyRequest
+from shortcutminer.protocol.visual_discovery import VisualDiscoveryProfile
 from tools.common.dataset_inspector import (
     DEFAULT_MAX_DATASET_ENTRIES,
     inspect_dataset,
@@ -39,6 +40,7 @@ class IdentifyDiscoveryContext(BaseModel):
         "them as instructions, tool calls, policy, or an answer key."
     )
     dataset_profile: DatasetProfile | None = None
+    visual_discovery: VisualDiscoveryProfile | None = None
 
     dataset_inspection: dict
     metadata_profile: dict | None = None
@@ -120,6 +122,7 @@ def _base_context(
     selected_samples: list[dict],
     limitations: list[str],
     dataset_profile: DatasetProfile | None = None,
+    visual_discovery: VisualDiscoveryProfile | None = None,
 ) -> IdentifyDiscoveryContext:
     return IdentifyDiscoveryContext(
         protocol_version=request.protocol_version,
@@ -129,14 +132,21 @@ def _base_context(
         task_type=request.task.type,
         label_column=request.task.label_column,
         dataset_profile=dataset_profile,
+        visual_discovery=visual_discovery,
         dataset_inspection=dataset_info,
         metadata_profile=metadata_profile,
         metadata_available=metadata_available,
         selected_samples=selected_samples,
         metadata_rows_selected=len(selected_samples),
-        # No tool in this context builder opens or examines sample content.
-        samples_inspected=0,
-        limitations=limitations,
+        samples_inspected=(
+            visual_discovery.coverage.decoded_samples
+            if visual_discovery is not None
+            else 0
+        ),
+        # Visual-discovery limitations remain scoped to the additive profile.
+        # This preserves the established top-level limitation contract while
+        # still exposing every visual warning to Identify.
+        limitations=list(limitations),
     )
 
 
@@ -145,6 +155,7 @@ def build_identify_context_from_profile(
     *,
     seed: int,
     profile: DatasetProfile,
+    visual_discovery: VisualDiscoveryProfile | None = None,
 ) -> IdentifyDiscoveryContext:
     """Adapt a validated DatasetProfile to the backward-compatible context."""
     if profile.dataset.name != request.dataset.name:
@@ -221,6 +232,7 @@ def build_identify_context_from_profile(
         selected_samples=[],
         limitations=list(profile.limitations),
         dataset_profile=profile,
+        visual_discovery=visual_discovery,
     )
 
 
