@@ -656,3 +656,7 @@ For the current implementation, completion means all of the following are true:
 9. no tool call, dispatch, execution, retry, heartbeat, result, or Summarize handoff is claimed.
 
 The executor applies the canonical Pydantic schema and correlation checks before persisting the plan.
+
+## Model-Reliance Planning
+
+Use the explicit checks `task_model_training`, `task_model_evaluation`, `ood_evaluation`, and `counterfactual_intervention` without changing the legacy meanings of `model_evaluation` (predictive probe) or `intervention` (metadata shuffle). Training requires `retraining` and is forbidden under `no_retraining`. OOD and paired counterfactual work require both `checkpoint` and `intervention_inference`; static predictions alone are insufficient. Missing capabilities make the route unresolved, never contradictory evidence. Plan deep validation only when the Candidate supplies a resolvable structured cue/region and the capability/budget context permits it; do not train a task model for every Candidate by default.

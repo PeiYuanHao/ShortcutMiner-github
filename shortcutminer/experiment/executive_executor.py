@@ -360,6 +360,26 @@ def validate_routing_plan(
                 f"AnalysisTask {task.task_id} did not preserve runtime "
                 "constraints."
             )
+        capability_requirements = {
+            "task_model_training": {"retraining"},
+            "task_model_evaluation": {"checkpoint"},
+            "ood_evaluation": {"checkpoint", "intervention_inference"},
+            "counterfactual_intervention": {"checkpoint", "intervention_inference"},
+        }
+        implied_capabilities = {
+            capability
+            for check in task.requested_checks
+            for capability in capability_requirements.get(check, set())
+        }
+        undeclared_capabilities = implied_capabilities - set(
+            inputs.required_model_capabilities
+        )
+        if undeclared_capabilities:
+            raise ExecutiveExecutionError(
+                f"AnalysisTask {task.task_id} did not declare capabilities required "
+                "by its model-reliance checks: "
+                + ", ".join(sorted(undeclared_capabilities))
+            )
         if (
             "no_retraining" in options.runtime_constraints
             and "retraining" in inputs.required_model_capabilities

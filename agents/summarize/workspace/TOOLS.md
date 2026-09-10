@@ -444,3 +444,5 @@ It does not use tools to manufacture stronger evidence.
 Tools support synthesis.
 
 They do not replace scientific restraint.
+
+When model-reliance artifacts are supplied, preserve model ID/hash, intervention ID, comparison mode, pair coverage, label-preservation status, quality limitations, uncertainty, and failed-pair coverage. Do not reopen NPZ weights, rerun inference, retrain, or generate interventions. Static predictions and unavailable segmentation must remain explicit limitations.

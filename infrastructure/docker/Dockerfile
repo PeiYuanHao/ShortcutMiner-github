@@ -17,7 +17,9 @@ COPY agents/ ./agents/
 COPY configs/ ./configs/
 COPY tests/ ./tests/
 COPY scripts/ ./scripts/
-RUN python -m pip install --no-cache-dir --no-deps -e . \
+# Reuse the build tools already installed with requirements; do not create an
+# isolated environment that reaches the network during the editable install.
+RUN python -m pip install --no-cache-dir --no-deps --no-build-isolation -e . \
     && groupadd --gid 10001 shortcutminer \
     && useradd --uid 10001 --gid shortcutminer --create-home shortcutminer \
     && mkdir -p /runs /data /app/.pytest_cache \

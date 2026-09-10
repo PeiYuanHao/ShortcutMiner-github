@@ -9,6 +9,12 @@ from shortcutminer.protocol.identify import (
     SafeRelativePath,
     StrictProtocolModel,
 )
+from shortcutminer.intervention.protocol import (
+    ComparisonMode,
+    ImageInterventionSpec,
+    LabelPreservationStatus,
+)
+from shortcutminer.protocol.model_reliance import TaskModelId
 
 
 class EmptyExperimentParameters(StrictProtocolModel):
@@ -143,6 +149,90 @@ class MetricComputationParameters(UncertaintyOptions):
     seed: int = 0
 
 
+class TaskModelTrainingParameters(UncertaintyOptions):
+    metadata_file: SafeRelativePath
+    sample_id_column: NonEmptyText = "sample_id"
+    sample_path_column: NonEmptyText
+    label_column: NonEmptyText
+    split_column: NonEmptyText | None = None
+    train_split_values: list[NonEmptyText] = Field(default_factory=list)
+    validation_split_values: list[NonEmptyText] = Field(default_factory=list)
+    test_split_values: list[NonEmptyText] = Field(default_factory=list)
+    holdout_fraction: float = Field(default=0.25, gt=0, lt=0.5)
+    model_id: TaskModelId
+    model_backend: Literal["reference_image_linear"] = "reference_image_linear"
+    feature_version: Literal["reference_image_features_v1"] = "reference_image_features_v1"
+    max_train_samples: int = Field(default=10_000, ge=4, le=100_000)
+    max_eval_samples: int = Field(default=10_000, ge=1, le=100_000)
+    max_model_iterations: int = Field(default=300, ge=10, le=5_000)
+    seed: int = 0
+    class_weight: Literal["none", "balanced"] = "none"
+    artifact_policy: Literal["safe_json_npz"] = "safe_json_npz"
+
+    @model_validator(mode="after")
+    def validate_training_split(self):
+        values = [
+            set(self.train_split_values),
+            set(self.validation_split_values),
+            set(self.test_split_values),
+        ]
+        if any(values) and self.split_column is None:
+            raise ValueError("explicit split values require split_column")
+        if self.split_column is not None and not self.train_split_values:
+            raise ValueError("split_column requires non-empty train_split_values")
+        if self.split_column is not None and not self.test_split_values:
+            raise ValueError("split_column requires non-empty test_split_values")
+        if any(values[i] & values[j] for i in range(3) for j in range(i + 1, 3)):
+            raise ValueError("train, validation, and test split values must be disjoint")
+        if len({self.sample_id_column, self.sample_path_column, self.label_column}) != 3:
+            raise ValueError("sample ID, sample path, and label columns must be distinct")
+        return self
+
+
+class TaskModelEvaluationParameters(UncertaintyOptions):
+    model_reference: SafeRelativePath
+    metadata_file: SafeRelativePath
+    sample_id_column: NonEmptyText = "sample_id"
+    sample_path_column: NonEmptyText
+    label_column: NonEmptyText
+    split_column: NonEmptyText | None = None
+    split_values: list[NonEmptyText] = Field(default_factory=list)
+    evaluation_partition: Literal["configured_split", "training_manifest_test"] = "configured_split"
+    max_eval_samples: int = Field(default=10_000, ge=1, le=100_000)
+    seed: int = 0
+
+    @model_validator(mode="after")
+    def validate_evaluation_split(self):
+        if self.split_values and self.split_column is None:
+            raise ValueError("split_values require split_column")
+        if self.evaluation_partition == "training_manifest_test" and (
+            self.split_column is not None or self.split_values
+        ):
+            raise ValueError("training_manifest_test cannot be combined with configured split fields")
+        return self
+
+
+class OODEvaluationParameters(TaskModelEvaluationParameters):
+    transformation: ImageInterventionSpec
+    target_cue: NonEmptyText
+    intended_invariants: list[NonEmptyText] = Field(
+        default_factory=lambda: ["task label semantics"]
+    )
+    comparison_mode: ComparisonMode
+    preservation_status: LabelPreservationStatus = "unverified"
+    max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
+
+
+class CounterfactualInterventionParameters(TaskModelEvaluationParameters):
+    transformation: ImageInterventionSpec
+    target_cue: NonEmptyText
+    intended_invariants: list[NonEmptyText] = Field(
+        default_factory=lambda: ["task label semantics"]
+    )
+    preservation_status: LabelPreservationStatus = "unverified"
+    max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
+
+
 ExperimentParameters: TypeAlias = (
     EmptyExperimentParameters
     | StatisticalCheckParameters
@@ -151,6 +241,10 @@ ExperimentParameters: TypeAlias = (
     | MetadataInterventionParameters
     | MetadataAblationParameters
     | MetricComputationParameters
+    | TaskModelTrainingParameters
+    | TaskModelEvaluationParameters
+    | OODEvaluationParameters
+    | CounterfactualInterventionParameters
 )
 
 
@@ -163,5 +257,9 @@ __all__ = [
     "PredictiveProbeParameters",
     "StatisticalCheckParameters",
     "SubgroupEvaluationParameters",
+    "TaskModelTrainingParameters",
+    "TaskModelEvaluationParameters",
+    "OODEvaluationParameters",
+    "CounterfactualInterventionParameters",
     "UncertaintyOptions",
 ]

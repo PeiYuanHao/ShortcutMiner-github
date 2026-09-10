@@ -80,4 +80,54 @@ def bootstrap_interval(
     )
 
 
-__all__ = ["benjamini_hochberg", "bootstrap_interval"]
+def independent_bootstrap_interval(
+    *,
+    metric: str,
+    first_count: int,
+    second_count: int,
+    statistic: Callable[[np.ndarray, np.ndarray], float | None],
+    confidence_level: float,
+    iterations: int,
+    seed: int,
+) -> UncertaintyEstimate:
+    """Percentile bootstrap for two independent sample distributions."""
+    if iterations <= 0:
+        return UncertaintyEstimate(
+            metric=metric, available=False,
+            reason_unavailable="Bootstrap was disabled by configuration.",
+        )
+    if first_count < 2 or second_count < 2:
+        return UncertaintyEstimate(
+            metric=metric, available=False,
+            reason_unavailable="At least two observations per distribution are required.",
+        )
+    rng = np.random.default_rng(seed)
+    estimates: list[float] = []
+    for _ in range(iterations):
+        value = statistic(
+            rng.integers(0, first_count, size=first_count),
+            rng.integers(0, second_count, size=second_count),
+        )
+        if value is not None and np.isfinite(value):
+            estimates.append(float(value))
+    if len(estimates) < max(2, iterations // 2):
+        return UncertaintyEstimate(
+            metric=metric, available=False,
+            reason_unavailable="Too few valid independent bootstrap replicates were estimable.",
+        )
+    alpha = 1 - confidence_level
+    lower, upper = np.quantile(estimates, [alpha / 2, 1 - alpha / 2])
+    return UncertaintyEstimate(
+        metric=metric,
+        method="independent_percentile_bootstrap",
+        confidence_level=confidence_level,
+        lower=float(lower), upper=float(upper),
+        standard_error=float(np.std(estimates, ddof=1)) if len(estimates) > 1 else 0.0,
+        bootstrap_iterations=iterations,
+        seed=seed,
+        resampling_unit="independent_sample_rows",
+        available=True,
+    )
+
+
+__all__ = ["benjamini_hochberg", "bootstrap_interval", "independent_bootstrap_interval"]

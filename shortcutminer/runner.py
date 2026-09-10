@@ -63,6 +63,10 @@ def build_local_tool_runtimes(
             dataset_root=dataset_root,
             runs_root=runs_root,
             approved_artifacts=approved_artifacts or set(),
+            model_capabilities={
+                "predictions", "logits", "checkpoint", "retraining",
+                "intervention_inference",
+            },
         )
         for agent in (
             "identify",

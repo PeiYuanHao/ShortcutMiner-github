@@ -39,6 +39,12 @@ def _quantitative_kind(result, task: AnalysisTask | None) -> str:
     text = " ".join(
         [result.payload.analysis_type, *(task.requested_checks if task else [])]
     ).casefold()
+    if "counterfactual" in text:
+        return "quantitative_counterfactual"
+    if "ood" in text or "out-of-distribution" in text:
+        return "quantitative_ood"
+    if "task_model" in text or "model reliance" in text:
+        return "quantitative_model_reliance"
     if "ablation" in text:
         return "quantitative_ablation"
     if "intervention" in text or "permutation" in text:
@@ -59,12 +65,13 @@ def _artifact_metadata(
     run_id: str,
     candidate_id: str,
     task_id: str,
-) -> tuple[list[str], list[UncertaintyEstimate], list[str], list[str], list[str]]:
+) -> tuple[list[str], list[UncertaintyEstimate], list[str], list[str], list[str], dict[str, Any]]:
     approved: list[str] = []
     uncertainty: list[UncertaintyEstimate] = []
     inputs: list[str] = []
     warnings: list[str] = []
     limitations: list[str] = []
+    model_details: dict[str, Any] = {}
     for reference in references:
         if run_root is None:
             approved.append(reference)
@@ -78,26 +85,36 @@ def _artifact_metadata(
         if not path.is_file():
             limitations.append(f"Referenced artifact was unavailable during calibration: {reference}")
             continue
+        if path.suffix.casefold() != ".json":
+            approved.append(reference)
+            continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError):
             limitations.append(f"Referenced artifact could not be validated during calibration: {reference}")
             continue
-        if any(data.get(key) != value for key, value in {
-            "run_id": run_id, "candidate_id": candidate_id, "task_id": task_id
-        }.items()):
+        expected = {"run_id": run_id, "candidate_id": candidate_id, "task_id": task_id}
+        if any(key in data and data[key] != value for key, value in expected.items()):
             limitations.append(f"Referenced artifact provenance did not match the result: {reference}")
             continue
         approved.append(reference)
         inputs.extend(str(value) for value in data.get("input_references", []) if value)
         warnings.extend(str(value) for value in data.get("warnings", []) if value)
         limitations.extend(str(value) for value in data.get("limitations", []) if value)
+        details = data.get("details", {})
+        if isinstance(details, dict):
+            for key in ("model_id", "model_hash", "intervention_id", "ood_id", "comparison_mode", "pair_coverage"):
+                if key in details:
+                    model_details[key] = details[key]
+        for key in ("model_id", "model_hash", "intervention_id", "ood_id", "comparison_mode", "pair_coverage"):
+            if key in data:
+                model_details[key] = data[key]
         for item in data.get("uncertainty", []):
             try:
                 uncertainty.append(UncertaintyEstimate.model_validate(item))
             except Exception:
                 limitations.append(f"Artifact uncertainty was incompatible and omitted: {reference}")
-    return approved, uncertainty, inputs, warnings, limitations
+    return approved, uncertainty, inputs, warnings, limitations, model_details
 
 
 def _validated_artifact_references(
@@ -158,7 +175,7 @@ def _quantitative_records(result, task: AnalysisTask | None, run_root: Path | No
         state = "scientifically_inconclusive" if payload.evidence_direction == "inconclusive" else "usable"
     else:
         state = payload.status
-    references, uncertainty, inputs, warnings, artifact_limits = _artifact_metadata(
+    references, uncertainty, inputs, warnings, artifact_limits, model_details = _artifact_metadata(
         run_root,
         payload.artifact_references,
         run_id=result.run_id,
@@ -177,7 +194,11 @@ def _quantitative_records(result, task: AnalysisTask | None, run_root: Path | No
             tests.append(StatisticalTestRecord(metric=name, raw_p_value=float(value)))
     task_sources = list(task.inputs.metadata_fields) if task else []
     dataset_reference = task.inputs.dataset_reference if task else None
-    source_ids = sorted(set([*inputs, *task_sources]))
+    source_ids = sorted(set([
+        *inputs,
+        *task_sources,
+        *(str(model_details[key]) for key in ("model_hash", "intervention_id", "ood_id") if key in model_details),
+    ]))
     return [EvidenceRecord(
         evidence_id=f"EV-{payload.candidate_id}-{payload.task_id}-QT",
         candidate_id=payload.candidate_id,
@@ -188,7 +209,7 @@ def _quantitative_records(result, task: AnalysisTask | None, run_root: Path | No
         design_strength=_Q_DESIGN[payload.evidence_level],
         execution_state=state,
         direction=payload.evidence_direction,
-        metrics=dict(payload.metrics),
+        metrics={**dict(payload.metrics), **model_details},
         uncertainty=uncertainty,
         statistical_tests=tests,
         coverage=_coverage_from_metrics(payload.metrics, state=state),
@@ -200,6 +221,10 @@ def _quantitative_records(result, task: AnalysisTask | None, run_root: Path | No
             candidate_id=payload.candidate_id,
             task_id=payload.task_id,
             result_id=result.message_id,
+            experiment_id=(
+                str(model_details.get("ood_id") or model_details.get("intervention_id") or model_details.get("model_id"))
+                if model_details else None
+            ),
             dataset_reference=dataset_reference,
             input_family=f"{payload.candidate_id}:{','.join(source_ids) or payload.task_id}",
             shared_source_identifiers=source_ids,

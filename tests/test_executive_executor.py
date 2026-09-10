@@ -278,6 +278,60 @@ def test_sample_budget_is_enforced(tmp_path: Path):
         validate_routing_plan(plan, request)
 
 
+def _model_reliance_plan(tmp_path: Path, *, check: str, capabilities, required, constraints=()):
+    request = _request(tmp_path)
+    request.routing_context.audit_options.allowed_targets = ["quantitative"]
+    request.routing_context.audit_options.requested_outputs = ["metrics"]
+    request.routing_context.audit_options.runtime_constraints = list(constraints)
+    request.routing_context.capabilities.available_targets = ["quantitative"]
+    request.routing_context.capabilities.quantitative_checks = [check]
+    request.routing_context.capabilities.model_capabilities = list(capabilities)
+    output = _valid_output(request)
+    output["decisions"][0]["route"] = "quantitative"
+    output["decisions"][0]["task_ids"] = ["TASK-C001-QT"]
+    output["tasks"] = output["tasks"][:1]
+    output["tasks"][0]["requested_checks"] = [check]
+    output["tasks"][0]["expected_outputs"] = ["metrics"]
+    output["tasks"][0]["inputs"]["runtime_constraints"] = list(constraints)
+    output["tasks"][0]["inputs"]["required_model_capabilities"] = list(required)
+    return request, RoutingPlan.model_validate(output)
+
+
+def test_model_reliance_training_capability_is_enforced(tmp_path: Path):
+    request, plan = _model_reliance_plan(
+        tmp_path, check="task_model_training", capabilities=["retraining"], required=["retraining"]
+    )
+    validate_routing_plan(plan, request)
+
+    blocked_request, blocked = _model_reliance_plan(
+        tmp_path, check="task_model_training", capabilities=["retraining"],
+        required=["retraining"], constraints=["no_retraining"],
+    )
+    with pytest.raises(ExecutiveExecutionError, match="no_retraining"):
+        validate_routing_plan(blocked, blocked_request)
+
+    checkpoint_request, checkpoint = _model_reliance_plan(
+        tmp_path, check="task_model_training", capabilities=["checkpoint"], required=["retraining"]
+    )
+    with pytest.raises(ExecutiveExecutionError, match="unavailable model"):
+        validate_routing_plan(checkpoint, checkpoint_request)
+
+
+def test_counterfactual_requires_declared_intervention_inference(tmp_path: Path):
+    request, missing = _model_reliance_plan(
+        tmp_path, check="counterfactual_intervention", capabilities=["predictions"], required=[]
+    )
+    with pytest.raises(ExecutiveExecutionError, match="did not declare"):
+        validate_routing_plan(missing, request)
+
+    allowed_request, allowed = _model_reliance_plan(
+        tmp_path, check="counterfactual_intervention",
+        capabilities=["checkpoint", "intervention_inference"],
+        required=["checkpoint", "intervention_inference"],
+    )
+    validate_routing_plan(allowed, allowed_request)
+
+
 def test_sample_access_requires_explicit_limit(tmp_path: Path):
     request = _request(tmp_path)
     output = _valid_output(request)

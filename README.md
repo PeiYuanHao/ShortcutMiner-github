@@ -154,7 +154,7 @@ The current profiler recognizes image-, tabular-, and text-like structures using
 
 `ExperimentExecutor` is the typed boundary between `run_experiment` and scientific execution. `MockExperimentExecutor` remains available for deterministic unit tests. `RealExperimentExecutor` is the local CPU backend used by configured live CLI runs.
 
-The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, and an allowlisted prediction metric computation. Every experiment uses an experiment-specific strict parameter schema and writes a reusable artifact under `experiments/<task_id>/`. Supported metrics carry bounded, seeded percentile-bootstrap uncertainty; unavailable intervals include an explicit reason. Statistics, raw/adjusted p-values, effect sizes, predictive accuracy, and intervention deltas are evidence—not automatic shortcut decisions.
+The real backend supports bounded metadata/tabular statistical association, subgroup label or prediction evaluation, out-of-sample logistic-regression probes, metadata permutation, metadata-feature probe ablation, allowlisted prediction metrics, and explicit task-model training/evaluation, OOD, and paired counterfactual experiments. The real task-model reliance backend currently includes a bounded CPU reference image classifier and deterministic image interventions. The reference classifier is infrastructure for controlled validation, not a paper baseline or arbitrary deep-network runner. Every experiment uses a strict schema and reusable, input-fingerprinted artifacts. Measurements and uncertainty are evidence—not automatic shortcut decisions.
 
 The evidence ledger is stored at `evidence/ledger.json`. It preserves direction,
 execution state, coverage, uncertainty, provenance, artifacts, failures,
@@ -163,8 +163,7 @@ applied transparently within candidate-level related-test families while retaini
 raw p-values. Neither intervals nor adjusted p-values trigger a shortcut verdict.
 See [Evidence calibration](docs/evidence-calibration.md).
 
-The quantitative backend is CSV-first and CPU-only. It does not perform large
-neural-model retraining, image intervention, or arbitrary Python/shell execution.
+The quantitative backend remains CSV-indexed, offline and CPU-only. It never executes arbitrary Python/shell, arbitrary checkpoints, dynamic model code, or network downloads. Safe reference weights use JSON+NPZ rather than executable serialization. See [Model reliance](docs/model-reliance.md), [OOD and counterfactual validation](docs/ood-counterfactual.md), and [Segmentation providers](docs/segmentation.md).
 
 ## Blind Evaluation Infrastructure
 
@@ -206,10 +205,7 @@ or resume. The backend produces sample facts, group summaries, and descriptor
 differences only; the Qualitative Agent interprets evidence status and Summarize
 performs final synthesis.
 
-Current limits are deliberate: provider-backed semantic vision is optional and
-observation-only; there is no OCR guarantee, image editing intervention, segmentation,
-or neural visual representation benchmark. Agents receive bounded descriptors and
-structured observations, never unrestricted local files.
+Provider-backed semantic vision remains optional and observation-only, with no OCR guarantee. Deterministic image interventions are executed only by the typed backend; Agents receive bounded descriptors, structured observations and approved artifact references, never unrestricted local files. Provided masks support CPU background replacement, while SAM and neural visual representation benchmarks remain optional/unavailable.
 
 ## Repository Structure
 

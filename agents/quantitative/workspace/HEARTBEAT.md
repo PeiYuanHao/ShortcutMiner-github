@@ -82,3 +82,5 @@ Do not retry or recommend repeated tests merely to obtain a positive result.
 Finish after the single structured response. Workspace documents remain read-only.
 Checkpoint/resume and invocation failures belong to infrastructure. Never fabricate
 success to maintain workflow progress.
+
+For model-reliance tasks, confirm the tool result preserves the same model hash, correct train/test partition, pair labels, intervention identity, quality fields, and uncertainty method. Missing masks, capabilities, usable pairs, or valid classes must remain blocked/inconclusive rather than contradictory evidence.

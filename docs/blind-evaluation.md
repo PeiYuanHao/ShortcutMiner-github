@@ -110,8 +110,16 @@ final false positives are stronger `supported` summary findings on a clean
 control. These rates must not be conflated.
 
 Optional downstream impact accepts measured before/after, out-of-distribution,
-group-gap, or intervention metrics. When no downstream model study is supplied,
-the result records an explicit unavailable reason rather than inventing a number.
+group-gap, or intervention metrics. Phase 15 task-model OOD and counterfactual
+outputs can populate this record directly while preserving the model hash,
+intervention identity, pairing, uncertainty method, and limitations. When no
+downstream model study is supplied, the result records an explicit unavailable
+reason rather than inventing a number.
+
+The truth firewall covers the full model-reliance route: changing, removing, or
+replacing private truth must not alter the public routing request, training request,
+model identity, or intervention manifest. Production modules do not import the blind
+evaluator namespace; downstream conversion lives under the evaluation package.
 
 ## Frozen snapshots, seeds, and batch uncertainty
 

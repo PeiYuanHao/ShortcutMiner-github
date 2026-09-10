@@ -63,6 +63,80 @@ class ImageInspectionResult:
     limitations: tuple[str, ...] = ()
 
 
+class SafeImageDecodeError(ValueError):
+    """Raised when a bounded image cannot be decoded without relaxing safety."""
+
+
+@dataclass(frozen=True)
+class DecodedImage:
+    rgb: np.ndarray
+    width: int
+    height: int
+    image_format: str
+    byte_size: int
+
+
+def load_rgb_image_file(
+    path: str | Path,
+    *,
+    max_file_bytes: int = 25_000_000,
+    max_pixels: int = 20_000_000,
+) -> DecodedImage:
+    """Decode one authorized, single-frame image through the shared safety policy."""
+
+    source = Path(path)
+    try:
+        byte_size = source.stat().st_size
+    except (FileNotFoundError, NotADirectoryError, OSError) as exc:
+        raise SafeImageDecodeError("Image file is unavailable.") from exc
+    if byte_size <= 0 or byte_size > max_file_bytes:
+        raise SafeImageDecodeError(
+            f"Image byte size is outside max_file_bytes={max_file_bytes}."
+        )
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(source) as image:
+                expected_format = SUPPORTED_IMAGE_FORMATS.get(source.suffix.casefold())
+                if expected_format is None or image.format != expected_format:
+                    raise SafeImageDecodeError(
+                        "Image extension and decoded format do not match."
+                    )
+                width, height = image.size
+                if width < 1 or height < 1 or width * height > max_pixels:
+                    raise SafeImageDecodeError(
+                        f"Image dimensions exceed max_pixels={max_pixels}."
+                    )
+                if int(getattr(image, "n_frames", 1)) != 1:
+                    raise SafeImageDecodeError(
+                        "Task-model and intervention inputs must be single-frame images."
+                    )
+                image.seek(0)
+                rgb = np.asarray(image.convert("RGB"), dtype=np.uint8).copy()
+                image_format = str(image.format)
+    except SafeImageDecodeError:
+        raise
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        UnidentifiedImageError,
+        EOFError,
+        OSError,
+        SyntaxError,
+        ValueError,
+    ) as exc:
+        raise SafeImageDecodeError(
+            f"Image decoding failed safely: {type(exc).__name__}."
+        ) from exc
+    return DecodedImage(
+        rgb=rgb,
+        width=width,
+        height=height,
+        image_format=image_format,
+        byte_size=byte_size,
+    )
+
+
 def _number(value: float) -> float:
     return round(float(value), 10)
 
@@ -365,11 +439,14 @@ def flatten_image_descriptors(
 
 
 __all__ = [
+    "DecodedImage",
     "DESCRIPTOR_DEFINITION_VERSION",
     "DESCRIPTOR_DEFINITIONS",
     "EDGE_THRESHOLD",
     "SUPPORTED_IMAGE_FORMATS",
     "ImageInspectionResult",
+    "SafeImageDecodeError",
     "flatten_image_descriptors",
     "inspect_image_file",
+    "load_rgb_image_file",
 ]

@@ -26,6 +26,10 @@ def test_registry_is_static_complete_and_has_no_dynamic_imports_or_processes():
         "intervention",
         "ablation",
         "metric_computation",
+        "task_model_training",
+        "task_model_evaluation",
+        "ood_evaluation",
+        "counterfactual_intervention",
     }
     tree = ast.parse(BACKEND_PATH.read_text(encoding="utf-8"))
     forbidden_imports = {"subprocess", "importlib"}

@@ -1521,3 +1521,9 @@ The Quantitative Agent's tools exist to convert a defined shortcut hypothesis in
 The final rule is:
 
 > **Use tools to strengthen evidence, not to increase complexity. Every computation must be necessary, traceable, and reproducible.**
+
+# 67. Model-Reliance Experiment Catalogue
+
+Use `task_model_training` only when `retraining` is declared and `no_retraining` is absent. Use `task_model_evaluation` with an approved safe `model_reference`. Use `ood_evaluation` and `counterfactual_intervention` only when `checkpoint` and `intervention_inference` are available. The Agent supplies dataset columns, split/partition, budgets, a public Candidate-derived `target_cue`, an allowlisted transformation object, and an explicit label-preservation status. The backend owns safe image decoding, fitting, persistence, transformation, inference, pairing, metrics, and bootstrap computation.
+
+The preferred deep sequence is train/load → ID evaluation → OOD evaluation → paired counterfactual evaluation. Each later request must use the model reference returned by the earlier tool result. Do not retrain for OOD or counterfactual work. Detailed predictions and pair rows remain in approved artifacts; keep the final `QuantitativeResult.metrics` flat.

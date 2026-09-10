@@ -276,6 +276,13 @@ class FailureRecord(StrictProtocolModel):
 class DownstreamImpactRecord(StrictProtocolModel):
     available: bool
     model_reference: SafeRelativePath | None = None
+    model_id: NonEmptyText | None = None
+    model_hash: NonEmptyText | None = None
+    intervention_id: NonEmptyText | None = None
+    ood_id: NonEmptyText | None = None
+    comparison_mode: Literal["paired", "independent"] | None = None
+    pair_coverage: FiniteFloat | None = Field(default=None, ge=0, le=1)
+    uncertainty: list[dict[str, Any]] = Field(default_factory=list)
     metric_before: FiniteFloat | None = None
     metric_after: FiniteFloat | None = None
     ood_metric: FiniteFloat | None = None

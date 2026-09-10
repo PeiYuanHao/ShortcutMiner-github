@@ -61,10 +61,10 @@ validated Agent results. The builder groups and preserves them; it never invents
 a direction from a number.
 
 Evidence kinds distinguish association, subgroup, predictive probe,
-intervention, ablation, metric, qualitative metadata, visual/spatial observation,
-counterevidence, and failure. Design strength is descriptive, observational,
-predictive, or interventional. This describes the research design, not whether a
-candidate is supported. Q0-Q4 retain the same meaning: not tested/failed,
+intervention, ablation, metric, task-model reliance, OOD, paired counterfactual,
+qualitative metadata, visual/spatial observation, counterevidence, and failure.
+Design strength is descriptive, observational, predictive, or interventional.
+This describes the research design, not whether a candidate is supported. Q0-Q4 retain the same meaning: not tested/failed,
 descriptive, observational, predictive, and intervention-style evidence maturity.
 They are not confidence percentages, risk levels, or final verdicts.
 
@@ -89,6 +89,9 @@ supports it:
 - probe accuracy, balanced accuracy, baseline accuracy, and improvement: held-out
   prediction rows without repeated model fitting;
 - intervention effect delta: paired sample rows;
+- task-model ID/OOD accuracy: prediction rows when evaluated independently;
+- counterfactual flip and confidence/logit/margin deltas: paired original-modified
+  sample rows;
 - allowlisted prediction metrics: prediction rows.
 
 Bootstrap iterations are schema-bounded to at most 1,000 (default 200), and the

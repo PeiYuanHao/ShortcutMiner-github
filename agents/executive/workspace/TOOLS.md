@@ -281,3 +281,7 @@ traceable evidence.
 ```
 
 Stop after returning the well-defined validation tasks in a RoutingPlan. The executor handles validation and persistence.
+
+## Model-Reliance Tool Boundary
+
+Executive never calls `run_experiment`. It may authorize Quantitative to request the four model-reliance experiment types only through `requested_checks`. Declare `retraining` for `task_model_training`, `checkpoint` for `task_model_evaluation`, and `checkpoint` plus `intervention_inference` for OOD/counterfactual inference. Do not request a background replacement without an approved mask or available segmentation provider, and never infer coordinates or transformations from private truth.

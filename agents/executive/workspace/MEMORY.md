@@ -36,3 +36,5 @@ cannot be reconstructed from presumed memory.
 ## Permanent Rule
 
 Remember how to assess evidence, never what a previous audit supposedly found.
+
+Stable Phase 15 rule: legacy `model_evaluation` remains a predictive probe and legacy `intervention` remains metadata shuffle. The explicit model-reliance checks have separate capability requirements, and `no_retraining` is authoritative.

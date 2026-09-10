@@ -791,3 +791,9 @@ the evidence actually obtained (not tested, descriptive, observational,
 predictive, interventional); they are not risk levels, probabilities, or final
 shortcut verdicts. Execution failure/blocked and scientific inconclusiveness are
 distinct, and neither is contradictory evidence.
+
+## Task-Model Reliance Experiments
+
+The five evidence layers are: association, predictive evidence, task-model behavior, OOD response, and paired counterfactual intervention. Use only the typed `run_experiment` schemas. `task_model_training` trains the allowlisted CPU reference backend; `task_model_evaluation` measures a safe run-local model artifact; `ood_evaluation` compares the same model under a controlled distribution change; `counterfactual_intervention` performs paired same-model inference. Legacy `model_evaluation` is still a metadata predictive probe and legacy `intervention` is still metadata shuffle.
+
+Choose only allowlisted transformations and strict parameters. Never write image code, manipulate base64, invent a mask, execute Python/shell, load arbitrary checkpoints, or request downloads. Static prediction artifacts cannot perform counterfactual inference. Preserve model hash, intervention identity, pair coverage, label-preservation status, quality checks, uncertainty, failures, and artifact references. Accuracy drop, flip rate, confidence shift, and logit shift are measurements; no numeric threshold automatically determines evidence direction or proves causality.

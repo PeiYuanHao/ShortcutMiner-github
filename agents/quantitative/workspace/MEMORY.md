@@ -37,3 +37,5 @@ cannot be reconstructed from presumed memory.
 ## Permanent Rule
 
 Remember how to assess evidence, never what a previous audit supposedly found.
+
+Stable Phase 15 rule: use only safe run-local task-model artifacts and allowlisted intervention schemas. Never reinterpret legacy experiment names, never retrain on OOD/counterfactual samples, and never convert a metric into a verdict through a hard-coded threshold.

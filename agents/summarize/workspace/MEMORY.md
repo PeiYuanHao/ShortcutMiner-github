@@ -353,3 +353,5 @@ Do not hide contradiction.
 Do not invent completeness.
 
 The best final report is the one that most faithfully represents what ShortcutMiner actually observed.
+
+Stable Phase 15 rule: retain model identity, same-model evidence, intervention validity, pair coverage, and uncertainty. Never collapse dataset evidence and model-reliance evidence into one claim.

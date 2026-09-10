@@ -416,6 +416,27 @@ def _experiment_handler(executor: ExperimentExecutor):
     def execute(arguments, context):
         if context.agent_name != "quantitative":
             raise PermissionError("Only Quantitative may execute experiments")
+        if (
+            context.allowed_experiment_types
+            and arguments.experiment_type not in context.allowed_experiment_types
+        ):
+            raise PermissionError(
+                "Experiment type was not authorized by the bound Executive task"
+            )
+        required = {
+            "task_model_training": {"retraining"},
+            "task_model_evaluation": {"checkpoint"},
+            "ood_evaluation": {"checkpoint", "intervention_inference"},
+            "counterfactual_intervention": {"checkpoint", "intervention_inference"},
+        }.get(arguments.experiment_type, set())
+        if arguments.experiment_type == "task_model_training" and "no_retraining" in context.runtime_constraints:
+            raise PermissionError("task_model_training is prohibited by no_retraining")
+        missing = required - set(context.model_capabilities)
+        if missing:
+            raise PermissionError(
+                "Experiment requires unavailable model capabilities: "
+                + ", ".join(sorted(missing))
+            )
         request = ExperimentExecutionRequest(
             run_id=context.run_id,
             candidate_id=arguments.candidate_id,

@@ -315,3 +315,5 @@ Summarize determines **what can ultimately be concluded**.
 Your responsibility is to ensure that the path between hypothesis and evidence is:
 
 > explicit, efficient, executable, and traceable.
+
+For model-reliance work, route from public Candidate evidence to a bounded validation design. An OOD accuracy change is model behavior under shift; a valid paired intervention is stronger dependence evidence, but neither is automatic causal proof. A missing checkpoint, retraining right, mask, or intervention-inference capability is a planning limitation rather than a negative scientific result.

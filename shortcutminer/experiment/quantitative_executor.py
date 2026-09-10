@@ -113,6 +113,11 @@ def execute_quantitative(
             )
         payload = build_quantitative_agent_payload(request)
         prompt = load_agent_workspace_prompt("quantitative", workspace_dir)
+        if tool_runtime is not None:
+            tool_runtime.bind_analysis_task(
+                runtime_constraints=request.task.inputs.runtime_constraints,
+                requested_checks=request.task.requested_checks,
+            )
         if runs_root is not None:
             save_stage_json(
                 runs_root,

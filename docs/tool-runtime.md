@@ -82,6 +82,16 @@ The static backend registry supports:
 | `intervention` | seeded metadata shuffle, optionally within explicit splits |
 | `ablation` | out-of-sample probe comparison after removing one explicit metadata feature |
 | `metric_computation` | allowlisted accuracy or balanced accuracy |
+| `task_model_training` | bounded CPU reference-image classifier training with explicit or deterministic stratified splits |
+| `task_model_evaluation` | evaluate one persisted task-model identity on a configured split or its frozen test partition |
+| `ood_evaluation` | evaluate the same model before/after a typed deterministic distribution shift, without retraining |
+| `counterfactual_intervention` | paired original/modified inference with flips and confidence/logit/margin deltas |
+
+The legacy `model_evaluation` type remains the metadata predictive probe, and the
+legacy `intervention` type remains the metadata shuffle. Their meanings were not
+changed. Task-model types additionally require matching runtime capabilities;
+`no_retraining` blocks training, and checkpoint/prediction capabilities are not
+treated as interchangeable.
 
 Budgets cap rows, categories, permutations, probe input fields, and solver
 iterations. Statistical schemas also cap percentile-bootstrap iterations at 1,000,
@@ -131,4 +141,7 @@ Real experiment evidence is additionally stored as
 The artifact contains bounded structured details such as contingency tables,
 group summaries, and uncertainty contracts while the Tool output keeps scalar
 metrics and exposes uncertainty through metadata. A completed matching
-artifact is validated and reused on retry/resume rather than recomputed.
+artifact is validated and reused on retry/resume rather than recomputed. Task-model
+resume validation also binds the dataset inputs, training split, model artifacts,
+and intervention identity, so edited images or masks cannot silently reuse stale
+results.

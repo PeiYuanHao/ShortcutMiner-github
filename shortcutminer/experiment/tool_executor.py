@@ -15,9 +15,13 @@ from shortcutminer.protocol.experiment import (
     MetadataAblationParameters,
     MetadataInterventionParameters,
     MetricComputationParameters,
+    OODEvaluationParameters,
     PredictiveProbeParameters,
     StatisticalCheckParameters,
     SubgroupEvaluationParameters,
+    TaskModelEvaluationParameters,
+    TaskModelTrainingParameters,
+    CounterfactualInterventionParameters,
 )
 from shortcutminer.protocol.executive import TaskId
 from shortcutminer.protocol.identify import (
@@ -36,6 +40,10 @@ ExperimentType = Literal[
     "ablation",
     "subgroup_evaluation",
     "metric_computation",
+    "task_model_training",
+    "task_model_evaluation",
+    "ood_evaluation",
+    "counterfactual_intervention",
 ]
 ExperimentOutcome = Literal["completed", "inconclusive"]
 
@@ -58,6 +66,10 @@ class ExperimentExecutionRequest(StrictProtocolModel):
             "intervention": MetadataInterventionParameters,
             "ablation": MetadataAblationParameters,
             "metric_computation": MetricComputationParameters,
+            "task_model_training": TaskModelTrainingParameters,
+            "task_model_evaluation": TaskModelEvaluationParameters,
+            "ood_evaluation": OODEvaluationParameters,
+            "counterfactual_intervention": CounterfactualInterventionParameters,
         }[self.experiment_type]
         if not isinstance(self.parameters, (expected, EmptyExperimentParameters)):
             raise ValueError(

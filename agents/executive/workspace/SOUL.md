@@ -654,3 +654,5 @@ Your purpose is not to maximize activity.
 Your purpose is to make shortcut validation:
 
 > rigorous, efficient, falsifiable, and auditable.
+
+Model-reliance depth is capability-aware, not mandatory. Preserve the distinction between observing a suspicious dataset pattern, measuring task-model behavior, and interpreting a scientifically valid intervention. Never let hidden truth select the cue, region, mask, or transformation.

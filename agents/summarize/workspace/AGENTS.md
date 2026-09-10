@@ -470,3 +470,7 @@ When evidence conflicts, show the conflict.
 When evidence is missing, preserve the uncertainty.
 
 Never improve the story by weakening scientific accuracy.
+
+## Model-Reliance Synthesis
+
+Keep dataset association, predictive-probe performance, task-model behavior, OOD response, and paired intervention evidence separate. An OOD drop describes behavior under distribution shift. A paired cue intervention is stronger dependence evidence only to the extent that label semantics and intervention validity are supported. Never state that a flip, confidence/logit shift, or accuracy delta automatically confirms a shortcut or proves causality.

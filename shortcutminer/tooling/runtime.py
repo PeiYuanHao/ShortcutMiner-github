@@ -38,6 +38,9 @@ class ToolRuntime:
         workspace_root: str | Path | None = None,
         approved_artifacts: set[str] | frozenset[str] = frozenset(),
         approved_samples: set[str] | frozenset[str] = frozenset(),
+        runtime_constraints: set[str] | frozenset[str] = frozenset(),
+        model_capabilities: set[str] | frozenset[str] = frozenset(),
+        allowed_experiment_types: set[str] | frozenset[str] = frozenset(),
         budget: ToolBudget | None = None,
     ) -> None:
         self.registry = registry
@@ -52,6 +55,9 @@ class ToolRuntime:
             ),
             approved_artifacts=frozenset(approved_artifacts),
             approved_samples=frozenset(approved_samples),
+            runtime_constraints=frozenset(runtime_constraints),
+            model_capabilities=frozenset(model_capabilities),
+            allowed_experiment_types=frozenset(allowed_experiment_types),
             max_selected_samples=self.budget.max_selected_samples,
         )
         self.history: list[ToolResult] = []
@@ -96,6 +102,27 @@ class ToolRuntime:
             self.context,
             approved_artifacts=frozenset(
                 {*self.context.approved_artifacts, *validated}
+            ),
+        )
+
+    def bind_analysis_task(
+        self,
+        *,
+        runtime_constraints: list[str],
+        requested_checks: list[str],
+    ) -> None:
+        """Bind Executive policy to the mutable tool boundary before Agent use."""
+
+        experiment_types = {
+            "statistical_check", "model_evaluation", "intervention", "ablation",
+            "subgroup_evaluation", "metric_computation", "task_model_training",
+            "task_model_evaluation", "ood_evaluation", "counterfactual_intervention",
+        }
+        self.context = replace(
+            self.context,
+            runtime_constraints=frozenset(runtime_constraints),
+            allowed_experiment_types=frozenset(
+                check for check in requested_checks if check in experiment_types
             ),
         )
 

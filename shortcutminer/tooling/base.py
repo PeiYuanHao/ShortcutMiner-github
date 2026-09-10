@@ -19,6 +19,9 @@ class ToolExecutionContext:
     workspace_root: Path | None = None
     approved_artifacts: frozenset[str] = field(default_factory=frozenset)
     approved_samples: frozenset[str] = field(default_factory=frozenset)
+    runtime_constraints: frozenset[str] = field(default_factory=frozenset)
+    model_capabilities: frozenset[str] = field(default_factory=frozenset)
+    allowed_experiment_types: frozenset[str] = field(default_factory=frozenset)
     max_selected_samples: int = 100
     tool_schemas: tuple[dict[str, Any], ...] = ()
 

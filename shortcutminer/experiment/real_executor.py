@@ -33,9 +33,19 @@ from shortcutminer.protocol.experiment import (
     MetadataAblationParameters,
     MetadataInterventionParameters,
     MetricComputationParameters,
+    OODEvaluationParameters,
     PredictiveProbeParameters,
     StatisticalCheckParameters,
     SubgroupEvaluationParameters,
+    TaskModelEvaluationParameters,
+    TaskModelTrainingParameters,
+    CounterfactualInterventionParameters,
+)
+from shortcutminer.experiment.model_reliance import (
+    counterfactual_intervention_backend,
+    ood_evaluation_backend,
+    task_model_evaluation_backend,
+    task_model_training_backend,
 )
 from shortcutminer.protocol.identify import (
     CandidateId,
@@ -67,6 +77,7 @@ class BackendEvidence:
     limitations: list[str] = field(default_factory=list)
     input_references: list[str] = field(default_factory=list)
     uncertainty: list[UncertaintyEstimate] = field(default_factory=list)
+    artifact_references: list[str] = field(default_factory=list)
 
 
 class QuantitativeBackend(Protocol):
@@ -98,12 +109,13 @@ class RealExperimentArtifact(StrictProtocolModel):
 
 
 class ExperimentAccess:
-    def __init__(self, context: ToolExecutionContext, *, max_rows: int) -> None:
+    def __init__(self, context: ToolExecutionContext, *, max_rows: int, request=None) -> None:
         if context.agent_name != "quantitative":
             raise RealExperimentError("Real experiments require Quantitative context.")
         if context.dataset_root is None:
             raise RealExperimentError("No approved dataset root is configured.")
         self.context = context
+        self.request = request
         self.max_rows = max_rows
         try:
             self.dataset_root = context.dataset_root.resolve(strict=True)
@@ -1069,6 +1081,13 @@ BACKEND_REGISTRY: dict[ExperimentType, tuple[type, QuantitativeBackend]] = {
     "intervention": (MetadataInterventionParameters, _intervention_backend),
     "ablation": (MetadataAblationParameters, _ablation_backend),
     "metric_computation": (MetricComputationParameters, _metric_backend),
+    "task_model_training": (TaskModelTrainingParameters, task_model_training_backend),
+    "task_model_evaluation": (TaskModelEvaluationParameters, task_model_evaluation_backend),
+    "ood_evaluation": (OODEvaluationParameters, ood_evaluation_backend),
+    "counterfactual_intervention": (
+        CounterfactualInterventionParameters,
+        counterfactual_intervention_backend,
+    ),
 }
 
 
@@ -1106,14 +1125,24 @@ class RealExperimentExecutor:
             parameter_type, backend = BACKEND_REGISTRY[request.experiment_type]
             if not isinstance(request.parameters, parameter_type):
                 raise RealExperimentError("Experiment parameter schema mismatch.")
-            max_rows = int(getattr(request.parameters, "max_rows", 100_000))
-            access = ExperimentAccess(context, max_rows=max_rows)
+            max_rows = int(getattr(
+                request.parameters,
+                "max_rows",
+                max(
+                    int(getattr(request.parameters, "max_train_samples", 0)),
+                    int(getattr(request.parameters, "max_eval_samples", 0)),
+                    100_000,
+                ),
+            ))
+            access = ExperimentAccess(context, max_rows=max_rows, request=request)
             evidence = backend(request.parameters, access)
         output = ExperimentExecutionOutput(
             outcome=evidence.outcome,
             metrics=evidence.metrics,
             summary=evidence.summary,
-            artifact_references=[artifact_reference],
+            artifact_references=list(dict.fromkeys([
+                artifact_reference, *getattr(evidence, "artifact_references", [])
+            ])),
             metadata={
                 "backend": self.backend_name,
                 "experiment_type": request.experiment_type,
@@ -1123,6 +1152,7 @@ class RealExperimentExecutor:
                     item.model_dump(mode="json") for item in evidence.uncertainty
                 ],
                 "reused": False,
+                "details": evidence.details,
             },
         )
         artifact = RealExperimentArtifact(
@@ -1164,8 +1194,18 @@ class RealExperimentExecutor:
             run_root.relative_to(configured_root)
         except ValueError as exc:
             raise RealExperimentError("Run artifact root escapes approved runs_root.") from exc
+        identity: dict[str, Any] = {
+            "parameters": request.parameters.model_dump(mode="json")
+        }
+        if request.experiment_type in {
+            "task_model_training", "task_model_evaluation",
+            "ood_evaluation", "counterfactual_intervention",
+        }:
+            identity["bounded_inputs"] = self._model_reliance_input_identity(
+                request, context
+            )
         encoded = json.dumps(
-            request.parameters.model_dump(mode="json"),
+            identity,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
@@ -1180,6 +1220,68 @@ class RealExperimentExecutor:
                 "Experiment artifact path escapes the approved run root."
             ) from exc
         return reference, artifact_path
+
+    @staticmethod
+    def _hash_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _model_reliance_input_identity(
+        self,
+        request: ExperimentExecutionRequest,
+        context: ToolExecutionContext,
+    ) -> dict[str, Any]:
+        parameters = request.parameters
+        identity: dict[str, Any] = {}
+        dataset_root = context.dataset_root.resolve(strict=True) if context.dataset_root else None
+        if dataset_root is None:
+            raise RealExperimentError("Model-reliance identity requires dataset_root.")
+        metadata_reference = getattr(parameters, "metadata_file", None)
+        if metadata_reference:
+            metadata_path = ExperimentAccess._beneath(dataset_root, metadata_reference)
+            identity["metadata_sha256"] = self._hash_file(metadata_path)
+            try:
+                # Match ExperimentAccess' hard 100,000-row task-model ceiling so
+                # every image that selection could reach participates in resume
+                # identity, even when split filtering or ID sorting reorders rows.
+                frame = pd.read_csv(metadata_path, nrows=100_001).iloc[:100_000]
+                path_column = getattr(parameters, "sample_path_column", None)
+                mask_column = getattr(getattr(parameters, "transformation", None), "mask_column", None)
+                file_identities = []
+                for column in (path_column, mask_column):
+                    if column and column in frame:
+                        for raw in frame[column].dropna().astype(str):
+                            try:
+                                path = ExperimentAccess._beneath(dataset_root, raw)
+                                file_identities.append((column, raw, self._hash_file(path)))
+                            except Exception as exc:
+                                file_identities.append((column, raw, f"invalid:{type(exc).__name__}"))
+                replacement = getattr(getattr(parameters, "transformation", None), "replacement_sample_reference", None)
+                if replacement:
+                    path = ExperimentAccess._beneath(dataset_root, replacement)
+                    file_identities.append(("replacement", replacement, self._hash_file(path)))
+                identity["sample_files"] = file_identities
+            except (OSError, UnicodeError, pd.errors.ParserError) as exc:
+                raise RealExperimentError("Model-reliance metadata could not be fingerprinted.") from exc
+        model_reference = getattr(parameters, "model_reference", None)
+        if model_reference:
+            if model_reference not in context.approved_artifacts:
+                raise RealExperimentError("Model reference is not an approved run artifact.")
+            run_root = (context.runs_root / context.run_id).resolve(strict=True)
+            model_path = ExperimentAccess._beneath(run_root, model_reference)
+            identity["model_sha256"] = self._hash_file(model_path)
+            try:
+                model_data = json.loads(model_path.read_text(encoding="utf-8"))
+                weights_reference = model_data.get("weights_reference")
+                if isinstance(weights_reference, str):
+                    weights_path = ExperimentAccess._beneath(run_root, weights_reference)
+                    identity["weights_sha256"] = self._hash_file(weights_path)
+            except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+                raise RealExperimentError("Model artifact could not be fingerprinted.") from exc
+        return identity
 
     def _load_reusable(
         self,

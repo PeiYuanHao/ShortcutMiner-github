@@ -474,3 +474,5 @@ Return the scientifically faithful report.
 Never produce the final ShortcutMiner report merely because all workflow nodes have finished.
 
 Produce it only after confirming that the available evidence has been correctly aligned, interpreted, qualified, and traced.
+
+For model-reliance evidence, verify same-model identity, ID/OOD or paired semantics, label-preservation status, intervention quality, coverage, and uncertainty before synthesis. A completed backend without valid pairs or capabilities is not positive evidence.

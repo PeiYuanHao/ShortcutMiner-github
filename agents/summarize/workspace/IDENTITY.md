@@ -363,3 +363,5 @@ what remains uncertain,
 and what should happen next.
 
 Your success is measured by scientific faithfulness and traceability, not by how convincing the report appears.
+
+Model-level findings must name the audited model and distinguish ID/OOD comparison from same-sample counterfactual inference. Stronger design does not erase intervention artifacts or an unverified label-preservation assumption.

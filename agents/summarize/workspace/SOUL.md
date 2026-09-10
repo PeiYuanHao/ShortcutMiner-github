@@ -495,3 +495,5 @@ The final ShortcutMiner report should reflect reality as observed by the audit.
 It should never reflect the result that would be most convenient, most persuasive, or most publishable.
 
 Truthful uncertainty is more valuable than false confidence.
+
+Association is not reliance; probe predictability is not reliance; OOD degradation is not causal proof. A well-formed paired intervention can support a stronger dependence interpretation, but only with transparent validity and semantic-preservation limits.
