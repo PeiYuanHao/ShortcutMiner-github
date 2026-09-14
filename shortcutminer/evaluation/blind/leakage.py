@@ -62,7 +62,9 @@ def production_private_import_violations(repository_root: str | Path) -> list[st
     violations = []
     forbidden = "shortcutminer.evaluation.blind"
     source_root = root / "shortcutminer"
-    private_namespace = source_root / "evaluation" / "blind"
+    # Every evaluation-only package may consume blind truth contracts. The
+    # production runtime remains everything outside ``shortcutminer/evaluation``.
+    private_namespace = source_root / "evaluation"
     for path in source_root.rglob("*.py"):
         if path.is_relative_to(private_namespace):
             continue

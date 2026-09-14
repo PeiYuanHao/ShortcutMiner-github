@@ -57,6 +57,7 @@ def _deterministic_match(
         "metadata": "metadata",
         "spatial": "spatial",
         "acquisition": "acquisition",
+        "semantic": "context",
     }[truth.family]
     family_compatible = candidate.cue.family == expected_family
 
@@ -65,8 +66,10 @@ def _deterministic_match(
         target = truth.target_field
     elif truth.family == "spatial":
         target = truth.spatial_region
-    else:
+    elif truth.family == "acquisition":
         target = truth.acquisition_family
+    else:
+        target = truth.target_field
     assert target is not None
     target_tokens = _tokens(target)
     exact = target.casefold() == candidate.cue.name.casefold() or target_tokens <= explicit_tokens

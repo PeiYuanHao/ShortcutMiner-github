@@ -1,0 +1,47 @@
+schema_version: "1.0"
+pilot_id: phase16-development-template
+artifact_root: evaluation/pilots
+repository_root: .
+text_runtime:
+  provider: openai_compatible
+  model: "<TEXT_MODEL_ID>"
+  base_url: "https://<TEXT_API_BASE_URL>/v1"
+  api_key_env: SHORTCUTMINER_TEXT_API_KEY
+  temperature: 0.0
+  max_tokens: 4096
+  model_call_budget:
+    max_total_calls: 200
+    max_calls_per_agent: 40
+semantic_runtime:
+  provider: openai_compatible
+  model: "<VLM_MODEL_ID>"
+  base_url: "https://<VLM_API_BASE_URL>/v1"
+  api_key_env: SHORTCUTMINER_VLM_API_KEY
+  temperature: 0.0
+  max_tokens: 2048
+  capabilities:
+    supports_text: true
+    supports_image_input: true
+    supports_json_object: true
+    supports_model_seed: false
+  model_call_budget:
+    max_total_calls: 50
+    max_calls_per_agent: 50
+repeats: 2
+candidate_limit: 3
+validation_depth: deep
+visual_sample_budget: 8
+semantic_sample_budget: 6
+runtime_seeds: [16001, 16002]
+bootstrap_seeds: [26001, 26002]
+budget:
+  max_total_text_model_calls: 180
+  max_total_vlm_calls: 40
+  max_total_vlm_images: 160
+  max_total_tokens: null
+  max_tool_calls_per_run: 20
+  max_text_calls_per_run: 15
+  max_vlm_calls_per_run: 3
+inter_run_delay_seconds: 0.0
+continue_on_failure: true
+development_pilot: true

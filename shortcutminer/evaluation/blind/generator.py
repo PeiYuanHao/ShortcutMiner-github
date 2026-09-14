@@ -69,11 +69,18 @@ def _image_bytes(
     rng: np.random.Generator,
     spatial_patch: bool,
     acquisition_shift: bool,
+    semantic_background: str | None,
     clean_size: int,
 ) -> bytes:
     size = clean_size
     noise = rng.integers(0, 20, size=(size, size, 3), dtype=np.uint8)
     array = np.clip(noise + 45, 0, 255).astype(np.uint8)
+    if semantic_background == "outdoor":
+        array[: size // 2, :, :] = np.array([80, 160, 225], dtype=np.uint8)
+        array[size // 2 :, :, :] = np.array([65, 150, 70], dtype=np.uint8)
+    elif semantic_background == "indoor":
+        array[: size // 2, :, :] = np.array([185, 170, 145], dtype=np.uint8)
+        array[size // 2 :, :, :] = np.array([115, 95, 80], dtype=np.uint8)
     image = Image.fromarray(array, mode="RGB")
     draw = ImageDraw.Draw(image)
     if label == 0:
@@ -150,6 +157,7 @@ class BlindChallengeGenerator:
                 measurement = "" if offset % 5 == 0 else f"{(offset % 7) / 7:.3f}"
                 spatial_patch = False
                 acquisition_shift = bool(brightness_code)
+                semantic_background = None
             else:
                 site = ("A", "B")[index % 2]
                 batch = ("K1", "K2", "K3")[index % 3]
@@ -166,6 +174,13 @@ class BlindChallengeGenerator:
                     and label == 1
                     and bool(rng.random() < probability)
                 )
+                semantic_background = None
+                if config.family == "semantic_background":
+                    aligned = bool(rng.random() < probability)
+                    context_index = label if aligned else 1 - label
+                    semantic_background = ("outdoor", "indoor")[context_index]
+                    if aligned:
+                        affected.append(sample_id)
                 if config.family in {"metadata_association", "mixed"}:
                     aligned = bool(rng.random() < probability)
                     device = ("D1", "D2")[label if aligned else 1 - label]
@@ -185,6 +200,7 @@ class BlindChallengeGenerator:
                     rng=rng,
                     spatial_patch=spatial_patch,
                     acquisition_shift=acquisition_shift,
+                    semantic_background=semantic_background,
                     clean_size=size,
                 )
             )
@@ -246,6 +262,18 @@ class BlindChallengeGenerator:
                     affected_sample_ids=affected,
                     injection_strength=config.injection_strength,
                     strength_parameters={"channel_shift": 65},
+                )
+            )
+        elif config.family == "semantic_background":
+            shortcuts.append(
+                HiddenShortcutSpec(
+                    truth_id="T001",
+                    family="semantic",
+                    target_field="background context",
+                    injection_mechanism="Outdoor-like versus indoor-like scene context is associated with the central-shape label.",
+                    affected_sample_ids=affected,
+                    injection_strength=config.injection_strength,
+                    strength_parameters={"alignment_probability": probability},
                 )
             )
         else:

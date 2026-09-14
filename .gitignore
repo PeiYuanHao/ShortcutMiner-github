@@ -37,6 +37,8 @@ runs/*
 artifacts/
 checkpoints/
 results/
+evaluation/pilots/*
+!evaluation/pilots/.gitkeep
 .docker-data/
 docker-data/
 

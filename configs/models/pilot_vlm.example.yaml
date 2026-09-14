@@ -1,0 +1,16 @@
+provider: openai_compatible
+model: "<VLM_MODEL_ID>"
+base_url: "https://<VLM_API_BASE_URL>/v1"
+api_key_env: "SHORTCUTMINER_VLM_API_KEY"
+temperature: 0.0
+max_tokens: 2048
+capabilities:
+  supports_text: true
+  supports_image_input: true
+  supports_json_object: true
+  supports_model_seed: false
+model_call_budget:
+  max_total_calls: 50
+  max_calls_per_agent: 50
+  max_schema_retries: 1
+  max_transport_retries: 2

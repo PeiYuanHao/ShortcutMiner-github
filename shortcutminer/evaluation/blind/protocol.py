@@ -21,10 +21,11 @@ ChallengeFamily = Literal[
     "metadata_association",
     "spatial_visual",
     "acquisition_quality",
+    "semantic_background",
     "mixed",
     "clean_control",
 ]
-ShortcutFamily = Literal["metadata", "spatial", "acquisition"]
+ShortcutFamily = Literal["metadata", "spatial", "acquisition", "semantic"]
 InjectionStrength = Literal["weak", "moderate", "strong"]
 MatchStatus = Literal[
     "matched", "partial", "not_matched", "ambiguous", "potential_novel", "unassessed"
@@ -111,15 +112,21 @@ class HiddenShortcutSpec(StrictProtocolModel):
 
     @model_validator(mode="after")
     def validate_localization(self):
-        populated = {
-            "metadata": self.target_field is not None,
-            "spatial": self.spatial_region is not None,
-            "acquisition": self.acquisition_family is not None,
-        }
-        if not populated[self.family]:
+        valid = (
+            self.target_field is not None
+            and self.spatial_region is None
+            and self.acquisition_family is None
+            if self.family in {"metadata", "semantic"}
+            else self.spatial_region is not None
+            and self.target_field is None
+            and self.acquisition_family is None
+            if self.family == "spatial"
+            else self.acquisition_family is not None
+            and self.target_field is None
+            and self.spatial_region is None
+        )
+        if not valid:
             raise ValueError("hidden shortcut must define family-specific localization")
-        if any(is_populated for family, is_populated in populated.items() if family != self.family):
-            raise ValueError("hidden shortcut cannot define localization for another family")
         return self
 
 

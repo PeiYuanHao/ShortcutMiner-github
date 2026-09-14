@@ -7,6 +7,8 @@ from pathlib import Path
 
 from shortcutminer.experiment.loader import load_model_runtime_config, load_run_request
 from shortcutminer.experiment.run_manager import generate_run_id
+from shortcutminer.evaluation.pilot.runner import PilotRunner
+from shortcutminer.evaluation.pilot.suite import load_pilot_config
 from shortcutminer.inspection.semantic_provider import (
     OpenAICompatibleSemanticVisualInspector,
 )
@@ -46,6 +48,19 @@ def _parser() -> argparse.ArgumentParser:
         "--semantic-model-config",
         help="Optional image-capable OpenAI-compatible model JSON/YAML",
     )
+
+    pilot = commands.add_parser("pilot", help="Phase 16 real-provider development pilot")
+    pilot_commands = pilot.add_subparsers(dest="pilot_command", required=True)
+    for name, help_text in (
+        ("dry-run", "Generate and freeze the six-challenge plan without API calls"),
+        ("preflight", "Verify configured real text and VLM providers"),
+        ("canary", "Run one real-provider end-to-end canary"),
+        ("run", "Run the frozen scientific suite sequentially"),
+        ("resume", "Continue only unattempted runs in the frozen suite"),
+        ("report", "Regenerate report.md from the saved result"),
+    ):
+        command = pilot_commands.add_parser(name, help=help_text)
+        command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
     return parser
 
 
@@ -80,6 +95,45 @@ def _semantic_inspector(config_path: str | None, *, runs_root: str | Path):
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "pilot":
+            config = load_pilot_config(args.config)
+            repository_root = Path(config.repository_root).resolve(strict=True)
+            artifact_root = Path(config.artifact_root)
+            if not artifact_root.is_absolute():
+                artifact_root = repository_root / artifact_root
+            pilot_root = artifact_root.resolve(strict=False) / config.pilot_id
+            needs_provider = args.pilot_command in {"preflight", "canary", "run", "resume"}
+            text_client = None
+            semantic_inspector = None
+            if needs_provider:
+                persistence_root = None if args.pilot_command == "preflight" else pilot_root / "runs"
+                text_client = OpenAICompatibleClient(
+                    config.text_runtime, runs_root=persistence_root,
+                )
+                semantic_client = OpenAICompatibleClient(
+                    config.semantic_runtime, runs_root=persistence_root,
+                )
+                semantic_inspector = OpenAICompatibleSemanticVisualInspector(semantic_client)
+            pilot_runner = PilotRunner(
+                config, text_client=text_client, semantic_inspector=semantic_inspector,
+            )
+            if args.pilot_command == "dry-run":
+                value = pilot_runner.dry_run()
+            elif args.pilot_command == "preflight":
+                value = pilot_runner.preflight().model_dump(mode="json")
+            elif args.pilot_command == "canary":
+                value = pilot_runner.canary().model_dump(mode="json")
+            elif args.pilot_command == "run":
+                value = pilot_runner.run(resume=False).model_dump(mode="json")
+            elif args.pilot_command == "resume":
+                value = pilot_runner.run(resume=True).model_dump(mode="json")
+            else:
+                value = {"report": str(pilot_runner.report())}
+            print(json.dumps({
+                "event": "completed", "command": f"pilot {args.pilot_command}",
+                "result": value,
+            }), flush=True)
+            return 0
         runtime_args = {}
         is_mock = False
         if args.command == "mock":

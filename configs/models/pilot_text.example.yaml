@@ -1,0 +1,16 @@
+provider: openai_compatible
+model: "<TEXT_MODEL_ID>"
+base_url: "https://<TEXT_API_BASE_URL>/v1"
+api_key_env: "SHORTCUTMINER_TEXT_API_KEY"
+temperature: 0.0
+max_tokens: 4096
+capabilities:
+  supports_text: true
+  supports_image_input: false
+  supports_json_object: true
+  supports_model_seed: false
+model_call_budget:
+  max_total_calls: 200
+  max_calls_per_agent: 40
+  max_schema_retries: 1
+  max_transport_retries: 2

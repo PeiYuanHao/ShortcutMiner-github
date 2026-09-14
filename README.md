@@ -1,5 +1,11 @@
 # ShortcutMiner
 
+Phase 16 development now includes a provider-neutral real API blind-pilot protocol with separate
+text and semantic-VLM runtimes, strict preflight, immutable snapshots, a six-challenge hidden-truth
+suite, global budgets, resumable sequential execution, and reporting. This is code readiness only;
+no real scientific pilot is claimed until configured providers pass preflight and all frozen runs
+complete. See [docs/real-blind-pilot.md](docs/real-blind-pilot.md).
+
 ShortcutMiner is a multi-agent framework for automated dataset shortcut discovery, validation, and evidence synthesis.
 
 ShortcutMiner is under active research revision and experimental development. The repository currently provides a tested orchestration, contract, storage, tool, and local-container foundation; it is not a finished experimental evaluation or a release-ready research artifact.
