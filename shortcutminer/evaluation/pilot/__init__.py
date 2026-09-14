@@ -8,8 +8,9 @@ from shortcutminer.evaluation.pilot.protocol import (
     PilotSnapshot,
     default_challenge_suite,
 )
+from shortcutminer.evaluation.pilot.credentials import credential_readiness
 
 __all__ = [
     "PilotBudget", "PilotConfig", "PilotPreflightResult", "PilotResult",
-    "PilotSnapshot", "default_challenge_suite",
+    "PilotSnapshot", "credential_readiness", "default_challenge_suite",
 ]

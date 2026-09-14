@@ -23,6 +23,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+!.env.phase16.example
 
 # Raw datasets (keep preparation documentation)
 data/*

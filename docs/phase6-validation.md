@@ -92,10 +92,11 @@ The canned evidence is explicitly synthetic and not a scientific result.
 ## 13. Real model configuration
 
 Use CLI `run --config /config/experiments/container_run.example.yaml
---model-config /config/models/model_b.yaml`. Edit the mounted YAML, set Compose
-`SHORTCUTMINER_NETWORK_MODE=bridge` for this explicit live operation, and pass the
-host credential with `docker compose run -e SHORTCUTMINER_DEEPSEEK_API_KEY ...`.
-The key name must match model `api_key_env`. No rebuild is needed.
+--model-config /config/models/model_b.yaml`. Edit the mounted YAML and put the credential
+in the local Git-ignored `.env.phase16` file under the environment-variable name selected by
+model `api_key_env`. Use the explicit `docker-compose.api.yml` override, which loads that file
+and enables bridge networking. Do not pass credentials through `-e` or command history.
+No rebuild is needed.
 Resume uses `--runtime openai-compatible --model-config ...` with the same mounts.
 Mounted request/model parsing and client configuration were verified without API
 invocation. CLI unit tests also verify configuration forwarding with a fake client.

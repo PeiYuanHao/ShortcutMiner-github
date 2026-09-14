@@ -289,6 +289,11 @@ docker compose run --rm shortcutminer python scripts/container_acceptance.py loc
 
 The default Compose network mode is `none`. The mock workflow requires no credentials, real dataset, model API, or external network. Build-time access is needed only to obtain the base image and Python dependencies.
 
+Real API commands explicitly add `docker-compose.api.yml`, which enables bridge networking and
+loads credentials from the local Git-ignored `.env.phase16` file. Do not pass API keys through
+CLI arguments or `docker compose run -e`. The safe readiness command reports only whether each
+configured credential variable is `SET` or `MISSING`; see [Real API blind pilot](docs/real-blind-pilot.md).
+
 Compose mounts its named run volume at `/runs`, `./data` read-only at `/data`, and `./configs` read-only at `/config`. Do not use `docker compose down -v` unless deleting the local run volume is intentional.
 
 See [Local Docker Usage](docs/deployment.md) for persistence and resume checks.

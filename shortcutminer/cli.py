@@ -9,6 +9,7 @@ from shortcutminer.experiment.loader import load_model_runtime_config, load_run_
 from shortcutminer.experiment.run_manager import generate_run_id
 from shortcutminer.evaluation.pilot.runner import PilotRunner
 from shortcutminer.evaluation.pilot.suite import load_pilot_config
+from shortcutminer.evaluation.pilot.credentials import credential_readiness
 from shortcutminer.inspection.semantic_provider import (
     OpenAICompatibleSemanticVisualInspector,
 )
@@ -53,6 +54,7 @@ def _parser() -> argparse.ArgumentParser:
     pilot_commands = pilot.add_subparsers(dest="pilot_command", required=True)
     for name, help_text in (
         ("dry-run", "Generate and freeze the six-challenge plan without API calls"),
+        ("credentials", "Report configured credential variables as SET or MISSING"),
         ("preflight", "Verify configured real text and VLM providers"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
@@ -119,6 +121,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             if args.pilot_command == "dry-run":
                 value = pilot_runner.dry_run()
+            elif args.pilot_command == "credentials":
+                value = {"credentials": credential_readiness(config)}
             elif args.pilot_command == "preflight":
                 value = pilot_runner.preflight().model_dump(mode="json")
             elif args.pilot_command == "canary":

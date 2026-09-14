@@ -17,6 +17,26 @@ Keep `SHORTCUTMINER_NETWORK_MODE=none` (the default) and do not pass API credent
 for acceptance commands. The build needs registry access, but the resulting mock
 and Python tests execute without external network access.
 
+## Explicit real API mode
+
+Real API execution uses the small `docker-compose.api.yml` override. Store credentials only in
+the local, Git-ignored `.env.phase16` file:
+
+```dotenv
+SHORTCUTMINER_TEXT_API_KEY=
+SHORTCUTMINER_VLM_API_KEY=
+```
+
+Do not place values in committed Compose/model files or pass them with `-e`. Check presence safely:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.api.yml run --rm shortcutminer python -m shortcutminer pilot credentials --config /config/experiments/real_blind_pilot.example.yaml
+```
+
+The API override enables bridge networking and loads `.env.phase16`. Without the explicit second
+`-f`, the service remains offline and receives neither credential. The readiness command reports
+only `SET` or `MISSING`.
+
 ## Result and checkpoint persistence across removed containers
 
 Use fresh run IDs if these examples have already been executed. Never overwrite
