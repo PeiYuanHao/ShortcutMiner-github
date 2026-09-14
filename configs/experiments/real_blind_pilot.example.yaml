@@ -1,11 +1,11 @@
 schema_version: "1.0"
-pilot_id: phase16-development-template
+pilot_id: phase16-real-provider-pilot
 artifact_root: evaluation/pilots
 repository_root: .
 text_runtime:
   provider: openai_compatible
-  model: "<TEXT_MODEL_ID>"
-  base_url: "https://<TEXT_API_BASE_URL>/v1"
+  model: deepseek-v4-flash
+  base_url: https://api.deepseek.com
   api_key_env: SHORTCUTMINER_TEXT_API_KEY
   temperature: 0.0
   max_tokens: 4096

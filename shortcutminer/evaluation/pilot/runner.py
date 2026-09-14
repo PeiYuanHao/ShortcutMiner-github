@@ -14,6 +14,7 @@ from shortcutminer.evaluation.blind.protocol import EvaluationSnapshot
 from shortcutminer.evaluation.blind.snapshot import build_evaluation_snapshot
 from shortcutminer.evaluation.pilot.budget import PilotBudgetAccount, PilotBudgetExceeded
 from shortcutminer.evaluation.pilot.preflight import RealProviderPreflight
+from shortcutminer.evaluation.pilot.readiness import real_provider_configuration_blockers
 from shortcutminer.evaluation.pilot.protocol import (
     PilotAggregate, PilotChallengeResult, PilotConfig, PilotPreflightResult,
     PilotResult, PilotRunRecord, PilotSnapshot,
@@ -103,6 +104,13 @@ class PilotRunner:
         save_pilot_snapshot(snapshot, self.pilot_root)
         return snapshot
 
+    def _require_complete_real_configuration(self) -> None:
+        blockers = real_provider_configuration_blockers(self.config)
+        if blockers:
+            raise PilotRunnerError(
+                "real provider configuration is incomplete: " + ", ".join(blockers)
+            )
+
     def dry_run(self) -> dict[str, Any]:
         self.pilot_root.mkdir(parents=True, exist_ok=True)
         suite = build_suite(self.config, self.pilot_root)
@@ -132,6 +140,7 @@ class PilotRunner:
         return summary
 
     def preflight(self) -> PilotPreflightResult:
+        self._require_complete_real_configuration()
         self.dry_run()
         if self.text_client is None or self.semantic_inspector is None:
             raise PilotRunnerError("real text and semantic runtimes are required for preflight")
@@ -306,6 +315,7 @@ class PilotRunner:
         )
 
     def canary(self) -> PilotRunRecord:
+        self._require_complete_real_configuration()
         self.dry_run()
         preflight = PilotPreflightResult.model_validate(self._require_gate("preflight.json"))
         if preflight.status != "passed":
@@ -440,6 +450,7 @@ class PilotRunner:
         )
 
     def run(self, *, resume: bool = True) -> PilotResult:
+        self._require_complete_real_configuration()
         self.dry_run()
         preflight = PilotPreflightResult.model_validate(self._require_gate("preflight.json"))
         if preflight.status != "passed":

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from shortcutminer.experiment.loader import load_model_runtime_config, load_run_request
 from shortcutminer.experiment.run_manager import generate_run_id
+from shortcutminer.evaluation.pilot.readiness import real_provider_configuration_blockers
 from shortcutminer.evaluation.pilot.runner import PilotRunner
 from shortcutminer.evaluation.pilot.suite import load_pilot_config
 from shortcutminer.evaluation.pilot.credentials import credential_readiness
@@ -108,6 +109,12 @@ def main(argv: list[str] | None = None) -> int:
             text_client = None
             semantic_inspector = None
             if needs_provider:
+                blockers = real_provider_configuration_blockers(config)
+                if blockers:
+                    raise ValueError(
+                        "real provider configuration is incomplete: "
+                        + ", ".join(blockers)
+                    )
                 persistence_root = None if args.pilot_command == "preflight" else pilot_root / "runs"
                 text_client = OpenAICompatibleClient(
                     config.text_runtime, runs_root=persistence_root,

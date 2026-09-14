@@ -124,6 +124,42 @@ def test_dry_run_builds_exact_suite_without_provider_calls(tmp_path: Path):
     assert "semantic" not in semantic.challenge.public.dataset_reference
 
 
+def test_real_execution_stops_before_snapshot_or_provider_call_on_placeholder(
+    tmp_path: Path,
+):
+    config = _config(tmp_path).model_copy(
+        update={
+            "semantic_runtime": _model(
+                image=True,
+                key_env="VLM_TEST_KEY",
+                base="https://<VLM_API_BASE_URL>/v1",
+            ).model_copy(update={"model": "<VLM_MODEL_ID>"}),
+        }
+    )
+    transport = PilotTransport()
+    text_client = OpenAICompatibleClient(
+        config.text_runtime, api_key="offline", transport=transport,
+    )
+    semantic_client = OpenAICompatibleClient(
+        config.semantic_runtime, api_key="offline", transport=transport,
+    )
+    runner = PilotRunner(
+        config,
+        text_client=text_client,
+        semantic_inspector=OpenAICompatibleSemanticVisualInspector(semantic_client),
+    )
+
+    with pytest.raises(
+        PilotRunnerError,
+        match="VLM_MODEL_ID, VLM_API_BASE_URL",
+    ):
+        runner.preflight()
+
+    assert text_client.invocations == []
+    assert semantic_client.invocations == []
+    assert not runner.pilot_root.exists()
+
+
 def test_real_preflight_checks_two_neutrally_named_images(tmp_path: Path):
     text_client = OpenAICompatibleClient(
         _model(image=False, key_env="TEXT_TEST_KEY", base="https://text.invalid/v1"),
