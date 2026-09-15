@@ -247,6 +247,7 @@ class DemoAgentClient(MockAgentClient):
             "evidence_status": "supported",
             "evidence_summary": "Metadata rows reproduce the site pattern.",
             "observations": [],
+            "comparisons": [],
             "interpretations": [],
             "counterevidence": [],
             "metadata_evidence": [{

@@ -93,6 +93,7 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
         "shortcutminer/experiment/qualitative_executor.py"
         in first.backend_hashes
     )
+    assert "shortcutminer/evaluation/evidence_ledger.py" in first.backend_hashes
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized

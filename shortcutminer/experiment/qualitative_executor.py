@@ -11,6 +11,7 @@ from shortcutminer.experiment.qualitative_context import (
 from shortcutminer.experiment.qualitative_backend import sample_has_inspection_evidence
 from shortcutminer.protocol.qualitative import (
     QualitativeAgentDraft,
+    QualitativeComparison,
     QualitativeInterpretation,
     QualitativeObservation,
     QualitativeRequest,
@@ -30,8 +31,7 @@ from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
 
 
-MAX_DRAFT_INVARIANT_RETRIES = 1
-_RETRYABLE_DRAFT_INVARIANTS = frozenset({"observation_crosses_groups"})
+MAX_DRAFT_INVARIANT_RETRIES = 0
 
 
 class QualitativeExecutionError(RuntimeError):
@@ -61,41 +61,6 @@ class QualitativeDraftValidationError(QualitativeExecutionError):
         if self.referenced_group_count is not None:
             details["referenced_group_count"] = self.referenced_group_count
         return details
-
-
-def _draft_invariant_correction(error: QualitativeDraftValidationError) -> str:
-    """Build value-free correction feedback for one retryable draft invariant."""
-    if error.category != "observation_crosses_groups":
-        raise QualitativeExecutionError(
-            "No bounded correction is registered for this draft invariant."
-        )
-    safe_lines = [
-        "Your previous QualitativeAgentDraft was valid JSON and matched the "
-        "provider-facing schema, but one observation referenced samples from "
-        "more than one authoritative group.",
-        "",
-        "Each observation must contain sample_refs from exactly one group.",
-        "",
-        "For a cross-group comparison:",
-        "- create separate group-local observations;",
-        "- keep the same inspected evidence;",
-        "- compare those observations in an interpretation using "
-        "supporting_observation_indexes.",
-        "",
-        "Do not invent or replace samples.",
-        "Do not change the candidate or hypothesis.",
-        "Do not change scientific conclusions merely to satisfy structure.",
-        "Return exactly one revised QualitativeAgentDraft JSON object.",
-        "",
-        f"Safe failure category: {error.category}",
-    ]
-    if error.observation_index is not None:
-        safe_lines.append(f"Observation index: {error.observation_index}")
-    if error.referenced_group_count is not None:
-        safe_lines.append(
-            f"Referenced group count: {error.referenced_group_count}"
-        )
-    return "\n".join(safe_lines)
 
 
 def build_qualitative_agent_payload(
@@ -272,7 +237,22 @@ def validate_qualitative_draft(
                 observation_index=observation_index,
                 referenced_group_count=len(groups),
             )
+    for comparison in draft.comparisons:
+        if not set(comparison.sample_refs).issubset(sampled_ids):
+            raise QualitativeDraftValidationError(
+                "unknown_sample_reference",
+                "Qualitative comparison references an unselected draft sample.",
+            )
+        groups = {
+            selected_by_id[item].group for item in comparison.sample_refs
+        }
+        if len(groups) < 2:
+            raise QualitativeDraftValidationError(
+                "comparison_single_group",
+                "Qualitative comparison requires at least two groups.",
+            )
     observation_count = len(draft.observations)
+    comparison_count = len(draft.comparisons)
     for interpretation in draft.interpretations:
         if any(
             index >= observation_count
@@ -281,6 +261,14 @@ def validate_qualitative_draft(
             raise QualitativeDraftValidationError(
                 "unknown_observation_index",
                 "Qualitative interpretation references an unknown observation index.",
+            )
+        if any(
+            index >= comparison_count
+            for index in interpretation.supporting_comparison_indexes
+        ):
+            raise QualitativeDraftValidationError(
+                "unknown_comparison_index",
+                "Qualitative interpretation references an unknown comparison index.",
             )
     for counterevidence in draft.counterevidence:
         if not set(counterevidence.sample_refs).issubset(sampled_ids):
@@ -348,6 +336,10 @@ def finalize_qualitative_draft(
         f"QO-{request.candidate.candidate_id}-{index:03d}"
         for index in range(1, len(draft.observations) + 1)
     ]
+    comparison_ids = [
+        f"QC-{request.candidate.candidate_id}-{index:03d}"
+        for index in range(1, len(draft.comparisons) + 1)
+    ]
     observations = [
         QualitativeObservation(
             observation_id=observation_ids[index],
@@ -358,12 +350,29 @@ def finalize_qualitative_draft(
         )
         for index, item in enumerate(draft.observations)
     ]
+    comparisons = [
+        QualitativeComparison(
+            comparison_id=comparison_ids[index],
+            groups=list(dict.fromkeys(
+                selected_by_id[sample_id].group
+                for sample_id in item.sample_refs
+            )),
+            sample_refs=item.sample_refs,
+            comparison=item.comparison,
+            inspection_quality=item.inspection_quality,
+        )
+        for index, item in enumerate(draft.comparisons)
+    ]
     interpretations = [
         QualitativeInterpretation(
             interpretation=item.interpretation,
             supporting_observation_ids=[
                 observation_ids[index]
                 for index in item.supporting_observation_indexes
+            ],
+            supporting_comparison_ids=[
+                comparison_ids[index]
+                for index in item.supporting_comparison_indexes
             ],
             confidence=item.confidence,
         )
@@ -394,6 +403,7 @@ def finalize_qualitative_draft(
                 sample_ids=draft.sample_ids,
             ),
             observations=observations,
+            comparisons=comparisons,
             interpretations=interpretations,
             counterevidence=draft.counterevidence,
             metadata_evidence=draft.metadata_evidence,
@@ -565,12 +575,67 @@ def validate_qualitative_result(
             raise QualitativeExecutionError(
                 "Sufficient observation quality requires completed inspections."
             )
+    comparison_ids = [item.comparison_id for item in payload.comparisons]
+    expected_comparison_ids = [
+        f"QC-{payload.candidate_id}-{index:03d}"
+        for index in range(1, len(comparison_ids) + 1)
+    ]
+    if comparison_ids != expected_comparison_ids:
+        raise QualitativeExecutionError(
+            "Qualitative comparison IDs must be unique and sequential."
+        )
+    comparison_id_set = set(comparison_ids)
+    for comparison in payload.comparisons:
+        if not set(comparison.sample_refs).issubset(set(sampled_ids)):
+            raise QualitativeExecutionError(
+                "Qualitative comparison references an uninspected sample."
+            )
+        expected_comparison_groups = list(dict.fromkeys(
+            selected_by_id[sample_id].group
+            for sample_id in comparison.sample_refs
+        ))
+        if len(expected_comparison_groups) < 2:
+            raise QualitativeExecutionError(
+                "Qualitative comparison must reference at least two groups."
+            )
+        if comparison.groups != expected_comparison_groups:
+            raise QualitativeExecutionError(
+                "Qualitative comparison groups do not match referenced samples."
+            )
+        referenced_statuses = {
+            selected_by_id[sample_id].inspection_status
+            for sample_id in comparison.sample_refs
+        }
+        if any(
+            not sample_has_inspection_evidence(selected_by_id[sample_id])
+            for sample_id in comparison.sample_refs
+        ):
+            raise QualitativeExecutionError(
+                "Qualitative comparison references a sample without inspection evidence."
+            )
+        if "failed" in referenced_statuses:
+            raise QualitativeExecutionError(
+                "Qualitative comparison references a failed inspection."
+            )
+        if (
+            comparison.inspection_quality == "sufficient"
+            and referenced_statuses != {"completed"}
+        ):
+            raise QualitativeExecutionError(
+                "Sufficient comparison quality requires completed inspections."
+            )
     for interpretation in payload.interpretations:
         if not set(interpretation.supporting_observation_ids).issubset(
             observation_id_set
         ):
             raise QualitativeExecutionError(
                 "Qualitative interpretation references an unknown observation."
+            )
+        if not set(interpretation.supporting_comparison_ids).issubset(
+            comparison_id_set
+        ):
+            raise QualitativeExecutionError(
+                "Qualitative interpretation references an unknown comparison."
             )
     for counterevidence in payload.counterevidence:
         if not set(counterevidence.sample_refs).issubset(set(sampled_ids)):
@@ -636,7 +701,11 @@ def validate_qualitative_result(
             raise QualitativeExecutionError(
                 "A substantive evidence status requires inspected evidence."
             )
-        if not payload.observations and not payload.metadata_evidence:
+        if (
+            not payload.observations
+            and not payload.comparisons
+            and not payload.metadata_evidence
+        ):
             raise QualitativeExecutionError(
                 "A substantive evidence status requires direct evidence."
             )
@@ -698,102 +767,40 @@ def execute_qualitative(
         scientific_input_hash = canonical_json_hash(payload)
         draft_invariant_retry_count = 0
         draft_invariant_attempts: list[dict] = []
-        correction: str | None = None
-        while True:
-            attempt_prompt = system_prompt
-            if correction is not None:
-                attempt_prompt = f"{system_prompt}\n\n{correction}"
-            try:
-                invocation = invoke_agent_with_tools(
-                    client,
-                    "qualitative",
-                    payload,
-                    system_prompt=attempt_prompt,
-                    tool_runtime=tool_runtime,
-                )
-                raw_output = invocation.output
-            except Exception as exc:
-                raise QualitativeExecutionError(
-                    f"Qualitative agent invocation failed: {exc}"
-                ) from exc
-            if not isinstance(raw_output, dict):
-                raise QualitativeExecutionError(
-                    "Qualitative agent returned a non-object response."
-                )
-            try:
-                draft = QualitativeAgentDraft.model_validate(raw_output)
-            except ValidationError as exc:
-                raise QualitativeExecutionError(
-                    "Qualitative agent returned an invalid QualitativeAgentDraft."
-                ) from exc
-            try:
-                result = finalize_qualitative_draft(draft, request, context)
-            except QualitativeDraftValidationError as exc:
-                draft_invariant_attempts.append({
-                    "attempt": len(draft_invariant_attempts) + 1,
-                    "scientific_input_hash": scientific_input_hash,
-                    "draft_schema_result": "passed",
-                    "draft_invariant_result": "failed",
-                    "failure": exc.safe_details(),
-                })
-                can_retry = (
-                    exc.category in _RETRYABLE_DRAFT_INVARIANTS
-                    and draft_invariant_retry_count
-                    < MAX_DRAFT_INVARIANT_RETRIES
-                )
-                if not can_retry:
-                    if runs_root is not None:
-                        save_qualitative_draft_invariant_telemetry(
-                            runs_root,
-                            run_id=request.run_id,
-                            scope=artifact_scope,
-                            telemetry={
-                                "schema_version": "1.0",
-                                "run_id": request.run_id,
-                                "task_id": request.task.task_id,
-                                "candidate_id": request.candidate.candidate_id,
-                                "max_draft_invariant_retries": (
-                                    MAX_DRAFT_INVARIANT_RETRIES
-                                ),
-                                "draft_invariant_retry_count": (
-                                    draft_invariant_retry_count
-                                ),
-                                "scientific_input_hash": scientific_input_hash,
-                                "attempts": draft_invariant_attempts,
-                                "status": "failed",
-                            },
-                        )
-                    raise
-                draft_invariant_retry_count += 1
-                correction = _draft_invariant_correction(exc)
-                if runs_root is not None:
-                    append_event(
-                        runs_root=runs_root,
-                        run_id=request.run_id,
-                        event="DRAFT_INVARIANT_RETRY_SCHEDULED",
-                        stage="qualitative",
-                        details={
-                            "retry_index": draft_invariant_retry_count,
-                            **exc.safe_details(),
-                            "scientific_input_hash": scientific_input_hash,
-                        },
-                    )
-                continue
-
+        try:
+            invocation = invoke_agent_with_tools(
+                client,
+                "qualitative",
+                payload,
+                system_prompt=system_prompt,
+                tool_runtime=tool_runtime,
+            )
+            raw_output = invocation.output
+        except Exception as exc:
+            raise QualitativeExecutionError(
+                f"Qualitative agent invocation failed: {exc}"
+            ) from exc
+        if not isinstance(raw_output, dict):
+            raise QualitativeExecutionError(
+                "Qualitative agent returned a non-object response."
+            )
+        try:
+            draft = QualitativeAgentDraft.model_validate(raw_output)
+        except ValidationError as exc:
+            raise QualitativeExecutionError(
+                "Qualitative agent returned an invalid QualitativeAgentDraft."
+            ) from exc
+        try:
+            result = finalize_qualitative_draft(draft, request, context)
+        except QualitativeDraftValidationError as exc:
             draft_invariant_attempts.append({
-                "attempt": len(draft_invariant_attempts) + 1,
+                "attempt": 1,
                 "scientific_input_hash": scientific_input_hash,
                 "draft_schema_result": "passed",
-                "draft_invariant_result": "passed",
-                "failure": None,
+                "draft_invariant_result": "failed",
+                "failure": exc.safe_details(),
             })
             if runs_root is not None:
-                save_qualitative_raw_output(
-                    runs_root,
-                    run_id=request.run_id,
-                    raw_output=draft.model_dump(mode="json"),
-                    scope=artifact_scope,
-                )
                 save_qualitative_draft_invariant_telemetry(
                     runs_root,
                     run_id=request.run_id,
@@ -811,10 +818,45 @@ def execute_qualitative(
                         ),
                         "scientific_input_hash": scientific_input_hash,
                         "attempts": draft_invariant_attempts,
-                        "status": "passed",
+                        "status": "failed",
                     },
                 )
-            break
+            raise
+
+        draft_invariant_attempts.append({
+            "attempt": 1,
+            "scientific_input_hash": scientific_input_hash,
+            "draft_schema_result": "passed",
+            "draft_invariant_result": "passed",
+            "failure": None,
+        })
+        if runs_root is not None:
+            save_qualitative_raw_output(
+                runs_root,
+                run_id=request.run_id,
+                raw_output=draft.model_dump(mode="json"),
+                scope=artifact_scope,
+            )
+            save_qualitative_draft_invariant_telemetry(
+                runs_root,
+                run_id=request.run_id,
+                scope=artifact_scope,
+                telemetry={
+                    "schema_version": "1.0",
+                    "run_id": request.run_id,
+                    "task_id": request.task.task_id,
+                    "candidate_id": request.candidate.candidate_id,
+                    "max_draft_invariant_retries": (
+                        MAX_DRAFT_INVARIANT_RETRIES
+                    ),
+                    "draft_invariant_retry_count": (
+                        draft_invariant_retry_count
+                    ),
+                    "scientific_input_hash": scientific_input_hash,
+                    "attempts": draft_invariant_attempts,
+                    "status": "passed",
+                },
+            )
 
         validate_qualitative_result(
             result,
@@ -838,6 +880,7 @@ def execute_qualitative(
                     "evidence_status": result.payload.evidence_status,
                     "samples_inspected": result.payload.sampling.sample_count,
                     "observation_count": len(result.payload.observations),
+                    "comparison_count": len(result.payload.comparisons),
                     "counterevidence_count": len(result.payload.counterevidence),
                 },
             )

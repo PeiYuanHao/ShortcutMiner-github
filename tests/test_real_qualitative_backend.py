@@ -68,6 +68,7 @@ class _Client:
             "evidence_status": status,
             "evidence_summary": "Real local evidence was interpreted conservatively.",
             "observations": observations,
+            "comparisons": [],
             "interpretations": [],
             "counterevidence": [],
             "metadata_evidence": metadata_evidence,

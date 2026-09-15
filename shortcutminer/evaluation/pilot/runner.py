@@ -633,6 +633,20 @@ class PilotRunner:
                 "passed" if draft_schema_passed else "failed"
             ),
             "deterministic_finalization_result": finalization_result,
+            "qualitative_output_counts": {
+                "observations": (
+                    len(canonical_result.payload.observations)
+                    if canonical_result is not None else None
+                ),
+                "comparisons": (
+                    len(canonical_result.payload.comparisons)
+                    if canonical_result is not None else None
+                ),
+                "interpretations": (
+                    len(canonical_result.payload.interpretations)
+                    if canonical_result is not None else None
+                ),
+            },
             "qualitative_result_model_validate": (
                 "passed" if result_model_validate_passed else "not_run"
             ),

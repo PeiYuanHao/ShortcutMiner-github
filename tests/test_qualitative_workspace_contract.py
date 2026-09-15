@@ -20,6 +20,8 @@ def test_agent_contract_matches_qualitative_protocol():
         "QualitativeAgentDraft",
         "sample_ids: []",
         "supporting_observation_indexes: [0]",
+        "supporting_comparison_indexes: []",
+        "comparisons:",
         "additional_limitations: []",
         "inspection_quality:",
         "failures:",
@@ -42,9 +44,10 @@ def test_agent_contract_matches_qualitative_protocol():
         "using `[]` when no",
         "Python owns every",
         "sampling strategy/seed/groups/count",
-        "Every observation must reference samples from exactly one authoritative group.",
-        "Do not merge samples from different groups into one observation.",
-        "perform the cross-group comparison in the interpretation.",
+        "Use `observations` for direct facts within exactly one authoritative group.",
+        "`comparisons` when a direct descriptive claim compares samples",
+        "Use `interpretations` for explanations, hypotheses, or",
+        "different groups into one observation.",
     ):
         assert literal_contract in instructions
 
@@ -61,6 +64,8 @@ def test_agent_contract_matches_qualitative_protocol():
         "in_reply_to:",
         "sampling:",
         "observation_id:",
+        "comparison_id:",
+        "groups:",
     ):
         assert provider_forbidden_field not in output_contract
 

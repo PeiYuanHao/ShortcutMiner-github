@@ -85,6 +85,86 @@ def test_ledger_fingerprint_reuses_matching_and_rebuilds_changed_inputs(tmp_path
     assert json.loads(path.read_text("utf-8"))["fingerprint"] == rebuilt.fingerprint
 
 
+def test_ledger_retains_observation_comparison_and_counterevidence(tmp_path: Path):
+    result = _completed_run(tmp_path)
+    identify, plan, quant, qual = _inputs(result)
+    qualitative = _replace_qualitative(
+        qual,
+        evidence_status="partially_supported",
+        sampling={
+            "strategy": "group_balanced",
+            "seed": 42,
+            "groups": {"label=A": 1, "label=B": 1},
+            "sample_count": 2,
+            "sample_ids": ["S1", "S2"],
+        },
+        observations=[{
+            "observation_id": "QO-C001-001",
+            "group": "label=A",
+            "sample_refs": ["S1"],
+            "observation": "A direct within-group property was observed.",
+            "inspection_quality": "sufficient",
+        }],
+        comparisons=[{
+            "comparison_id": "QC-C001-001",
+            "groups": ["label=A", "label=B"],
+            "sample_refs": ["S1", "S2"],
+            "comparison": "The inspected groups differ in the measured property.",
+            "inspection_quality": "limited",
+        }],
+        interpretations=[],
+        counterevidence=[{
+            "sample_refs": ["S2"],
+            "description": "A counterexample limits the comparison.",
+        }],
+        metadata_evidence=[],
+    )
+
+    ledger = EvidenceLedgerBuilder().build(identify, plan, quant, qualitative)
+    records = [
+        item for item in ledger.candidates[0].records
+        if item.source_branch == "qualitative"
+    ]
+
+    assert [item.evidence_kind for item in records] == [
+        "qualitative_visual",
+        "qualitative_group_comparison",
+        "qualitative_counterevidence",
+    ]
+    comparison = records[1]
+    assert comparison.metrics == {
+        "groups": ["label=A", "label=B"],
+        "comparison": "The inspected groups differ in the measured property.",
+        "sample_refs": ["S1", "S2"],
+        "inspection_quality": "limited",
+    }
+    assert comparison.execution_state == "usable"
+    assert comparison.direction == "mixed"
+
+
+def test_unusable_comparison_is_scientifically_inconclusive(tmp_path: Path):
+    result = _completed_run(tmp_path)
+    identify, plan, quant, qual = _inputs(result)
+    qualitative = _replace_qualitative(
+        qual,
+        comparisons=[{
+            "comparison_id": "QC-C001-001",
+            "groups": ["label=A", "label=B"],
+            "sample_refs": ["S1", "S2"],
+            "comparison": "Inspection quality prevents a usable comparison.",
+            "inspection_quality": "unusable",
+        }],
+    )
+
+    ledger = EvidenceLedgerBuilder().build(identify, plan, quant, qualitative)
+    comparison = next(
+        item for item in ledger.candidates[0].records
+        if item.evidence_kind == "qualitative_group_comparison"
+    )
+    assert comparison.execution_state == "scientifically_inconclusive"
+    assert comparison.direction == "inconclusive"
+
+
 @pytest.mark.parametrize(
     "quant_updates,qual_updates,expected",
     [

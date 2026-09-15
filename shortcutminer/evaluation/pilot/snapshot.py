@@ -99,6 +99,7 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/real_executor.py",
         "shortcutminer/experiment/qualitative_backend.py",
         "shortcutminer/experiment/qualitative_executor.py",
+        "shortcutminer/evaluation/evidence_ledger.py",
         "shortcutminer/protocol/evidence.py",
     )
     backend_hashes = {

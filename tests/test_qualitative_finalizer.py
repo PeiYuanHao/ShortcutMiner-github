@@ -13,6 +13,7 @@ from shortcutminer.experiment.qualitative_executor import (
     finalize_qualitative_draft,
     validate_qualitative_result,
 )
+from shortcutminer.evaluation.evidence_ledger import _qualitative_records
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
 from shortcutminer.protocol.qualitative import QualitativeAgentDraft, QualitativeResult
@@ -61,10 +62,18 @@ def _draft_dict() -> dict:
                 "inspection_quality": "sufficient",
             },
         ],
+        "comparisons": [
+            {
+                "sample_refs": ["S1", "S3"],
+                "comparison": "The inspected groups differ in the measured property.",
+                "inspection_quality": "sufficient",
+            }
+        ],
         "interpretations": [
             {
                 "interpretation": "The difference is descriptive, not causal evidence.",
                 "supporting_observation_indexes": [0, 1],
+                "supporting_comparison_indexes": [0],
                 "confidence": "low",
             }
         ],
@@ -198,6 +207,15 @@ def test_i_observation_ids_groups_indexes_and_final_schema(tmp_path: Path):
         "QO-C001-001",
         "QO-C001-002",
     ]
+    assert result.payload.interpretations[0].supporting_comparison_ids == [
+        "QC-C001-001"
+    ]
+    comparison = result.payload.comparisons[0]
+    assert comparison.comparison_id == "QC-C001-001"
+    assert comparison.groups == ["0", "1"]
+    assert comparison.sample_refs == ["S1", "S3"]
+    assert comparison.comparison == _draft_dict()["comparisons"][0]["comparison"]
+    assert comparison.inspection_quality == "sufficient"
     assert QualitativeResult.model_validate(result.model_dump(mode="json")) == result
     validate_qualitative_result(result, request, context)
 
@@ -213,6 +231,119 @@ def test_observation_cannot_cross_authoritative_groups(tmp_path: Path):
         )
 
     assert raised.value.category == "observation_crosses_groups"
+
+
+def test_cross_group_comparison_is_valid_and_groups_follow_first_appearance(
+    tmp_path: Path,
+):
+    request, context = _context_with_numeric_groups(tmp_path)
+    value = _draft_dict()
+    value["comparisons"][0]["sample_refs"] = ["S3", "S1", "S2"]
+
+    result = finalize_qualitative_draft(
+        QualitativeAgentDraft.model_validate(value), request, context
+    )
+
+    assert result.payload.comparisons[0].groups == ["1", "0"]
+
+
+def test_single_group_comparison_is_rejected(tmp_path: Path):
+    request, context = _context_with_numeric_groups(tmp_path)
+    value = _draft_dict()
+    value["comparisons"][0]["sample_refs"] = ["S1", "S2"]
+
+    with pytest.raises(QualitativeDraftValidationError) as raised:
+        finalize_qualitative_draft(
+            QualitativeAgentDraft.model_validate(value), request, context
+        )
+
+    assert raised.value.category == "comparison_single_group"
+
+
+def test_comparison_unknown_sample_is_rejected(tmp_path: Path):
+    request, context = _context_with_numeric_groups(tmp_path)
+    value = _draft_dict()
+    value["comparisons"][0]["sample_refs"] = ["S1", "UNKNOWN"]
+
+    with pytest.raises(QualitativeDraftValidationError) as raised:
+        finalize_qualitative_draft(
+            QualitativeAgentDraft.model_validate(value), request, context
+        )
+
+    assert raised.value.category == "unknown_sample_reference"
+
+
+def test_comparison_uninspected_sample_is_rejected(tmp_path: Path):
+    request, context = _context_with_numeric_groups(tmp_path)
+    unavailable = context.selected_samples[2].model_copy(
+        update={
+            "inspection_status": "completed",
+            "visual_descriptors": {},
+            "text_descriptors": {},
+        }
+    )
+    context = context.model_copy(
+        update={
+            "selected_samples": [*context.selected_samples[:2], unavailable],
+            "samples_inspected": 2,
+        }
+    )
+    value = _draft_dict()
+    value["observations"] = []
+    value["interpretations"] = []
+
+    with pytest.raises(QualitativeDraftValidationError) as raised:
+        finalize_qualitative_draft(
+            QualitativeAgentDraft.model_validate(value), request, context
+        )
+
+    assert raised.value.category == "unavailable_sample_reference"
+
+
+@pytest.mark.parametrize("extra_field", ["comparison_id", "groups"])
+def test_provider_cannot_supply_deterministic_comparison_fields(extra_field: str):
+    value = _draft_dict()
+    value["comparisons"][0][extra_field] = (
+        "QC-C001-001" if extra_field == "comparison_id" else ["0", "1"]
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        QualitativeAgentDraft.model_validate(value)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "error_match"),
+    [
+        ("supporting_observation_indexes", [2], "unknown observation index"),
+        ("supporting_comparison_indexes", [1], "unknown comparison index"),
+    ],
+)
+def test_interpretation_out_of_range_evidence_index_is_rejected(
+    tmp_path: Path,
+    field: str,
+    value: list[int],
+    error_match: str,
+):
+    request, context = _context_with_numeric_groups(tmp_path)
+    draft_value = _draft_dict()
+    draft_value["interpretations"][0][field] = value
+
+    with pytest.raises(QualitativeDraftValidationError, match=error_match):
+        finalize_qualitative_draft(
+            QualitativeAgentDraft.model_validate(draft_value), request, context
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["supporting_observation_indexes", "supporting_comparison_indexes"],
+)
+def test_interpretation_duplicate_evidence_indexes_are_rejected(field: str):
+    value = _draft_dict()
+    value["interpretations"][0][field] = [0, 0]
+
+    with pytest.raises(ValidationError, match="must not contain duplicates"):
+        QualitativeAgentDraft.model_validate(value)
 
 
 def test_j_tool_call_contract_and_k_other_agent_schemas_are_unchanged():
@@ -262,3 +393,11 @@ def test_truth_firewall_keeps_canonical_result_hash_identical(tmp_path: Path):
         for item in (with_truth, without_truth, replaced_truth)
     }
     assert len(hashes) == 1
+    ledger_hashes = {
+        canonical_json_hash([
+            record.model_dump(mode="json")
+            for record in _qualitative_records(item, request.task, None)
+        ])
+        for item in (with_truth, without_truth, replaced_truth)
+    }
+    assert len(ledger_hashes) == 1

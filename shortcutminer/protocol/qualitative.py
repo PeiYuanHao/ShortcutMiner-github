@@ -51,7 +51,16 @@ ObservationId = Annotated[
         r"(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$",
     ),
 ]
+ComparisonId = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        pattern=r"^QC-C(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})-"
+        r"(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$",
+    ),
+]
 ObservationIndex = Annotated[int, Field(ge=0)]
+ComparisonIndex = Annotated[int, Field(ge=0)]
 _ValueT = TypeVar("_ValueT")
 
 
@@ -162,15 +171,35 @@ class QualitativeObservation(StrictProtocolModel):
         return _reject_duplicates(values, "sample_refs")
 
 
+class QualitativeComparison(StrictProtocolModel):
+    comparison_id: ComparisonId
+    groups: list[NonEmptyText] = Field(min_length=2)
+    sample_refs: list[NonEmptyText] = Field(min_length=1)
+    comparison: NonEmptyText
+    inspection_quality: InspectionQuality
+
+    @field_validator("groups", "sample_refs")
+    @classmethod
+    def validate_unique_lists(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+
 class QualitativeInterpretation(StrictProtocolModel):
     interpretation: NonEmptyText
-    supporting_observation_ids: list[ObservationId] = Field(min_length=1)
+    supporting_observation_ids: list[ObservationId]
+    supporting_comparison_ids: list[ComparisonId]
     confidence: InterpretationConfidence
 
-    @field_validator("supporting_observation_ids")
+    @field_validator("supporting_observation_ids", "supporting_comparison_ids")
     @classmethod
-    def validate_unique_observations(cls, values: list[str]) -> list[str]:
-        return _reject_duplicates(values, "supporting_observation_ids")
+    def validate_unique_evidence(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_support(self):
+        if not self.supporting_observation_ids and not self.supporting_comparison_ids:
+            raise ValueError("interpretation requires supporting evidence")
+        return self
 
 
 class QualitativeCounterevidence(StrictProtocolModel):
@@ -217,15 +246,39 @@ class QualitativeDraftObservation(StrictProtocolModel):
         return _reject_duplicates(values, "sample_refs")
 
 
+class QualitativeDraftComparison(StrictProtocolModel):
+    sample_refs: list[NonEmptyText] = Field(min_length=1)
+    comparison: NonEmptyText
+    inspection_quality: InspectionQuality
+
+    @field_validator("sample_refs")
+    @classmethod
+    def validate_unique_samples(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "sample_refs")
+
+
 class QualitativeDraftInterpretation(StrictProtocolModel):
     interpretation: NonEmptyText
-    supporting_observation_indexes: list[ObservationIndex] = Field(min_length=1)
+    supporting_observation_indexes: list[ObservationIndex]
+    supporting_comparison_indexes: list[ComparisonIndex]
     confidence: InterpretationConfidence
 
-    @field_validator("supporting_observation_indexes")
+    @field_validator(
+        "supporting_observation_indexes",
+        "supporting_comparison_indexes",
+    )
     @classmethod
-    def validate_unique_observations(cls, values: list[int]) -> list[int]:
-        return _reject_duplicates(values, "supporting_observation_indexes")
+    def validate_unique_evidence(cls, values: list[int], info) -> list[int]:
+        return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_support(self):
+        if (
+            not self.supporting_observation_indexes
+            and not self.supporting_comparison_indexes
+        ):
+            raise ValueError("interpretation requires supporting evidence")
+        return self
 
 
 class QualitativeAgentDraft(StrictProtocolModel):
@@ -235,6 +288,7 @@ class QualitativeAgentDraft(StrictProtocolModel):
     evidence_status: EvidenceStatus
     evidence_summary: NonEmptyText
     observations: list[QualitativeDraftObservation]
+    comparisons: list[QualitativeDraftComparison]
     interpretations: list[QualitativeDraftInterpretation]
     counterevidence: list[QualitativeCounterevidence]
     metadata_evidence: list[QualitativeMetadataEvidence]
@@ -263,6 +317,7 @@ class QualitativeResultPayload(StrictProtocolModel):
     evidence_summary: NonEmptyText
     sampling: QualitativeSampling
     observations: list[QualitativeObservation]
+    comparisons: list[QualitativeComparison]
     interpretations: list[QualitativeInterpretation]
     counterevidence: list[QualitativeCounterevidence]
     metadata_evidence: list[QualitativeMetadataEvidence]

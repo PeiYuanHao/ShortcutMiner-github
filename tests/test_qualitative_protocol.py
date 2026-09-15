@@ -117,10 +117,12 @@ def _result_data() -> dict:
                     "inspection_quality": "sufficient",
                 }
             ],
+            "comparisons": [],
             "interpretations": [
                 {
                     "interpretation": "The border may reflect preprocessing.",
                     "supporting_observation_ids": ["QO-C001-001"],
+                    "supporting_comparison_ids": [],
                     "confidence": "low",
                 }
             ],
@@ -165,6 +167,41 @@ def test_evidence_status_is_canonical():
     data = deepcopy(_result_data())
     data["payload"]["evidence_status"] = "likely"
     with pytest.raises(ValidationError, match="evidence_status"):
+        QualitativeResult.model_validate(data)
+
+
+def test_comparison_contract_is_strict_and_candidate_scoped():
+    data = deepcopy(_result_data())
+    data["payload"]["comparisons"] = [{
+        "comparison_id": "QC-C001-001",
+        "groups": ["label=A", "label=B"],
+        "sample_refs": ["S1", "S2"],
+        "comparison": "The inspected groups differ.",
+        "inspection_quality": "limited",
+    }]
+    result = QualitativeResult.model_validate(data)
+    assert result.payload.comparisons[0].comparison_id == "QC-C001-001"
+
+    data["payload"]["comparisons"][0]["comparison_id"] = "QC-001"
+    with pytest.raises(ValidationError, match="comparison_id"):
+        QualitativeResult.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    ("path", "field"),
+    [
+        (("payload",), "comparisons"),
+        (("payload", "interpretations", 0), "supporting_comparison_ids"),
+    ],
+)
+def test_comparison_lists_are_required(path, field):
+    data = deepcopy(_result_data())
+    target = data
+    for part in path:
+        target = target[part]
+    target.pop(field)
+
+    with pytest.raises(ValidationError, match=field):
         QualitativeResult.model_validate(data)
 
 

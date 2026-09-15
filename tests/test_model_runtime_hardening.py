@@ -90,9 +90,11 @@ def qualitative_result() -> dict:
                 "observation": "A dark border is visible.",
                 "inspection_quality": "sufficient",
             }],
+            "comparisons": [],
             "interpretations": [{
                 "interpretation": "The border may reflect preprocessing.",
                 "supporting_observation_ids": ["QO-C001-001"],
+                "supporting_comparison_ids": [],
                 "confidence": "low",
             }],
             "counterevidence": [],

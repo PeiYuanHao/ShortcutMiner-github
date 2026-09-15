@@ -101,6 +101,7 @@ class MetadataFreeVisualClient(VisualEvidenceClient):
                     "inspection_quality": "sufficient",
                 }
             ],
+            "comparisons": [],
             "interpretations": [],
             "counterevidence": [],
             "metadata_evidence": [],

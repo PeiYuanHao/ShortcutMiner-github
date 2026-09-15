@@ -36,9 +36,11 @@ def _valid_draft(request, context) -> dict:
             "observation": "A border is visible in this inspected sample.",
             "inspection_quality": "sufficient",
         }],
+        "comparisons": [],
         "interpretations": [{
             "interpretation": "The border may reflect preprocessing.",
             "supporting_observation_indexes": [0],
+            "supporting_comparison_indexes": [],
             "confidence": "low",
         }],
         "counterevidence": [{

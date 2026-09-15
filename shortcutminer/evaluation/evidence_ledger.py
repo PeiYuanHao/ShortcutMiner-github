@@ -311,6 +311,41 @@ def _qualitative_records(result, task: AnalysisTask | None, run_root: Path | Non
             warnings=[],
             **common,
         ))
+    for index, comparison in enumerate(payload.comparisons, 1):
+        usable = comparison.inspection_quality != "unusable"
+        records.append(EvidenceRecord(
+            evidence_id=f"EV-{payload.candidate_id}-{payload.task_id}-QG{index:03d}",
+            evidence_kind="qualitative_group_comparison",
+            execution_state=(
+                "usable" if usable else "scientifically_inconclusive"
+            ),
+            direction=(
+                direction if usable and direction != "not_tested"
+                else "inconclusive"
+            ),
+            metrics={
+                "groups": comparison.groups,
+                "comparison": comparison.comparison,
+                "sample_refs": comparison.sample_refs,
+                "inspection_quality": comparison.inspection_quality,
+            },
+            uncertainty=[UncertaintyEstimate(
+                metric="qualitative_group_comparison",
+                available=False,
+                reason_unavailable=(
+                    "Qualitative evidence does not have a statistical "
+                    "confidence interval."
+                ),
+            )],
+            coverage=base_coverage,
+            artifact_references=approved_artifacts,
+            limitations=list(dict.fromkeys([
+                *payload.limitations,
+                *artifact_limitations,
+            ])),
+            warnings=[],
+            **common,
+        ))
     for index, counter in enumerate(payload.counterevidence, 1):
         records.append(EvidenceRecord(
             evidence_id=f"EV-{payload.candidate_id}-{payload.task_id}-QC{index:03d}",

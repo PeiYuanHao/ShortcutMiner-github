@@ -796,10 +796,18 @@ the context, observation IDs, or observation groups:
       "inspection_quality": "sufficient"
     }
   ],
+  "comparisons": [
+    {
+      "sample_refs": ["S017", "S204"],
+      "comparison": "The inspected samples differ in a bounded visible property.",
+      "inspection_quality": "sufficient"
+    }
+  ],
   "interpretations": [
     {
       "interpretation": "The difference is descriptive rather than causal.",
       "supporting_observation_indexes": [0],
+      "supporting_comparison_indexes": [0],
       "confidence": "low"
     }
   ],
@@ -814,19 +822,20 @@ the context, observation IDs, or observation groups:
 
 The provider-facing schema is strict and forbids extra fields. Sample IDs and
 every evidence reference are checked against the prepared context before
-finalization. An observation may reference only one authoritative group, and
-interpretation indexes must refer to existing observations.
+finalization. Observations are group-local direct evidence: every observation's
+`sample_refs` must belong to exactly one authoritative group. Comparisons are
+direct descriptive evidence across two or more authoritative groups. Their
+sample references must be unique, selected, available, and inspected.
+Interpretations express explanations, hypotheses, or meaning derived from
+observations and comparisons; their two index lists must cite existing draft
+evidence and at least one list must be non-empty.
 
-An observation is group-local evidence: every observation's `sample_refs` must
-belong to exactly one authoritative group. Cross-group analysis is expressed by
-separate group-local observations plus an interpretation that cites their
-indexes. Python never splits or rewrites an observation. If an otherwise valid
-draft violates this structure, the executor may issue at most one value-free
-draft-invariant correction for `observation_crosses_groups`; this retry is
-tracked independently from JSON/schema and transport retries. The correction
-contains only the typed category, observation index, and referenced group count,
-never the previous draft, sample/group values, observation text, or private
-truth.
+Python never splits, rewrites, or auto-converts a cross-group observation into a
+comparison. Such an observation remains an `observation_crosses_groups`
+protocol failure. A comparison whose references resolve to only one group fails
+as `comparison_single_group`. The former observation-specific automatic
+invariant retry is disabled now that the provider-facing protocol contains the
+correct first-class representation.
 
 ### 12.5 Canonical QualitativeResult
 
@@ -857,6 +866,15 @@ and evidence context to construct:
       "sample_ids": ["S017", "S204"]
     },
     "observations": [],
+    "comparisons": [
+      {
+        "comparison_id": "QC-C001-001",
+        "groups": ["y=0 | place=0", "y=1 | place=1"],
+        "sample_refs": ["S017", "S204"],
+        "comparison": "The inspected samples differ in a bounded visible property.",
+        "inspection_quality": "sufficient"
+      }
+    ],
     "interpretations": [],
     "counterevidence": [],
     "metadata_evidence": [],
@@ -874,15 +892,20 @@ confidence is `high`, `medium`, or `low` and is explicitly not statistical
 confidence.
 
 Observations use candidate-scoped sequential IDs such as `QO-C001-001` and
-must cite selected, inspected sample IDs. Interpretations cite existing
-observation IDs. Counterevidence and metadata evidence cite selected records;
-metadata fields must be authorized by the task. Failure categories are
-canonical and remain distinct from negative scientific evidence.
+must cite selected, inspected sample IDs. Comparisons use candidate-scoped
+sequential IDs such as `QC-C001-001`; their groups are derived in first sample
+reference appearance order and must contain at least two distinct authoritative
+groups. Interpretations cite existing observation and/or comparison IDs.
+Counterevidence and metadata evidence cite selected records; metadata fields
+must be authorized by the task. Failure categories are canonical and remain
+distinct from negative scientific evidence.
 
 `sampling.strategy` and `sampling.seed` come from the context; `sample_count`
 and `groups` are derived exactly from the draft's validated `sample_ids`.
 Observation IDs are generated sequentially and groups are derived from sample
-references. Authoritative context limitations are unioned with the provider's
+references. Comparison IDs are generated sequentially and comparison groups are
+derived from authoritative sample mappings. The provider cannot supply either
+field. Authoritative context limitations are unioned with the provider's
 `additional_limitations` without allowing the provider to remove them.
 
 ### 12.6 Cross-object invariants

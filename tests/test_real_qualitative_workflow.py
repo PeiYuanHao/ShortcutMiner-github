@@ -87,10 +87,12 @@ class RealEvidenceClient(DemoAgentClient):
                     "inspection_quality": "sufficient",
                 }
             ],
+            "comparisons": [],
             "interpretations": [
                 {
                     "interpretation": "The difference is descriptive and does not establish causality.",
                     "supporting_observation_indexes": [0],
+                    "supporting_comparison_indexes": [],
                     "confidence": "low",
                 }
             ],

@@ -278,8 +278,11 @@ Good:
 
 ```text
 Observation:
-Most inspected class-A images have dark borders, while inspected class-B
-images generally do not.
+Most inspected class-A images have dark borders.
+
+Comparison:
+The inspected class-A images show darker borders than the inspected class-B
+images.
 
 Interpretation:
 The border may encode acquisition-source information correlated with class.
@@ -299,17 +302,38 @@ The bad statement goes beyond what visual inspection alone can establish.
 
 When the candidate concerns a group difference, perform explicit comparison.
 
-Every observation must reference samples from exactly one authoritative group.
-If comparing two or more groups:
+Use `observations` for direct facts within exactly one authoritative group. Use
+`comparisons` when a direct descriptive claim compares samples from two or more
+authoritative groups. Use `interpretations` for explanations, hypotheses, or
+meaning derived from observations or comparisons. Do not merge samples from
+different groups into one observation. The overall draft `sample_ids` may still
+include samples from multiple groups, and the observation rule does not apply to
+counterevidence.
 
-1. emit one separate observation for each group;
-2. keep every observation's `sample_refs` within that group;
-3. add an interpretation referencing the corresponding observation indexes;
-4. perform the cross-group comparison in the interpretation.
+Incorrect:
 
-Do not merge samples from different groups into one observation. The overall
-draft `sample_ids` may still include samples from multiple groups, and this rule
-does not apply to counterevidence.
+```yaml
+observations:
+  - sample_refs: [groupA_sample, groupB_sample]
+    observation: "A is brighter than B"
+```
+
+Correct:
+
+```yaml
+observations:
+  - sample_refs: [groupA_sample]
+    observation: "The inspected group-A sample is relatively dark."
+  - sample_refs: [groupB_sample]
+    observation: "The inspected group-B sample is relatively bright."
+comparisons:
+  - sample_refs: [groupA_sample, groupB_sample]
+    comparison: "The inspected group-B sample is brighter than the group-A sample."
+    inspection_quality: sufficient
+```
+
+A valid comparison may stand alone when it is sufficient direct evidence; do
+not create redundant observations merely to accompany it.
 
 Possible comparisons include:
 
@@ -555,9 +579,14 @@ observations:
   - sample_refs: []
     observation:
     inspection_quality: sufficient | limited | unusable
+comparisons:
+  - sample_refs: []
+    comparison:
+    inspection_quality: sufficient | limited | unusable
 interpretations:
   - interpretation:
     supporting_observation_indexes: [0]
+    supporting_comparison_indexes: []
     confidence: high | medium | low
 counterevidence:
   - sample_refs: []
@@ -580,14 +609,18 @@ All list fields shown must be present and must be JSON arrays, using `[]` when n
 items apply. `sample_ids` may contain only inspected IDs from
 `evidence_context.selected_samples`; all observation and counterevidence
 `sample_refs` must be subsets of `sample_ids`. Each observation must reference
-samples from one group; Python derives that group. Interpretation indexes are
-zero-based positions in `observations`, must be unique, and must be in range.
+samples from one group; Python derives that group. Each comparison must reference
+samples from at least two groups; Python derives its ordered groups and ID.
+Interpretation indexes are zero-based positions in `observations` or
+`comparisons`, must be unique within their list, and must be in range. An
+interpretation must cite at least one observation or comparison.
 Metadata fields remain limited to task.inputs.label_column and metadata_fields.
 Use `additional_limitations` only for limitations discovered during your analysis;
 Python preserves all authoritative context limitations. For insufficient_evidence
 include a failure or additional limitation; all other statuses require actual
 inspected evidence. Do not add envelope, identity, sampling bookkeeping,
-observation_id, group, custom state, or other unlisted fields.
+observation_id, comparison_id, groups, group, custom state, or other unlisted
+fields.
 
 ---
 

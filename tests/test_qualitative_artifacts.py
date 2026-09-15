@@ -37,6 +37,7 @@ def _insufficient_result(run_id: str = "qualitative_test_run") -> QualitativeRes
                 "sample_ids": [],
             },
             "observations": [],
+            "comparisons": [],
             "interpretations": [],
             "counterevidence": [],
             "metadata_evidence": [],
