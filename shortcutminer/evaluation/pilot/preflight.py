@@ -106,7 +106,20 @@ class RealProviderPreflight:
         text_schema_retries, text_transport_retries = _retry_counts(
             self.text_client, text_start,
         )
+        text_records = self.text_client.invocations[text_start:]
+        text_final = text_records[-1] if text_records else None
         text = text.model_copy(update={
+            "finish_reason": (
+                text_final.response_diagnostics.finish_reason
+                if text_final is not None
+                and text_final.response_diagnostics is not None else None
+            ),
+            "completion_tokens": (
+                text_final.usage.completion_tokens if text_final is not None else None
+            ),
+            "reasoning_tokens": (
+                text_final.usage.reasoning_tokens if text_final is not None else None
+            ),
             "schema_retry_count": text_schema_retries,
             "transport_retry_count": text_transport_retries,
         })
@@ -180,6 +193,11 @@ class RealProviderPreflight:
         semantic_usage = (
             _usage_since(semantic_client, semantic_start) if semantic_client is not None else False
         )
+        semantic_records = (
+            semantic_client.invocations[semantic_start:]
+            if semantic_client is not None else []
+        )
+        semantic_final = semantic_records[-1] if semantic_records else None
         semantic_schema_retries, semantic_transport_retries = (
             _retry_counts(semantic_client, semantic_start)
             if semantic_client is not None else (0, 0)
@@ -190,6 +208,20 @@ class RealProviderPreflight:
             model=getattr(self.semantic_inspector, "model_name", "unknown"),
             runtime_kind="real_provider", latency_ms=(time.monotonic() - start) * 1000,
             usage_available=semantic_usage,
+            finish_reason=(
+                semantic_final.response_diagnostics.finish_reason
+                if semantic_final is not None
+                and semantic_final.response_diagnostics is not None
+                else None
+            ),
+            completion_tokens=(
+                semantic_final.usage.completion_tokens
+                if semantic_final is not None else None
+            ),
+            reasoning_tokens=(
+                semantic_final.usage.reasoning_tokens
+                if semantic_final is not None else None
+            ),
             schema_retry_count=semantic_schema_retries,
             transport_retry_count=semantic_transport_retries,
             failure_category=type(semantic_error).__name__ if semantic_error else None,

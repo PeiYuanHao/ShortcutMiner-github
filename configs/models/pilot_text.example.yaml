@@ -5,8 +5,7 @@ api_key_env: "SHORTCUTMINER_TEXT_API_KEY"
 temperature: 0.0
 max_tokens: 8192
 reasoning:
-  mode: enabled
-  effort: high
+  mode: disabled
 capabilities:
   supports_text: true
   supports_image_input: false

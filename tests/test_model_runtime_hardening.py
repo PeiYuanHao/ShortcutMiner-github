@@ -250,6 +250,28 @@ def test_explicit_reasoning_configuration_is_capability_checked_and_sent():
     assert client.runtime_snapshot.structured_output_mode == "json_object"
 
 
+def test_explicit_non_thinking_request_omits_reasoning_effort_and_changes_snapshot():
+    enabled = config(
+        reasoning={"mode": "enabled", "effort": "high"},
+        capabilities={"supports_reasoning_config": True},
+    )
+    disabled = config(
+        reasoning={"mode": "disabled"},
+        capabilities={"supports_reasoning_config": True},
+    )
+    transport = SequenceTransport(response({"ok": True}))
+    client = OpenAICompatibleClient(disabled, api_key="secret", transport=transport)
+    client.invoke_agent("identify", {"run_id": "non-thinking-request"})
+    body = transport.calls[0]["body"]
+    assert body["thinking"] == {"type": "disabled"}
+    assert "reasoning_effort" not in body
+    assert body["response_format"] == {"type": "json_object"}
+    assert (
+        build_runtime_snapshot(enabled).snapshot_id
+        != build_runtime_snapshot(disabled).snapshot_id
+    )
+
+
 def test_invalid_provider_json_envelope_has_explicit_category():
     client = OpenAICompatibleClient(
         config(), api_key="secret", transport=SequenceTransport(ProviderResponseJSONError("x"))

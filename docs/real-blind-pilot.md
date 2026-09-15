@@ -94,9 +94,12 @@ materially different retry body receives its own request hash. Invocation record
 safe response diagnostics such as finish reason, content length, categorical first/last token
 classes, and JSON parse status; raw response content and reasoning content are never persisted.
 
-The current DeepSeek text runtime explicitly freezes thinking mode as enabled with reasoning
-effort high. DeepSeek documents that temperature is ignored in thinking mode, so the serialized
-temperature value must not be interpreted as a determinism guarantee.
+The initial Phase 16 development pilot uses the provider's non-thinking mode for every
+structured Text Agent invocation. High-thinking mode exhausted the configured output budget
+before producing protocol JSON during pre-pilot compatibility testing. This is a frozen runtime
+compatibility choice, not a post-hoc scientific result adjustment. In non-thinking mode,
+temperature `0.0` is sent as an effective request parameter, but it is not a guarantee of
+deterministic output.
 
 Phase status is `BLOCKED` when real configuration, preflight, canary, or the required successful
 runs are missing. It is `FAIL` for a protocol breach such as hidden-truth leakage, mock use,

@@ -158,6 +158,9 @@ class PreflightCheck(StrictProtocolModel):
     runtime_kind: Literal["real_provider"]
     latency_ms: FiniteFloat = Field(ge=0)
     usage_available: bool
+    finish_reason: NonEmptyText | None = None
+    completion_tokens: int | None = Field(default=None, ge=0)
+    reasoning_tokens: int | None = Field(default=None, ge=0)
     schema_retry_count: int = Field(default=0, ge=0)
     transport_retry_count: int = Field(default=0, ge=0)
     failure_category: NonEmptyText | None = None
