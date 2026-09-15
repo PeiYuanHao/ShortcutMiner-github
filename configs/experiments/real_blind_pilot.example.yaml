@@ -2,6 +2,7 @@ schema_version: "1.0"
 pilot_id: phase16-real-provider-pilot-v3
 artifact_root: /runs/pilots
 repository_root: .
+frozen_git_commit: a082e9e522d7a844b0d432fa13c5bb374a5b1719
 text_runtime:
   provider: openai_compatible
   model: deepseek-v4-flash
