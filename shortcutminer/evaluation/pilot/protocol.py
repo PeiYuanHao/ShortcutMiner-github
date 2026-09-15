@@ -158,6 +158,8 @@ class PreflightCheck(StrictProtocolModel):
     runtime_kind: Literal["real_provider"]
     latency_ms: FiniteFloat = Field(ge=0)
     usage_available: bool
+    schema_retry_count: int = Field(default=0, ge=0)
+    transport_retry_count: int = Field(default=0, ge=0)
     failure_category: NonEmptyText | None = None
     message: NonEmptyText
 
@@ -168,6 +170,7 @@ class PilotPreflightResult(StrictProtocolModel):
     status: Literal["passed", "failed", "blocked"]
     text: PreflightCheck
     semantic_vlm: PreflightCheck
+    image_input_verified: bool = False
     image_content_distinguishable: bool
     image_names: list[Literal["sample_a.png", "sample_b.png"]]
     completed_at: NonEmptyText

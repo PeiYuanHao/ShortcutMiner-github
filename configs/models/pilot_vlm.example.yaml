@@ -1,6 +1,6 @@
 provider: openai_compatible
-model: "<VLM_MODEL_ID>"
-base_url: "https://<VLM_API_BASE_URL>/v1"
+model: qwen3.7-plus
+base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 api_key_env: "SHORTCUTMINER_VLM_API_KEY"
 temperature: 0.0
 max_tokens: 2048

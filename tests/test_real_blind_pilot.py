@@ -173,6 +173,7 @@ def test_real_preflight_checks_two_neutrally_named_images(tmp_path: Path):
         text_client, OpenAICompatibleSemanticVisualInspector(semantic_client),
     ).run(pilot_id="phase16-test", pilot_root=tmp_path)
     assert result.status == "passed"
+    assert result.image_input_verified
     assert result.image_content_distinguishable
     assert result.image_names == ["sample_a.png", "sample_b.png"]
     assert result.text.runtime_kind == result.semantic_vlm.runtime_kind == "real_provider"
@@ -193,6 +194,9 @@ def test_preflight_failure_blocks_instead_of_falling_back(tmp_path: Path):
     assert result.status == "blocked"
     assert not result.text.success
     assert not result.semantic_vlm.success
+    assert result.semantic_vlm.failure_category == "blocked_by_text_preflight"
+    assert semantic_client.invocations == []
+    assert not (tmp_path / "preflight_assets").exists()
 
 
 def test_scientific_runner_rejects_non_network_transport(tmp_path: Path):

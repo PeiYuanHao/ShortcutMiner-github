@@ -1,6 +1,6 @@
 schema_version: "1.0"
 pilot_id: phase16-real-provider-pilot
-artifact_root: evaluation/pilots
+artifact_root: /runs/pilots
 repository_root: .
 text_runtime:
   provider: openai_compatible
@@ -14,8 +14,8 @@ text_runtime:
     max_calls_per_agent: 40
 semantic_runtime:
   provider: openai_compatible
-  model: "<VLM_MODEL_ID>"
-  base_url: "https://<VLM_API_BASE_URL>/v1"
+  model: qwen3.7-plus
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
   api_key_env: SHORTCUTMINER_VLM_API_KEY
   temperature: 0.0
   max_tokens: 2048

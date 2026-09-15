@@ -41,6 +41,29 @@ def _usage_since(client: OpenAICompatibleClient, start: int) -> bool:
     return bool(records) and all(item.usage.available for item in records)
 
 
+def _retry_counts(client: OpenAICompatibleClient, start: int) -> tuple[int, int]:
+    records = client.invocations[start:]
+    return (
+        sum(item.schema_retry for item in records),
+        sum(item.transport_retry for item in records),
+    )
+
+
+def _image_input_verified(client: OpenAICompatibleClient, start: int) -> bool:
+    records = client.invocations[start:]
+    expected = {
+        ("sample-a", "sample_a.png"),
+        ("sample-b", "sample_b.png"),
+    }
+    observed = {
+        (image.sample_id, image.sample_reference)
+        for record in records
+        if record.runtime_kind == "semantic_vlm"
+        for image in record.image_inputs
+    }
+    return bool(records) and expected <= observed
+
+
 class RealProviderPreflight:
     def __init__(self, text_client: OpenAICompatibleClient,
                  semantic_inspector: SemanticVisualInspector) -> None:
@@ -80,6 +103,37 @@ class RealProviderPreflight:
                 message=f"Text preflight failed: {type(exc).__name__}: {exc}",
             )
 
+        text_schema_retries, text_transport_retries = _retry_counts(
+            self.text_client, text_start,
+        )
+        text = text.model_copy(update={
+            "schema_retry_count": text_schema_retries,
+            "transport_retry_count": text_transport_retries,
+        })
+        if not text.success:
+            semantic = PreflightCheck(
+                name="semantic_two_image_content", success=False,
+                provider=getattr(self.semantic_inspector, "provider_name", "unknown"),
+                model=getattr(self.semantic_inspector, "model_name", "unknown"),
+                runtime_kind="real_provider", latency_ms=0.0,
+                usage_available=False, failure_category="blocked_by_text_preflight",
+                message="VLM preflight was not attempted because text preflight failed.",
+            )
+            result = PilotPreflightResult(
+                pilot_id=pilot_id, status="blocked", text=text, semantic_vlm=semantic,
+                image_input_verified=False, image_content_distinguishable=False,
+                image_names=["sample_a.png", "sample_b.png"],
+                completed_at=datetime.now(timezone.utc).isoformat(),
+                limitations=[
+                    "Scientific pilot execution is blocked until both configured real providers pass preflight."
+                ],
+            )
+            atomic_write_json(
+                root / "preflight.json", result.model_dump(mode="json"),
+                error_type=RuntimeError,
+            )
+            return result
+
         asset_root = _write_assets(root)
         semantic_client = getattr(self.semantic_inspector, "client", None)
         semantic_start = len(semantic_client.invocations) if semantic_client is not None else 0
@@ -97,6 +151,14 @@ class RealProviderPreflight:
                     ],
                 ),
             )
+            image_input_verified = (
+                semantic_client is not None
+                and _image_input_verified(semantic_client, semantic_start)
+            )
+            if not image_input_verified:
+                raise ValueError(
+                    "VLM telemetry did not verify both image inputs in the multimodal request"
+                )
             for item in observations:
                 descriptions[item.sample_id] = f"{descriptions.get(item.sample_id, '')} {item.description}".strip().casefold()
             a = descriptions.get("sample-a", "")
@@ -111,8 +173,16 @@ class RealProviderPreflight:
         except Exception as exc:
             semantic_error = exc
             distinguishable = False
+            image_input_verified = (
+                semantic_client is not None
+                and _image_input_verified(semantic_client, semantic_start)
+            )
         semantic_usage = (
             _usage_since(semantic_client, semantic_start) if semantic_client is not None else False
+        )
+        semantic_schema_retries, semantic_transport_retries = (
+            _retry_counts(semantic_client, semantic_start)
+            if semantic_client is not None else (0, 0)
         )
         semantic = PreflightCheck(
             name="semantic_two_image_content", success=semantic_error is None,
@@ -120,9 +190,11 @@ class RealProviderPreflight:
             model=getattr(self.semantic_inspector, "model_name", "unknown"),
             runtime_kind="real_provider", latency_ms=(time.monotonic() - start) * 1000,
             usage_available=semantic_usage,
+            schema_retry_count=semantic_schema_retries,
+            transport_retry_count=semantic_transport_retries,
             failure_category=type(semantic_error).__name__ if semantic_error else None,
             message=(
-                "Two neutrally named images produced content-distinguishable structured observations."
+                "Both image inputs were recorded in the multimodal request and produced content-distinguishable structured observations."
                 if semantic_error is None else
                 f"VLM preflight failed: {type(semantic_error).__name__}: {semantic_error}"
             ),
@@ -130,6 +202,7 @@ class RealProviderPreflight:
         status = "passed" if text.success and semantic.success and distinguishable else "blocked"
         result = PilotPreflightResult(
             pilot_id=pilot_id, status=status, text=text, semantic_vlm=semantic,
+            image_input_verified=image_input_verified,
             image_content_distinguishable=distinguishable,
             image_names=["sample_a.png", "sample_b.png"],
             completed_at=datetime.now(timezone.utc).isoformat(),
