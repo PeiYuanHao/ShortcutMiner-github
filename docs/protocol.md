@@ -817,6 +817,17 @@ every evidence reference are checked against the prepared context before
 finalization. An observation may reference only one authoritative group, and
 interpretation indexes must refer to existing observations.
 
+An observation is group-local evidence: every observation's `sample_refs` must
+belong to exactly one authoritative group. Cross-group analysis is expressed by
+separate group-local observations plus an interpretation that cites their
+indexes. Python never splits or rewrites an observation. If an otherwise valid
+draft violates this structure, the executor may issue at most one value-free
+draft-invariant correction for `observation_crosses_groups`; this retry is
+tracked independently from JSON/schema and transport retries. The correction
+contains only the typed category, observation index, and referenced group count,
+never the previous draft, sample/group values, observation text, or private
+truth.
+
 ### 12.5 Canonical QualitativeResult
 
 The deterministic control layer combines the validated draft with the request
@@ -912,6 +923,7 @@ With run storage enabled, Qualitative persists:
 ```text
 runs/<run_id>/qualitative/input.json
 runs/<run_id>/qualitative/raw_output.json
+runs/<run_id>/qualitative/draft_invariant_telemetry.json
 runs/<run_id>/qualitative/result.json
 runs/<run_id>/qualitative/artifacts/<candidate_id>/...
 ```
@@ -920,6 +932,8 @@ runs/<run_id>/qualitative/artifacts/<candidate_id>/...
 `raw_output.json` contains only a schema-valid provider draft; invalid or
 non-object responses are not persisted. `result.json` is written only after
 draft validation, deterministic finalization, and canonical semantic validation.
+`draft_invariant_telemetry.json` contains only retry counts, stable scientific
+input hashes, pass/fail states, and bounded value-free failure metadata.
 Derived artifact files are
 required to exist before a stored result may cite them. Events record
 `QUALITATIVE_STARTED`, `QUALITATIVE_COMPLETED`, or `AGENT_FAILED`.

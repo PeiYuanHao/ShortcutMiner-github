@@ -29,6 +29,7 @@ from shortcutminer.evaluation.pilot.snapshot import (
 )
 from shortcutminer.evaluation.pilot.suite import build_suite
 from shortcutminer.experiment.qualitative_executor import (
+    MAX_DRAFT_INVARIANT_RETRIES,
     QualitativeDraftValidationError,
     execute_qualitative,
 )
@@ -515,6 +516,28 @@ class PilotRunner:
             json.loads(diagnostic_input.read_text(encoding="utf-8"))
             if diagnostic_input.is_file() else None
         )
+        draft_invariant_telemetry_path = (
+            self.runs_root / run_id / "qualitative" / request.task.task_id
+            / "draft_invariant_telemetry.json"
+        )
+        draft_invariant_telemetry = (
+            json.loads(
+                draft_invariant_telemetry_path.read_text(encoding="utf-8")
+            )
+            if draft_invariant_telemetry_path.is_file()
+            else None
+        )
+        draft_invariant_attempts = (
+            draft_invariant_telemetry.get("attempts", [])
+            if draft_invariant_telemetry is not None else []
+        )
+        scientific_input_hashes = [
+            item.get("scientific_input_hash")
+            for item in draft_invariant_attempts
+        ]
+        scientific_input_hash_equal = bool(scientific_input_hashes) and (
+            len(set(scientific_input_hashes)) == 1
+        )
         payload_hash_equal = bool(current_value) and (
             canonical_json_hash(_qualitative_scientific_payload(source_value))
             == canonical_json_hash(_qualitative_scientific_payload(current_value))
@@ -595,7 +618,15 @@ class PilotRunner:
                 "metadata_columns": metadata_columns,
             },
             "status": (
-                "passed" if error is None and payload_hash_equal else "failed"
+                "passed"
+                if (
+                    error is None
+                    and payload_hash_equal
+                    and scientific_input_hash_equal
+                    and draft_invariant_telemetry is not None
+                    and draft_invariant_telemetry.get("status") == "passed"
+                )
+                else "failed"
             ),
             "attempt_count": len(records),
             "draft_schema_result": (
@@ -611,12 +642,27 @@ class PilotRunner:
                 if error is not None and draft_schema_passed else None
             ),
             "schema_retry_count": sum(item.schema_retry for item in records),
+            "draft_invariant_retry_count": (
+                draft_invariant_telemetry.get(
+                    "draft_invariant_retry_count", 0
+                )
+                if draft_invariant_telemetry is not None else 0
+            ),
+            "max_draft_invariant_retries": MAX_DRAFT_INVARIANT_RETRIES,
             "transport_retry_count": sum(item.transport_retry for item in records),
             "latency_ms": round(sum(item.latency_ms for item in records), 6),
             "usage_available": bool(records) and all(
                 item.usage.available for item in records
             ),
             "scientific_payload_hash_equal": payload_hash_equal,
+            "scientific_input_hash_equal_across_draft_attempts": (
+                scientific_input_hash_equal
+            ),
+            "scientific_input_hash": (
+                scientific_input_hashes[0]
+                if scientific_input_hashes else None
+            ),
+            "draft_invariant_attempts": draft_invariant_attempts,
             "attempts": attempts,
             "error_type": type(error).__name__ if error is not None else None,
             "error_message": (

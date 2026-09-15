@@ -61,6 +61,21 @@ def save_qualitative_raw_output(
     return path
 
 
+def save_qualitative_draft_invariant_telemetry(
+    runs_root: str | Path,
+    *,
+    run_id: str,
+    telemetry: JsonObjectInput,
+    scope: str | None = None,
+) -> Path:
+    path = (
+        get_qualitative_run_dir(runs_root, run_id, scope)
+        / "draft_invariant_telemetry.json"
+    )
+    atomic_write_json(path, telemetry, error_type=QualitativeArtifactError)
+    return path
+
+
 def save_qualitative_result(
     runs_root: str | Path,
     result: QualitativeResult,

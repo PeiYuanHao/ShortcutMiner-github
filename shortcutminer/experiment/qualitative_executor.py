@@ -18,14 +18,22 @@ from shortcutminer.protocol.qualitative import (
     QualitativeResultPayload,
     QualitativeSampling,
 )
+from shortcutminer.runtime.openai_compatible import canonical_json_hash
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.qualitative_artifacts import (
+    save_qualitative_draft_invariant_telemetry,
     save_qualitative_input,
     save_qualitative_raw_output,
     save_qualitative_result,
 )
 from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
+
+
+MAX_DRAFT_INVARIANT_RETRIES = 1
+_RETRYABLE_DRAFT_INVARIANTS = frozenset({"observation_crosses_groups"})
+
+
 class QualitativeExecutionError(RuntimeError):
     """Raised when Qualitative cannot produce a valid evidence result."""
 
@@ -33,9 +41,61 @@ class QualitativeExecutionError(RuntimeError):
 class QualitativeDraftValidationError(QualitativeExecutionError):
     """A typed scientific-draft invariant failure before finalization."""
 
-    def __init__(self, category: str, message: str) -> None:
+    def __init__(
+        self,
+        category: str,
+        message: str,
+        *,
+        observation_index: int | None = None,
+        referenced_group_count: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.category = category
+        self.observation_index = observation_index
+        self.referenced_group_count = referenced_group_count
+
+    def safe_details(self) -> dict[str, int | str]:
+        details: dict[str, int | str] = {"category": self.category}
+        if self.observation_index is not None:
+            details["observation_index"] = self.observation_index
+        if self.referenced_group_count is not None:
+            details["referenced_group_count"] = self.referenced_group_count
+        return details
+
+
+def _draft_invariant_correction(error: QualitativeDraftValidationError) -> str:
+    """Build value-free correction feedback for one retryable draft invariant."""
+    if error.category != "observation_crosses_groups":
+        raise QualitativeExecutionError(
+            "No bounded correction is registered for this draft invariant."
+        )
+    safe_lines = [
+        "Your previous QualitativeAgentDraft was valid JSON and matched the "
+        "provider-facing schema, but one observation referenced samples from "
+        "more than one authoritative group.",
+        "",
+        "Each observation must contain sample_refs from exactly one group.",
+        "",
+        "For a cross-group comparison:",
+        "- create separate group-local observations;",
+        "- keep the same inspected evidence;",
+        "- compare those observations in an interpretation using "
+        "supporting_observation_indexes.",
+        "",
+        "Do not invent or replace samples.",
+        "Do not change the candidate or hypothesis.",
+        "Do not change scientific conclusions merely to satisfy structure.",
+        "Return exactly one revised QualitativeAgentDraft JSON object.",
+        "",
+        f"Safe failure category: {error.category}",
+    ]
+    if error.observation_index is not None:
+        safe_lines.append(f"Observation index: {error.observation_index}")
+    if error.referenced_group_count is not None:
+        safe_lines.append(
+            f"Referenced group count: {error.referenced_group_count}"
+        )
+    return "\n".join(safe_lines)
 
 
 def build_qualitative_agent_payload(
@@ -198,7 +258,7 @@ def validate_qualitative_draft(
                 "unavailable_sample_reference",
                 "Qualitative draft references unavailable or uninspected evidence.",
             )
-    for observation in draft.observations:
+    for observation_index, observation in enumerate(draft.observations):
         if not set(observation.sample_refs).issubset(sampled_ids):
             raise QualitativeDraftValidationError(
                 "unknown_sample_reference",
@@ -209,6 +269,8 @@ def validate_qualitative_draft(
             raise QualitativeDraftValidationError(
                 "observation_crosses_groups",
                 "Qualitative observation sample references cross groups.",
+                observation_index=observation_index,
+                referenced_group_count=len(groups),
             )
     observation_count = len(draft.observations)
     for interpretation in draft.interpretations:
@@ -633,37 +695,126 @@ def execute_qualitative(
                 scope=artifact_scope,
             )
 
-        try:
-            invocation = invoke_agent_with_tools(
-                client,
-                "qualitative",
-                payload,
-                system_prompt=system_prompt,
-                tool_runtime=tool_runtime,
-            )
-            raw_output = invocation.output
-        except Exception as exc:
-            raise QualitativeExecutionError(
-                f"Qualitative agent invocation failed: {exc}"
-            ) from exc
-        if not isinstance(raw_output, dict):
-            raise QualitativeExecutionError(
-                "Qualitative agent returned a non-object response."
-            )
-        try:
-            draft = QualitativeAgentDraft.model_validate(raw_output)
-        except ValidationError as exc:
-            raise QualitativeExecutionError(
-                "Qualitative agent returned an invalid QualitativeAgentDraft."
-            ) from exc
-        if runs_root is not None:
-            save_qualitative_raw_output(
-                runs_root,
-                run_id=request.run_id,
-                raw_output=draft.model_dump(mode="json"),
-                scope=artifact_scope,
-            )
-        result = finalize_qualitative_draft(draft, request, context)
+        scientific_input_hash = canonical_json_hash(payload)
+        draft_invariant_retry_count = 0
+        draft_invariant_attempts: list[dict] = []
+        correction: str | None = None
+        while True:
+            attempt_prompt = system_prompt
+            if correction is not None:
+                attempt_prompt = f"{system_prompt}\n\n{correction}"
+            try:
+                invocation = invoke_agent_with_tools(
+                    client,
+                    "qualitative",
+                    payload,
+                    system_prompt=attempt_prompt,
+                    tool_runtime=tool_runtime,
+                )
+                raw_output = invocation.output
+            except Exception as exc:
+                raise QualitativeExecutionError(
+                    f"Qualitative agent invocation failed: {exc}"
+                ) from exc
+            if not isinstance(raw_output, dict):
+                raise QualitativeExecutionError(
+                    "Qualitative agent returned a non-object response."
+                )
+            try:
+                draft = QualitativeAgentDraft.model_validate(raw_output)
+            except ValidationError as exc:
+                raise QualitativeExecutionError(
+                    "Qualitative agent returned an invalid QualitativeAgentDraft."
+                ) from exc
+            try:
+                result = finalize_qualitative_draft(draft, request, context)
+            except QualitativeDraftValidationError as exc:
+                draft_invariant_attempts.append({
+                    "attempt": len(draft_invariant_attempts) + 1,
+                    "scientific_input_hash": scientific_input_hash,
+                    "draft_schema_result": "passed",
+                    "draft_invariant_result": "failed",
+                    "failure": exc.safe_details(),
+                })
+                can_retry = (
+                    exc.category in _RETRYABLE_DRAFT_INVARIANTS
+                    and draft_invariant_retry_count
+                    < MAX_DRAFT_INVARIANT_RETRIES
+                )
+                if not can_retry:
+                    if runs_root is not None:
+                        save_qualitative_draft_invariant_telemetry(
+                            runs_root,
+                            run_id=request.run_id,
+                            scope=artifact_scope,
+                            telemetry={
+                                "schema_version": "1.0",
+                                "run_id": request.run_id,
+                                "task_id": request.task.task_id,
+                                "candidate_id": request.candidate.candidate_id,
+                                "max_draft_invariant_retries": (
+                                    MAX_DRAFT_INVARIANT_RETRIES
+                                ),
+                                "draft_invariant_retry_count": (
+                                    draft_invariant_retry_count
+                                ),
+                                "scientific_input_hash": scientific_input_hash,
+                                "attempts": draft_invariant_attempts,
+                                "status": "failed",
+                            },
+                        )
+                    raise
+                draft_invariant_retry_count += 1
+                correction = _draft_invariant_correction(exc)
+                if runs_root is not None:
+                    append_event(
+                        runs_root=runs_root,
+                        run_id=request.run_id,
+                        event="DRAFT_INVARIANT_RETRY_SCHEDULED",
+                        stage="qualitative",
+                        details={
+                            "retry_index": draft_invariant_retry_count,
+                            **exc.safe_details(),
+                            "scientific_input_hash": scientific_input_hash,
+                        },
+                    )
+                continue
+
+            draft_invariant_attempts.append({
+                "attempt": len(draft_invariant_attempts) + 1,
+                "scientific_input_hash": scientific_input_hash,
+                "draft_schema_result": "passed",
+                "draft_invariant_result": "passed",
+                "failure": None,
+            })
+            if runs_root is not None:
+                save_qualitative_raw_output(
+                    runs_root,
+                    run_id=request.run_id,
+                    raw_output=draft.model_dump(mode="json"),
+                    scope=artifact_scope,
+                )
+                save_qualitative_draft_invariant_telemetry(
+                    runs_root,
+                    run_id=request.run_id,
+                    scope=artifact_scope,
+                    telemetry={
+                        "schema_version": "1.0",
+                        "run_id": request.run_id,
+                        "task_id": request.task.task_id,
+                        "candidate_id": request.candidate.candidate_id,
+                        "max_draft_invariant_retries": (
+                            MAX_DRAFT_INVARIANT_RETRIES
+                        ),
+                        "draft_invariant_retry_count": (
+                            draft_invariant_retry_count
+                        ),
+                        "scientific_input_hash": scientific_input_hash,
+                        "attempts": draft_invariant_attempts,
+                        "status": "passed",
+                    },
+                )
+            break
 
         validate_qualitative_result(
             result,

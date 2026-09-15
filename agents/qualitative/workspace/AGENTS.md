@@ -299,6 +299,18 @@ The bad statement goes beyond what visual inspection alone can establish.
 
 When the candidate concerns a group difference, perform explicit comparison.
 
+Every observation must reference samples from exactly one authoritative group.
+If comparing two or more groups:
+
+1. emit one separate observation for each group;
+2. keep every observation's `sample_refs` within that group;
+3. add an interpretation referencing the corresponding observation indexes;
+4. perform the cross-group comparison in the interpretation.
+
+Do not merge samples from different groups into one observation. The overall
+draft `sample_ids` may still include samples from multiple groups, and this rule
+does not apply to counterevidence.
+
 Possible comparisons include:
 
 ```text

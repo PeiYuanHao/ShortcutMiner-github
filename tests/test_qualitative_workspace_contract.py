@@ -42,6 +42,9 @@ def test_agent_contract_matches_qualitative_protocol():
         "using `[]` when no",
         "Python owns every",
         "sampling strategy/seed/groups/count",
+        "Every observation must reference samples from exactly one authoritative group.",
+        "Do not merge samples from different groups into one observation.",
+        "perform the cross-group comparison in the interpretation.",
     ):
         assert literal_contract in instructions
 
