@@ -24,23 +24,17 @@ from test_qualitative_context import _request
 
 class _Client:
     def invoke_agent(self, _agent_name: str, payload: dict, **_kwargs) -> dict:
-        request = payload["request"]
         context = payload["evidence_context"]
         inspected = [
             sample
             for sample in context["selected_samples"]
             if sample["inspection_status"] in {"completed", "limited"}
         ]
-        groups: dict[str, int] = {}
-        for sample in inspected:
-            groups[sample["group"]] = groups.get(sample["group"], 0) + 1
         observations = []
         metadata_evidence = []
         if inspected and inspected[0]["media_type"] != "tabular":
             observations = [
                 {
-                    "observation_id": "QO-C001-001",
-                    "group": inspected[0]["group"],
                     "sample_refs": [inspected[0]["sample_id"]],
                     "observation": "The local descriptor artifact contains bounded sample facts.",
                     "inspection_quality": (
@@ -70,36 +64,17 @@ class _Client:
         ]
         status = "inconclusive" if inspected else "insufficient_evidence"
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:qualitative:real-result",
-            "source": "qualitative",
-            "target": "summarize",
-            "message_type": "qualitative_analysis_result",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "task_id": request["task"]["task_id"],
-                "candidate_id": "C001",
-                "candidate_name": request["candidate"]["cue"]["name"],
-                "hypothesis": request["candidate"]["hypothesis"],
-                "evidence_status": status,
-                "evidence_summary": "Real local evidence was interpreted conservatively.",
-                "sampling": {
-                    "strategy": context["sampling_strategy"],
-                    "seed": context["seed"],
-                    "groups": groups,
-                    "sample_count": len(inspected),
-                    "sample_ids": [sample["sample_id"] for sample in inspected],
-                },
-                "observations": observations,
-                "interpretations": [],
-                "counterevidence": [],
-                "metadata_evidence": metadata_evidence,
-                "failures": failures,
-                "limitations": context["limitations"],
-                "artifact_references": [],
-                "recommended_followup": [],
-            },
+            "sample_ids": [sample["sample_id"] for sample in inspected],
+            "evidence_status": status,
+            "evidence_summary": "Real local evidence was interpreted conservatively.",
+            "observations": observations,
+            "interpretations": [],
+            "counterevidence": [],
+            "metadata_evidence": metadata_evidence,
+            "failures": failures,
+            "additional_limitations": [],
+            "artifact_references": [],
+            "recommended_followup": [],
         }
 
 

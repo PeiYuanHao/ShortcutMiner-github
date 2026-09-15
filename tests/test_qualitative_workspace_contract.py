@@ -17,6 +17,10 @@ def test_agent_contract_matches_qualitative_protocol():
         "evidence_context:",
         "in_reply_to:",
         "seed:",
+        "QualitativeAgentDraft",
+        "sample_ids: []",
+        "supporting_observation_indexes: [0]",
+        "additional_limitations: []",
         "inspection_quality:",
         "failures:",
         "artifact_references:",
@@ -35,13 +39,27 @@ def test_agent_contract_matches_qualitative_protocol():
         "confidence: high | medium | low",
         "missing_samples | missing_metadata |",
         "inspection_failure | tool_failure",
+        "using `[]` when no",
+        "Python owns every",
+        "sampling strategy/seed/groups/count",
+    ):
+        assert literal_contract in instructions
+
+    output_contract = instructions.split("## 13. Output Contract", 1)[1].split(
+        "## 14. Confidence", 1
+    )[0]
+    for provider_forbidden_field in (
+        "protocol_version:",
+        "run_id:",
+        "message_id:",
         "source: qualitative",
         "target: summarize",
         "message_type: qualitative_analysis_result",
-        "QO-<candidate_id>-001",
-        "using `[]` when no",
+        "in_reply_to:",
+        "sampling:",
+        "observation_id:",
     ):
-        assert literal_contract in instructions
+        assert provider_forbidden_field not in output_contract
 
 
 def test_tool_contract_preserves_control_layer_evidence_boundary():

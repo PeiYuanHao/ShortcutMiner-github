@@ -89,6 +89,10 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     second = build_pilot_snapshot(config, created_at=first.created_at, git_commit=first.git_commit)
     assert first == second
     assert first.provider_combination_id == second.provider_combination_id
+    assert (
+        "shortcutminer/experiment/qualitative_executor.py"
+        in first.backend_hashes
+    )
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized

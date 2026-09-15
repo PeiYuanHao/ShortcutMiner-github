@@ -7,7 +7,7 @@ from typing import Any
 from shortcutminer.agent_client import AgentClient, invoke_agent_client
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
-from shortcutminer.protocol.qualitative import QualitativeResult
+from shortcutminer.protocol.qualitative import QualitativeAgentDraft
 from shortcutminer.protocol.quantitative import QuantitativeResult
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.tooling.errors import ToolBudgetExceeded
@@ -25,7 +25,7 @@ _FINAL_SCHEMAS = {
     "identify": CandidateReport,
     "executive": RoutingPlan,
     "quantitative": QuantitativeResult,
-    "qualitative": QualitativeResult,
+    "qualitative": QualitativeAgentDraft,
     "summarize": SummaryReport,
 }
 

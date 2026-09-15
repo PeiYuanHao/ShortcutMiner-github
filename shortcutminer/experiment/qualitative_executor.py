@@ -10,8 +10,13 @@ from shortcutminer.experiment.qualitative_context import (
 )
 from shortcutminer.experiment.qualitative_backend import sample_has_inspection_evidence
 from shortcutminer.protocol.qualitative import (
+    QualitativeAgentDraft,
+    QualitativeInterpretation,
+    QualitativeObservation,
     QualitativeRequest,
     QualitativeResult,
+    QualitativeResultPayload,
+    QualitativeSampling,
 )
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.qualitative_artifacts import (
@@ -23,6 +28,14 @@ from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
 class QualitativeExecutionError(RuntimeError):
     """Raised when Qualitative cannot produce a valid evidence result."""
+
+
+class QualitativeDraftValidationError(QualitativeExecutionError):
+    """A typed scientific-draft invariant failure before finalization."""
+
+    def __init__(self, category: str, message: str) -> None:
+        super().__init__(message)
+        self.category = category
 
 
 def build_qualitative_agent_payload(
@@ -154,6 +167,186 @@ def validate_qualitative_context(
             "QualitativeEvidenceContext omitted request limitations: "
             + "; ".join(missing_limitations)
         )
+
+
+def validate_qualitative_draft(
+    draft: QualitativeAgentDraft,
+    request: QualitativeRequest,
+    context: QualitativeEvidenceContext,
+) -> None:
+    """Validate only scientific choices retained in provider ownership."""
+    validate_qualitative_context(context, request)
+    selected_by_id = {sample.sample_id: sample for sample in context.selected_samples}
+    selected_ids = set(selected_by_id)
+    sampled_ids = set(draft.sample_ids)
+    if not sampled_ids.issubset(selected_ids):
+        raise QualitativeDraftValidationError(
+            "unknown_sample_reference",
+            "Qualitative draft references a sample outside selected evidence.",
+        )
+    if request.task.inputs.requires_sample_access:
+        unavailable = [
+            sample_id for sample_id in draft.sample_ids
+            if (
+                not selected_by_id[sample_id].sample_available
+                or selected_by_id[sample_id].inspection_status == "failed"
+                or not sample_has_inspection_evidence(selected_by_id[sample_id])
+            )
+        ]
+        if unavailable:
+            raise QualitativeDraftValidationError(
+                "unavailable_sample_reference",
+                "Qualitative draft references unavailable or uninspected evidence.",
+            )
+    for observation in draft.observations:
+        if not set(observation.sample_refs).issubset(sampled_ids):
+            raise QualitativeDraftValidationError(
+                "unknown_sample_reference",
+                "Qualitative observation references an unselected draft sample.",
+            )
+        groups = {selected_by_id[item].group for item in observation.sample_refs}
+        if len(groups) != 1:
+            raise QualitativeDraftValidationError(
+                "observation_crosses_groups",
+                "Qualitative observation sample references cross groups.",
+            )
+    observation_count = len(draft.observations)
+    for interpretation in draft.interpretations:
+        if any(
+            index >= observation_count
+            for index in interpretation.supporting_observation_indexes
+        ):
+            raise QualitativeDraftValidationError(
+                "unknown_observation_index",
+                "Qualitative interpretation references an unknown observation index.",
+            )
+    for counterevidence in draft.counterevidence:
+        if not set(counterevidence.sample_refs).issubset(sampled_ids):
+            raise QualitativeDraftValidationError(
+                "unknown_sample_reference",
+                "Qualitative counterevidence references an unselected draft sample.",
+            )
+    permitted_metadata = {
+        request.task.inputs.label_column,
+        *request.task.inputs.metadata_fields,
+    }
+    for evidence in draft.metadata_evidence:
+        if evidence.field not in permitted_metadata:
+            raise QualitativeDraftValidationError(
+                "unauthorized_metadata_field",
+                "Qualitative draft uses an unauthorized metadata field.",
+            )
+        if not set(evidence.sample_refs).issubset(sampled_ids):
+            raise QualitativeDraftValidationError(
+                "unknown_sample_reference",
+                "Qualitative metadata evidence references an unselected draft sample.",
+            )
+    if not context.metadata_available and draft.metadata_evidence:
+        raise QualitativeDraftValidationError(
+            "metadata_unavailable",
+            "Qualitative draft uses metadata evidence when metadata is unavailable.",
+        )
+    for failure in draft.failures:
+        if not set(failure.sample_refs).issubset(selected_ids):
+            raise QualitativeDraftValidationError(
+                "unknown_sample_reference",
+                "Qualitative failure references an unknown sample.",
+            )
+        if not all(
+            _is_allowed_artifact(reference, context)
+            for reference in failure.artifact_references
+        ):
+            raise QualitativeDraftValidationError(
+                "unauthorized_artifact_reference",
+                "Qualitative failure references an unauthorized artifact.",
+            )
+    if not all(
+        _is_allowed_artifact(reference, context)
+        for reference in draft.artifact_references
+    ):
+        raise QualitativeDraftValidationError(
+            "unauthorized_artifact_reference",
+            "Qualitative draft references an unauthorized artifact.",
+        )
+
+
+def finalize_qualitative_draft(
+    draft: QualitativeAgentDraft,
+    request: QualitativeRequest,
+    context: QualitativeEvidenceContext,
+) -> QualitativeResult:
+    """Assemble canonical protocol bookkeeping without changing draft science."""
+    validate_qualitative_draft(draft, request, context)
+    selected_by_id = {sample.sample_id: sample for sample in context.selected_samples}
+    groups: dict[str, int] = {}
+    for sample_id in draft.sample_ids:
+        group = selected_by_id[sample_id].group
+        groups[group] = groups.get(group, 0) + 1
+    observation_ids = [
+        f"QO-{request.candidate.candidate_id}-{index:03d}"
+        for index in range(1, len(draft.observations) + 1)
+    ]
+    observations = [
+        QualitativeObservation(
+            observation_id=observation_ids[index],
+            group=selected_by_id[item.sample_refs[0]].group,
+            sample_refs=item.sample_refs,
+            observation=item.observation,
+            inspection_quality=item.inspection_quality,
+        )
+        for index, item in enumerate(draft.observations)
+    ]
+    interpretations = [
+        QualitativeInterpretation(
+            interpretation=item.interpretation,
+            supporting_observation_ids=[
+                observation_ids[index]
+                for index in item.supporting_observation_indexes
+            ],
+            confidence=item.confidence,
+        )
+        for item in draft.interpretations
+    ]
+    return QualitativeResult(
+        protocol_version=request.protocol_version,
+        run_id=request.run_id,
+        message_id=(
+            f"{request.run_id}:qualitative:{request.task.task_id}:result"
+        ),
+        source="qualitative",
+        target="summarize",
+        message_type="qualitative_analysis_result",
+        in_reply_to=request.message_id,
+        payload=QualitativeResultPayload(
+            task_id=request.task.task_id,
+            candidate_id=request.candidate.candidate_id,
+            candidate_name=request.candidate.cue.name,
+            hypothesis=request.candidate.hypothesis,
+            evidence_status=draft.evidence_status,
+            evidence_summary=draft.evidence_summary,
+            sampling=QualitativeSampling(
+                strategy=context.sampling_strategy,
+                seed=context.seed,
+                groups=groups,
+                sample_count=len(draft.sample_ids),
+                sample_ids=draft.sample_ids,
+            ),
+            observations=observations,
+            interpretations=interpretations,
+            counterevidence=draft.counterevidence,
+            metadata_evidence=draft.metadata_evidence,
+            failures=draft.failures,
+            limitations=list(dict.fromkeys([
+                *context.limitations,
+                *draft.additional_limitations,
+            ])),
+            artifact_references=list(dict.fromkeys([
+                *draft.artifact_references,
+                *context.inspection_artifact_references,
+            ])),
+            recommended_followup=draft.recommended_followup,
+        ),
+    )
 
 
 def _is_allowed_artifact(reference: str, context: QualitativeEvidenceContext) -> bool:
@@ -453,39 +646,24 @@ def execute_qualitative(
             raise QualitativeExecutionError(
                 f"Qualitative agent invocation failed: {exc}"
             ) from exc
-        if runs_root is not None:
-            save_qualitative_raw_output(
-                runs_root,
-                run_id=request.run_id,
-                raw_output=raw_output,
-                scope=artifact_scope,
-            )
         if not isinstance(raw_output, dict):
             raise QualitativeExecutionError(
                 "Qualitative agent returned a non-object response."
             )
         try:
-            result = QualitativeResult.model_validate(raw_output)
+            draft = QualitativeAgentDraft.model_validate(raw_output)
         except ValidationError as exc:
             raise QualitativeExecutionError(
-                "Qualitative agent returned an invalid QualitativeResult."
+                "Qualitative agent returned an invalid QualitativeAgentDraft."
             ) from exc
-        result = result.model_copy(
-            update={
-                "payload": result.payload.model_copy(
-                    update={
-                        "artifact_references": list(
-                            dict.fromkeys(
-                                [
-                                    *result.payload.artifact_references,
-                                    *context.inspection_artifact_references,
-                                ]
-                            )
-                        )
-                    }
-                )
-            }
-        )
+        if runs_root is not None:
+            save_qualitative_raw_output(
+                runs_root,
+                run_id=request.run_id,
+                raw_output=draft.model_dump(mode="json"),
+                scope=artifact_scope,
+            )
+        result = finalize_qualitative_draft(draft, request, context)
 
         validate_qualitative_result(
             result,

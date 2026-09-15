@@ -3,7 +3,7 @@ from pathlib import Path
 from shortcutminer.experiment.qualitative_context import build_qualitative_context
 from shortcutminer.experiment.qualitative_executor import execute_qualitative
 from test_qualitative_context import _dataset, _request
-from test_qualitative_executor import _valid_output
+from test_qualitative_executor import _valid_draft
 
 
 class RecordingAgentClient:
@@ -21,7 +21,7 @@ def test_qualitative_mock_runtime_integration(tmp_path: Path):
     _dataset(dataset_root)
     request = _request(dataset_root)
     context = build_qualitative_context(request)
-    client = RecordingAgentClient(_valid_output(request, context))
+    client = RecordingAgentClient(_valid_draft(request, context))
 
     result = execute_qualitative(request, client)
 

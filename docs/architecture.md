@@ -63,7 +63,7 @@ Identify receives the dataset profile and, when applicable, the visual profile i
 | Identify | Dataset/task description and bounded discovery context | `CandidateReport` |
 | Executive | Candidate report and declared runtime capabilities | `RoutingPlan` |
 | Quantitative | Quantitative tasks selected by the routing plan | `QuantitativeResult` batch |
-| Qualitative | Qualitative tasks and bounded evidence context | `QualitativeResult` batch |
+| Qualitative | Qualitative tasks and bounded evidence context | `QualitativeAgentDraft`; Python finalizes the `QualitativeResult` batch |
 | Summarize | Routing plan and both result batches | `SummaryReport` |
 
 Every executor loads its own workspace, invokes an injected `AgentClient`, validates the returned protocol object, and persists stage artifacts. The deterministic control layer, rather than Agent prose, decides graph transitions and artifact locations.

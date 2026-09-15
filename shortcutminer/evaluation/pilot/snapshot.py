@@ -98,6 +98,7 @@ def build_pilot_snapshot(
     backend_paths = (
         "shortcutminer/experiment/real_executor.py",
         "shortcutminer/experiment/qualitative_backend.py",
+        "shortcutminer/experiment/qualitative_executor.py",
         "shortcutminer/protocol/evidence.py",
     )
     backend_hashes = {

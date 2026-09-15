@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import csv
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -27,7 +28,10 @@ from shortcutminer.evaluation.pilot.snapshot import (
     build_pilot_snapshot, save_pilot_snapshot, verify_pilot_snapshot,
 )
 from shortcutminer.evaluation.pilot.suite import build_suite
-from shortcutminer.experiment.qualitative_executor import execute_qualitative
+from shortcutminer.experiment.qualitative_executor import (
+    QualitativeDraftValidationError,
+    execute_qualitative,
+)
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
@@ -84,6 +88,8 @@ def _qualitative_scientific_payload(value: dict[str, Any]) -> dict[str, Any]:
 
 def _qualitative_invariant_category(exc: Exception) -> str:
     """Map value-free executor messages to deterministic diagnostic categories."""
+    if isinstance(exc, QualitativeDraftValidationError):
+        return exc.category
     message = str(exc)
     mappings = (
         ("sample_count does not match sample_ids", "sampling_count_mismatch"),
@@ -433,6 +439,52 @@ class PilotRunner:
             "task": source_request.task.model_copy(update={"run_id": run_id}),
         })
         dataset_root = Path(request.task.inputs.dataset_reference).resolve(strict=True)
+        challenge_id = request.task.inputs.dataset
+        if challenge_id != "pilot_001":
+            raise PilotRunnerError(
+                "Qualitative diagnostic source must be the pilot_001 canary dataset"
+            )
+        public_manifest = json.loads(
+            (source / "suite_public.json").read_text(encoding="utf-8")
+        )
+        public_entries = [
+            item for item in public_manifest["challenges"]
+            if item["challenge_id"] == challenge_id
+        ]
+        if len(public_entries) != 1:
+            raise PilotRunnerError(
+                "source public suite does not identify pilot_001 exactly once"
+            )
+        public_entry = public_entries[0]
+        expected_dataset_root = (
+            source / public_entry["dataset_reference"]
+        ).resolve(strict=True)
+        if dataset_root != expected_dataset_root:
+            raise PilotRunnerError(
+                "Qualitative diagnostic dataset path differs from the public suite"
+            )
+        if request.metadata_file is None:
+            raise PilotRunnerError(
+                "Qualitative diagnostic requires public metadata"
+            )
+        metadata_path = (dataset_root / request.metadata_file).resolve(strict=True)
+        try:
+            metadata_path.relative_to(dataset_root)
+        except ValueError as exc:
+            raise PilotRunnerError(
+                "Qualitative diagnostic metadata escaped the public dataset"
+            ) from exc
+        with metadata_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = csv.reader(handle)
+            metadata_columns = next(rows, None)
+            sample_count = sum(1 for _ in rows)
+        if not metadata_columns:
+            raise PilotRunnerError("Qualitative diagnostic metadata has no header")
+        challenge_value = json.loads(
+            (source / "challenges" / challenge_id / "challenge.json").read_text(
+                encoding="utf-8"
+            )
+        )
         runtimes = build_local_tool_runtimes(
             run_id=run_id,
             dataset_root=dataset_root,
@@ -441,8 +493,9 @@ class PilotRunner:
         assert self.text_client is not None
         text_start = len(self.text_client.invocations)
         error: Exception | None = None
+        canonical_result = None
         try:
-            execute_qualitative(
+            canonical_result = execute_qualitative(
                 request,
                 self.text_client,
                 runs_root=self.runs_root,
@@ -466,12 +519,34 @@ class PilotRunner:
             canonical_json_hash(_qualitative_scientific_payload(source_value))
             == canonical_json_hash(_qualitative_scientific_payload(current_value))
         )
-        model_validate_passed = bool(
+        draft_schema_passed = bool(
             final_record is not None and final_record.status == "completed"
         )
+        finalization_passed = bool(
+            canonical_result is not None
+            or (
+                draft_schema_passed
+                and error is not None
+                and not isinstance(error, QualitativeDraftValidationError)
+            )
+        )
+        finalization_result = (
+            "passed" if finalization_passed
+            else "failed" if draft_schema_passed
+            else "not_run"
+        )
+        result_model_validate_passed = bool(
+            finalization_passed
+            and (
+                canonical_result is None
+                or QualitativeResult.model_validate(
+                    canonical_result.model_dump(mode="json")
+                ) == canonical_result
+            )
+        )
         invariant_result = (
-            "passed" if error is None
-            else "failed" if model_validate_passed
+            "passed" if canonical_result is not None
+            else "failed" if finalization_passed
             else "not_run"
         )
         attempts = []
@@ -509,17 +584,31 @@ class PilotRunner:
             "pilot_id": self.config.pilot_id,
             "source_pilot_id": source_pilot_id,
             "run_id": run_id,
+            "dataset_identity": {
+                "challenge_id": challenge_id,
+                "generator_version": challenge_value.get("public", {}).get(
+                    "generator_version"
+                ),
+                "public_dataset_path": str(dataset_root),
+                "public_dataset_hash": public_entry["public_dataset_hash"],
+                "sample_count": sample_count,
+                "metadata_columns": metadata_columns,
+            },
             "status": (
                 "passed" if error is None and payload_hash_equal else "failed"
             ),
             "attempt_count": len(records),
+            "draft_schema_result": (
+                "passed" if draft_schema_passed else "failed"
+            ),
+            "deterministic_finalization_result": finalization_result,
             "qualitative_result_model_validate": (
-                "passed" if model_validate_passed else "failed"
+                "passed" if result_model_validate_passed else "not_run"
             ),
             "validate_qualitative_result": invariant_result,
             "invariant_failure_category": (
                 _qualitative_invariant_category(error)
-                if error is not None and model_validate_passed else None
+                if error is not None and draft_schema_passed else None
             ),
             "schema_retry_count": sum(item.schema_retry for item in records),
             "transport_retry_count": sum(item.transport_retry for item in records),

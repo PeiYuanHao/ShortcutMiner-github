@@ -240,49 +240,24 @@ class DemoAgentClient(MockAgentClient):
         }
 
     def _qualitative(self, payload: dict) -> dict:
-        request = payload["request"]
         context = payload["evidence_context"]
         sample_ids = [item["sample_id"] for item in context["selected_samples"]]
-        groups: dict[str, int] = {}
-        for item in context["selected_samples"]:
-            groups[item["group"]] = groups.get(item["group"], 0) + 1
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:qualitative:result",
-            "source": "qualitative",
-            "target": "summarize",
-            "message_type": "qualitative_analysis_result",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "task_id": request["task"]["task_id"],
-                "candidate_id": request["candidate"]["candidate_id"],
-                "candidate_name": request["candidate"]["cue"]["name"],
-                "hypothesis": request["candidate"]["hypothesis"],
-                "evidence_status": "supported",
-                "evidence_summary": "Metadata rows reproduce the site pattern.",
-                "sampling": {
-                    "strategy": context["sampling_strategy"],
-                    "seed": context["seed"],
-                    "groups": groups,
-                    "sample_count": len(sample_ids),
-                    "sample_ids": sample_ids,
-                },
-                "observations": [],
-                "interpretations": [],
-                "counterevidence": [],
-                "metadata_evidence": [
-                    {
-                        "field": "site",
-                        "observation": "Site differs across selected label groups.",
-                        "sample_refs": sample_ids,
-                    }
-                ],
-                "failures": [],
-                "limitations": context["limitations"],
-                "artifact_references": [],
-                "recommended_followup": [],
-            },
+            "sample_ids": sample_ids,
+            "evidence_status": "supported",
+            "evidence_summary": "Metadata rows reproduce the site pattern.",
+            "observations": [],
+            "interpretations": [],
+            "counterevidence": [],
+            "metadata_evidence": [{
+                "field": "site",
+                "observation": "Site differs across selected label groups.",
+                "sample_refs": sample_ids,
+            }],
+            "failures": [],
+            "additional_limitations": [],
+            "artifact_references": [],
+            "recommended_followup": [],
         }
 
     def _summarize(self, payload: dict) -> dict:

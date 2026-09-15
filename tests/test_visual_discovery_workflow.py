@@ -86,50 +86,28 @@ class MetadataFreeVisualClient(VisualEvidenceClient):
         return output
 
     def _real_qualitative(self, payload: dict) -> dict:
-        request = payload["request"]
         context = payload["evidence_context"]
         samples = context["selected_samples"]
         assert len(samples) == context["samples_inspected"] == 4
         assert not context["descriptor_comparisons"]
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:qualitative:visual-result",
-            "source": "qualitative",
-            "target": "summarize",
-            "message_type": "qualitative_analysis_result",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "task_id": request["task"]["task_id"],
-                "candidate_id": "C001",
-                "candidate_name": request["candidate"]["cue"]["name"],
-                "hypothesis": request["candidate"]["hypothesis"],
-                "evidence_status": "inconclusive",
-                "evidence_summary": "Real image descriptors were inspected without a label grouping.",
-                "sampling": {
-                    "strategy": context["sampling_strategy"],
-                    "seed": context["seed"],
-                    "groups": {"ungrouped": 4},
-                    "sample_count": 4,
-                    "sample_ids": [item["sample_id"] for item in samples],
-                },
-                "observations": [
-                    {
-                        "observation_id": "QO-C001-001",
-                        "group": "ungrouped",
-                        "sample_refs": [samples[0]["sample_id"]],
-                        "observation": "A bounded image descriptor was computed.",
-                        "inspection_quality": "sufficient",
-                    }
-                ],
-                "interpretations": [],
-                "counterevidence": [],
-                "metadata_evidence": [],
-                "failures": [],
-                "limitations": context["limitations"],
-                "artifact_references": [],
-                "recommended_followup": [],
-            },
+            "sample_ids": [item["sample_id"] for item in samples],
+            "evidence_status": "inconclusive",
+            "evidence_summary": "Real image descriptors were inspected without a label grouping.",
+            "observations": [
+                {
+                    "sample_refs": [samples[0]["sample_id"]],
+                    "observation": "A bounded image descriptor was computed.",
+                    "inspection_quality": "sufficient",
+                }
+            ],
+            "interpretations": [],
+            "counterevidence": [],
+            "metadata_evidence": [],
+            "failures": [],
+            "additional_limitations": [],
+            "artifact_references": [],
+            "recommended_followup": [],
         }
 
 

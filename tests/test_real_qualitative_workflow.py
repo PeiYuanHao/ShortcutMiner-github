@@ -71,65 +71,40 @@ class RealEvidenceClient(DemoAgentClient):
         return getattr(self, f"_{agent_name}")(payload)
 
     def _real_qualitative(self, payload: dict) -> dict:
-        request = payload["request"]
         context = payload["evidence_context"]
         samples = context["selected_samples"]
         assert context["samples_inspected"] == 4
         assert context["descriptor_comparisons"]
         assert all(sample["visual_descriptors"] for sample in samples)
-        groups: dict[str, int] = {}
-        for sample in samples:
-            groups[sample["group"]] = groups.get(sample["group"], 0) + 1
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:qualitative:real-result",
-            "source": "qualitative",
-            "target": "summarize",
-            "message_type": "qualitative_analysis_result",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "task_id": request["task"]["task_id"],
-                "candidate_id": "C001",
-                "candidate_name": request["candidate"]["cue"]["name"],
-                "hypothesis": request["candidate"]["hypothesis"],
-                "evidence_status": "partially_supported",
-                "evidence_summary": "Local descriptors differ across sampled groups, with counterevidence retained.",
-                "sampling": {
-                    "strategy": context["sampling_strategy"],
-                    "seed": context["seed"],
-                    "groups": groups,
-                    "sample_count": len(samples),
-                    "sample_ids": [sample["sample_id"] for sample in samples],
-                },
-                "observations": [
-                    {
-                        "observation_id": "QO-C001-001",
-                        "group": samples[0]["group"],
-                        "sample_refs": [samples[0]["sample_id"]],
-                        "observation": "The bounded intensity descriptor was computed from the selected image.",
-                        "inspection_quality": "sufficient",
-                    }
-                ],
-                "interpretations": [
-                    {
-                        "interpretation": "The difference is descriptive and does not establish causality.",
-                        "supporting_observation_ids": ["QO-C001-001"],
-                        "confidence": "low",
-                    }
-                ],
-                "counterevidence": [
-                    {
-                        "sample_refs": [samples[-1]["sample_id"]],
-                        "description": "A retained comparison sample prevents a universal claim.",
-                    }
-                ],
-                "metadata_evidence": [],
-                "failures": [],
-                "limitations": context["limitations"],
-                "artifact_references": [],
-                "recommended_followup": [],
-            },
+            "sample_ids": [sample["sample_id"] for sample in samples],
+            "evidence_status": "partially_supported",
+            "evidence_summary": "Local descriptors differ across sampled groups, with counterevidence retained.",
+            "observations": [
+                {
+                    "sample_refs": [samples[0]["sample_id"]],
+                    "observation": "The bounded intensity descriptor was computed from the selected image.",
+                    "inspection_quality": "sufficient",
+                }
+            ],
+            "interpretations": [
+                {
+                    "interpretation": "The difference is descriptive and does not establish causality.",
+                    "supporting_observation_indexes": [0],
+                    "confidence": "low",
+                }
+            ],
+            "counterevidence": [
+                {
+                    "sample_refs": [samples[-1]["sample_id"]],
+                    "description": "A retained comparison sample prevents a universal claim.",
+                }
+            ],
+            "metadata_evidence": [],
+            "failures": [],
+            "additional_limitations": [],
+            "artifact_references": [],
+            "recommended_followup": [],
         }
 
 

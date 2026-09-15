@@ -21,7 +21,8 @@ Orchestrator
     |
     +--> QuantitativeRequest --> QuantitativeResult --+
     |                                               |
-    +--> QualitativeRequest --> QualitativeResult ---+
+    +--> QualitativeRequest --> QualitativeAgentDraft
+    |                         --> QualitativeResult ---+
                                                     |
                                                     v
                                              Summarize Agent
@@ -707,7 +708,10 @@ dataset-contained sample-reference manifest
 Qualitative Agent
         |
         v
-validated QualitativeResult
+validated QualitativeAgentDraft
+        |
+        v
+deterministically finalized QualitativeResult
 ```
 
 Preparation only resolves and records evidence. It does not claim to visually
@@ -774,9 +778,49 @@ groups, selection failure, or zero accessible samples produce a bounded degraded
 context so the Agent can return `insufficient_evidence` instead of fabricating a
 result.
 
-### 12.4 QualitativeResult
+### 12.4 QualitativeAgentDraft
 
-The Agent returns:
+The provider returns only scientific choices. It does not reproduce protocol,
+request/candidate identity, sampling bookkeeping, limitations already present in
+the context, observation IDs, or observation groups:
+
+```json
+{
+  "sample_ids": ["S017", "S204"],
+  "evidence_status": "partially_supported",
+  "evidence_summary": "The cue is visible with several counterexamples.",
+  "observations": [
+    {
+      "sample_refs": ["S017"],
+      "observation": "A bounded visible property was observed.",
+      "inspection_quality": "sufficient"
+    }
+  ],
+  "interpretations": [
+    {
+      "interpretation": "The difference is descriptive rather than causal.",
+      "supporting_observation_indexes": [0],
+      "confidence": "low"
+    }
+  ],
+  "counterevidence": [],
+  "metadata_evidence": [],
+  "failures": [],
+  "additional_limitations": [],
+  "artifact_references": [],
+  "recommended_followup": []
+}
+```
+
+The provider-facing schema is strict and forbids extra fields. Sample IDs and
+every evidence reference are checked against the prepared context before
+finalization. An observation may reference only one authoritative group, and
+interpretation indexes must refer to existing observations.
+
+### 12.5 Canonical QualitativeResult
+
+The deterministic control layer combines the validated draft with the request
+and evidence context to construct:
 
 ```json
 {
@@ -824,7 +868,13 @@ observation IDs. Counterevidence and metadata evidence cite selected records;
 metadata fields must be authorized by the task. Failure categories are
 canonical and remain distinct from negative scientific evidence.
 
-### 12.5 Cross-object invariants
+`sampling.strategy` and `sampling.seed` come from the context; `sample_count`
+and `groups` are derived exactly from the draft's validated `sample_ids`.
+Observation IDs are generated sequentially and groups are derived from sample
+references. Authoritative context limitations are unioned with the provider's
+`additional_limitations` without allowing the provider to remove them.
+
+### 12.6 Cross-object invariants
 
 The Qualitative boundary enforces:
 
@@ -855,7 +905,7 @@ These rules provide structural traceability. They do not turn a qualitative
 observation into proof that a model uses the cue; the workspace contract keeps
 dataset-level evidence and model reliance separate.
 
-### 12.6 Persistence and failure
+### 12.7 Persistence and failure
 
 With run storage enabled, Qualitative persists:
 
@@ -867,7 +917,9 @@ runs/<run_id>/qualitative/artifacts/<candidate_id>/...
 ```
 
 `input.json` preserves the exact request and deterministic evidence context.
-`raw_output.json` preserves invalid Agent responses for diagnosis. `result.json`
-is written only after schema and semantic validation. Derived artifact files are
+`raw_output.json` contains only a schema-valid provider draft; invalid or
+non-object responses are not persisted. `result.json` is written only after
+draft validation, deterministic finalization, and canonical semantic validation.
+Derived artifact files are
 required to exist before a stored result may cite them. Events record
 `QUALITATIVE_STARTED`, `QUALITATIVE_COMPLETED`, or `AGENT_FAILED`.

@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import Field, StringConstraints, field_validator, model_validator
 
@@ -51,9 +51,11 @@ ObservationId = Annotated[
         r"(?:00[1-9]|0[1-9][0-9]|[1-9][0-9]{2})$",
     ),
 ]
+ObservationIndex = Annotated[int, Field(ge=0)]
+_ValueT = TypeVar("_ValueT")
 
 
-def _reject_duplicates(values: list[str], field_name: str) -> list[str]:
+def _reject_duplicates(values: list[_ValueT], field_name: str) -> list[_ValueT]:
     if len(values) != len(set(values)):
         raise ValueError(f"{field_name} must not contain duplicates")
     return values
@@ -201,6 +203,54 @@ class QualitativeFailure(StrictProtocolModel):
     @field_validator("sample_refs", "artifact_references")
     @classmethod
     def validate_unique_references(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+
+class QualitativeDraftObservation(StrictProtocolModel):
+    sample_refs: list[NonEmptyText] = Field(min_length=1)
+    observation: NonEmptyText
+    inspection_quality: InspectionQuality
+
+    @field_validator("sample_refs")
+    @classmethod
+    def validate_unique_samples(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "sample_refs")
+
+
+class QualitativeDraftInterpretation(StrictProtocolModel):
+    interpretation: NonEmptyText
+    supporting_observation_indexes: list[ObservationIndex] = Field(min_length=1)
+    confidence: InterpretationConfidence
+
+    @field_validator("supporting_observation_indexes")
+    @classmethod
+    def validate_unique_observations(cls, values: list[int]) -> list[int]:
+        return _reject_duplicates(values, "supporting_observation_indexes")
+
+
+class QualitativeAgentDraft(StrictProtocolModel):
+    """Provider-facing scientific analysis without deterministic bookkeeping."""
+
+    sample_ids: list[NonEmptyText]
+    evidence_status: EvidenceStatus
+    evidence_summary: NonEmptyText
+    observations: list[QualitativeDraftObservation]
+    interpretations: list[QualitativeDraftInterpretation]
+    counterevidence: list[QualitativeCounterevidence]
+    metadata_evidence: list[QualitativeMetadataEvidence]
+    failures: list[QualitativeFailure]
+    additional_limitations: list[NonEmptyText]
+    artifact_references: list[SafeRelativePath]
+    recommended_followup: list[NonEmptyText]
+
+    @field_validator(
+        "sample_ids",
+        "additional_limitations",
+        "artifact_references",
+        "recommended_followup",
+    )
+    @classmethod
+    def validate_unique_lists(cls, values: list[str], info) -> list[str]:
         return _reject_duplicates(values, info.field_name)
 
 

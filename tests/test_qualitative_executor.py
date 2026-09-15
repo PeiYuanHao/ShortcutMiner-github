@@ -7,10 +7,11 @@ from shortcutminer.experiment.qualitative_context import build_qualitative_conte
 from shortcutminer.experiment.qualitative_executor import (
     QualitativeExecutionError,
     execute_qualitative,
+    finalize_qualitative_draft,
     validate_qualitative_result,
 )
 from test_qualitative_context import _dataset, _request
-from shortcutminer.protocol.qualitative import QualitativeResult
+from shortcutminer.protocol.qualitative import QualitativeAgentDraft, QualitativeResult
 
 
 class MockQualitativeClient:
@@ -23,69 +24,42 @@ class MockQualitativeClient:
         return self.output
 
 
-def _valid_output(request, context) -> dict:
+def _valid_draft(request, context) -> dict:
     samples = context.selected_samples
     sample_ids = [sample.sample_id for sample in samples]
-    groups = {}
-    for sample in samples:
-        groups[sample.group] = groups.get(sample.group, 0) + 1
     return {
-        "protocol_version": "1.0",
-        "run_id": request.run_id,
-        "message_id": "qualitative:result:C001",
-        "source": "qualitative",
-        "target": "summarize",
-        "message_type": "qualitative_analysis_result",
-        "in_reply_to": request.message_id,
-        "payload": {
-            "task_id": request.task.task_id,
-            "candidate_id": "C001",
-            "candidate_name": "dark_border",
-            "hypothesis": request.candidate.hypothesis,
-            "evidence_status": "partially_supported",
-            "evidence_summary": "The inspected samples contain mixed evidence.",
-            "sampling": {
-                "strategy": context.sampling_strategy,
-                "seed": context.seed,
-                "groups": groups,
-                "sample_count": len(sample_ids),
-                "sample_ids": sample_ids,
-            },
-            "observations": [
-                {
-                    "observation_id": "QO-C001-001",
-                    "group": samples[0].group,
-                    "sample_refs": [samples[0].sample_id],
-                    "observation": "A border is visible in this inspected sample.",
-                    "inspection_quality": "sufficient",
-                }
-            ],
-            "interpretations": [
-                {
-                    "interpretation": "The border may reflect preprocessing.",
-                    "supporting_observation_ids": ["QO-C001-001"],
-                    "confidence": "low",
-                }
-            ],
-            "counterevidence": [
-                {
-                    "sample_refs": [samples[-1].sample_id],
-                    "description": "A comparison sample does not fit the pattern.",
-                }
-            ],
-            "metadata_evidence": [
-                {
-                    "field": "label",
-                    "observation": "Both configured label groups were sampled.",
-                    "sample_refs": sample_ids,
-                }
-            ],
-            "failures": [],
-            "limitations": context.limitations,
-            "artifact_references": [],
-            "recommended_followup": ["Inspect a larger bounded sample."],
-        },
+        "sample_ids": sample_ids,
+        "evidence_status": "partially_supported",
+        "evidence_summary": "The inspected samples contain mixed evidence.",
+        "observations": [{
+            "sample_refs": [samples[0].sample_id],
+            "observation": "A border is visible in this inspected sample.",
+            "inspection_quality": "sufficient",
+        }],
+        "interpretations": [{
+            "interpretation": "The border may reflect preprocessing.",
+            "supporting_observation_indexes": [0],
+            "confidence": "low",
+        }],
+        "counterevidence": [{
+            "sample_refs": [samples[-1].sample_id],
+            "description": "A comparison sample does not fit the pattern.",
+        }],
+        "metadata_evidence": [{
+            "field": "label",
+            "observation": "Both configured label groups were sampled.",
+            "sample_refs": sample_ids,
+        }],
+        "failures": [],
+        "additional_limitations": [],
+        "artifact_references": [],
+        "recommended_followup": ["Inspect a larger bounded sample."],
     }
+
+
+def _valid_output(request, context) -> dict:
+    draft = QualitativeAgentDraft.model_validate(_valid_draft(request, context))
+    return finalize_qualitative_draft(draft, request, context).model_dump(mode="json")
 
 
 def test_execute_qualitative_persists_evidence_and_events(tmp_path: Path):
@@ -93,7 +67,7 @@ def test_execute_qualitative_persists_evidence_and_events(tmp_path: Path):
     _dataset(dataset_root)
     request = _request(dataset_root)
     context = build_qualitative_context(request)
-    output = _valid_output(request, context)
+    output = _valid_draft(request, context)
     runs_root = tmp_path / "runs"
 
     result = execute_qualitative(
@@ -168,13 +142,13 @@ def test_context_limitations_must_be_preserved(tmp_path: Path):
         validate_qualitative_result(result, request, context)
 
 
-def test_invalid_raw_output_is_retained_and_failure_logged(tmp_path: Path):
+def test_invalid_raw_output_is_not_persisted_and_failure_is_logged(tmp_path: Path):
     dataset_root = tmp_path / "dataset"
     _dataset(dataset_root)
     request = _request(dataset_root)
     runs_root = tmp_path / "runs"
 
-    with pytest.raises(QualitativeExecutionError, match="invalid QualitativeResult"):
+    with pytest.raises(QualitativeExecutionError, match="invalid QualitativeAgentDraft"):
         execute_qualitative(
             request,
             MockQualitativeClient({"invalid": "output"}),
@@ -182,14 +156,14 @@ def test_invalid_raw_output_is_retained_and_failure_logged(tmp_path: Path):
         )
 
     stage_dir = runs_root / request.run_id / "qualitative"
-    assert (stage_dir / "raw_output.json").exists()
+    assert not (stage_dir / "raw_output.json").exists()
     assert not (stage_dir / "result.json").exists()
     assert "AGENT_FAILED" in (
         runs_root / request.run_id / "events.jsonl"
     ).read_text("utf-8")
 
 
-def test_non_object_raw_output_is_retained_and_failure_logged(tmp_path: Path):
+def test_non_object_raw_output_is_not_persisted_and_failure_is_logged(tmp_path: Path):
     dataset_root = tmp_path / "dataset"
     _dataset(dataset_root)
     request = _request(dataset_root)
@@ -202,15 +176,9 @@ def test_non_object_raw_output_is_retained_and_failure_logged(tmp_path: Path):
             runs_root=runs_root,
         )
 
-    raw_output = json.loads(
-        (
-            runs_root
-            / request.run_id
-            / "qualitative"
-            / "raw_output.json"
-        ).read_text("utf-8")
-    )
-    assert raw_output == ["invalid", "output"]
+    assert not (
+        runs_root / request.run_id / "qualitative" / "raw_output.json"
+    ).exists()
     assert "AGENT_FAILED" in (
         runs_root / request.run_id / "events.jsonl"
     ).read_text("utf-8")
