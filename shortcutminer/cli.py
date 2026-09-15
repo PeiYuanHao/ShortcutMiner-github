@@ -71,6 +71,10 @@ def _parser() -> argparse.ArgumentParser:
                 "--source-pilot-id", required=True,
                 help="Prior failed canary whose persisted public input is reused",
             )
+            command.add_argument(
+                "--recover-from-pilot-id",
+                help="Materialize the gate from one completed diagnostic run",
+            )
     return parser
 
 
@@ -116,6 +120,11 @@ def main(argv: list[str] | None = None) -> int:
                 "preflight", "identify-diagnostic", "qualitative-diagnostic",
                 "canary", "run", "resume"
             }
+            if (
+                args.pilot_command == "qualitative-diagnostic"
+                and args.recover_from_pilot_id is not None
+            ):
+                needs_provider = False
             text_client = None
             semantic_inspector = None
             if needs_provider:
@@ -147,6 +156,7 @@ def main(argv: list[str] | None = None) -> int:
             elif args.pilot_command == "qualitative-diagnostic":
                 value = pilot_runner.qualitative_diagnostic(
                     source_pilot_id=args.source_pilot_id,
+                    recovery_pilot_id=args.recover_from_pilot_id,
                 )
             elif args.pilot_command == "canary":
                 value = pilot_runner.canary().model_dump(mode="json")

@@ -25,21 +25,29 @@ from shortcutminer.evaluation.pilot.realness import (
 )
 from shortcutminer.evaluation.pilot.report import save_pilot_report
 from shortcutminer.evaluation.pilot.snapshot import (
-    build_pilot_snapshot, save_pilot_snapshot, verify_pilot_snapshot,
+    build_pilot_snapshot, file_hash, save_pilot_snapshot, verify_pilot_snapshot,
 )
 from shortcutminer.evaluation.pilot.suite import build_suite
 from shortcutminer.experiment.qualitative_executor import (
     MAX_DRAFT_INVARIANT_RETRIES,
     QualitativeDraftValidationError,
     execute_qualitative,
+    finalize_qualitative_draft,
+    validate_qualitative_result,
 )
+from shortcutminer.experiment.qualitative_context import QualitativeEvidenceContext
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
-from shortcutminer.protocol.qualitative import QualitativeRequest
+from shortcutminer.protocol.model_runtime import ModelInvocationRecord
+from shortcutminer.protocol.qualitative import (
+    QualitativeAgentDraft,
+    QualitativeRequest,
+    QualitativeResult,
+)
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.protocol.run import RunRequest
 from shortcutminer.runner import build_local_tool_runtimes, run
@@ -414,10 +422,290 @@ class PilotRunner:
             evaluation=evaluated,
         )
 
-    def qualitative_diagnostic(self, *, source_pilot_id: str) -> dict[str, Any]:
+    def _recover_qualitative_diagnostic(
+        self,
+        *,
+        source_pilot_id: str,
+        recovery_pilot_id: str,
+    ) -> dict[str, Any]:
+        """Materialize a gate from one already completed, validated run."""
+        source = self._require_source_provider_gates(source_pilot_id)
+        recovery = self._source_pilot_root(recovery_pilot_id)
+        recovery_snapshot = PilotSnapshot.model_validate_json(
+            (recovery / "snapshot.json").read_text(encoding="utf-8")
+        )
+        if (
+            recovery_snapshot.provider_combination_id
+            != self._snapshot().provider_combination_id
+        ):
+            raise PilotRunnerError(
+                "recovery pilot provider combination differs from current runtime"
+            )
+
+        source_inputs = sorted(
+            (
+                source / "runs" / f"{source_pilot_id}-canary"
+                / "qualitative"
+            ).glob("*/input.json")
+        )
+        recovery_run_id = f"{recovery_pilot_id}-qualitative-diagnostic"
+        recovery_runs_root = recovery / "runs"
+        recovery_scope = recovery_runs_root / recovery_run_id / "qualitative"
+        input_paths = sorted(recovery_scope.glob("*/input.json"))
+        draft_paths = sorted(recovery_scope.glob("*/raw_output.json"))
+        invariant_paths = sorted(
+            recovery_scope.glob("*/draft_invariant_telemetry.json")
+        )
+        result_paths = sorted(recovery_scope.glob("*/result.json"))
+        if not all(
+            len(paths) == 1
+            for paths in (
+                source_inputs,
+                input_paths,
+                draft_paths,
+                invariant_paths,
+                result_paths,
+            )
+        ):
+            raise PilotRunnerError(
+                "diagnostic recovery requires exactly one complete artifact set"
+            )
+
+        source_value = json.loads(source_inputs[0].read_text(encoding="utf-8"))
+        current_value = json.loads(input_paths[0].read_text(encoding="utf-8"))
+        request = QualitativeRequest.model_validate(current_value["request"])
+        context = QualitativeEvidenceContext.model_validate(
+            current_value["evidence_context"]
+        )
+        draft = QualitativeAgentDraft.model_validate_json(
+            draft_paths[0].read_text(encoding="utf-8")
+        )
+        canonical_result = QualitativeResult.model_validate_json(
+            result_paths[0].read_text(encoding="utf-8")
+        )
+        if finalize_qualitative_draft(draft, request, context) != canonical_result:
+            raise PilotRunnerError(
+                "persisted Qualitative result differs from deterministic finalization"
+            )
+        validate_qualitative_result(
+            canonical_result,
+            request,
+            context,
+            runs_root=recovery_runs_root,
+        )
+
+        telemetry = load_run_model_telemetry(
+            recovery_runs_root, recovery_run_id
+        )
+        if telemetry is None or not telemetry.invocation_references:
+            raise PilotRunnerError(
+                "diagnostic recovery requires persisted model telemetry"
+            )
+        records: list[ModelInvocationRecord] = []
+        run_root = recovery_runs_root / recovery_run_id
+        for reference in telemetry.invocation_references:
+            record_path = (run_root / reference).resolve(strict=True)
+            try:
+                record_path.relative_to(run_root.resolve(strict=True))
+            except ValueError as exc:
+                raise PilotRunnerError(
+                    "diagnostic recovery telemetry escaped the run directory"
+                ) from exc
+            records.append(
+                ModelInvocationRecord.model_validate_json(
+                    record_path.read_text(encoding="utf-8")
+                )
+            )
+        if (
+            len(records) != telemetry.total_calls
+            or not records
+            or any(
+                item.runtime_kind != "text_agent"
+                or item.provider != self.config.text_runtime.provider
+                or item.model != self.config.text_runtime.model
+                for item in records
+            )
+        ):
+            raise PilotRunnerError(
+                "diagnostic recovery model telemetry is incomplete or mismatched"
+            )
+
+        draft_invariant_telemetry = json.loads(
+            invariant_paths[0].read_text(encoding="utf-8")
+        )
+        draft_invariant_attempts = draft_invariant_telemetry.get("attempts", [])
+        scientific_input_hashes = [
+            item.get("scientific_input_hash")
+            for item in draft_invariant_attempts
+        ]
+        scientific_input_hash_equal = bool(scientific_input_hashes) and (
+            len(set(scientific_input_hashes)) == 1
+            and scientific_input_hashes[0]
+            == draft_invariant_telemetry.get("scientific_input_hash")
+        )
+        payload_hash_equal = (
+            canonical_json_hash(_qualitative_scientific_payload(source_value))
+            == canonical_json_hash(_qualitative_scientific_payload(current_value))
+        )
+        final_record = records[-1]
+        draft_schema_passed = (
+            final_record.status == "completed" and final_record.schema_valid is True
+        )
+        gate_passed = (
+            draft_schema_passed
+            and payload_hash_equal
+            and scientific_input_hash_equal
+            and draft_invariant_telemetry.get("status") == "passed"
+            and telemetry.failed_calls == 0
+        )
+        if not gate_passed:
+            raise PilotRunnerError(
+                "persisted diagnostic artifacts did not satisfy every recovery gate"
+            )
+
+        dataset_root = Path(request.task.inputs.dataset_reference).resolve(strict=True)
+        challenge_id = request.task.inputs.dataset
+        public_manifest = json.loads(
+            (source / "suite_public.json").read_text(encoding="utf-8")
+        )
+        public_entries = [
+            item for item in public_manifest["challenges"]
+            if item["challenge_id"] == challenge_id
+        ]
+        if len(public_entries) != 1:
+            raise PilotRunnerError(
+                "source public suite does not identify the recovery challenge"
+            )
+        public_entry = public_entries[0]
+        if dataset_root != (
+            source / public_entry["dataset_reference"]
+        ).resolve(strict=True):
+            raise PilotRunnerError(
+                "recovered diagnostic dataset differs from the public suite"
+            )
+        if request.metadata_file is None:
+            raise PilotRunnerError("recovered diagnostic requires public metadata")
+        metadata_path = (dataset_root / request.metadata_file).resolve(strict=True)
+        metadata_path.relative_to(dataset_root)
+        with metadata_path.open("r", encoding="utf-8", newline="") as handle:
+            rows = csv.reader(handle)
+            metadata_columns = next(rows, None)
+            sample_count = sum(1 for _ in rows)
+        challenge_value = json.loads(
+            (
+                source / "challenges" / challenge_id / "challenge.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        attempts = []
+        for item in records:
+            diagnostics = item.schema_diagnostics
+            attempts.append({
+                "attempt": item.attempt,
+                "status": item.status,
+                "response_kind": item.response_kind,
+                "json_parse_status": (
+                    item.response_diagnostics.json_parse_status
+                    if item.response_diagnostics is not None
+                    else "content_missing"
+                ),
+                "finish_reason": (
+                    item.response_diagnostics.finish_reason
+                    if item.response_diagnostics is not None else "missing"
+                ),
+                "schema_valid": item.schema_valid,
+                "total_schema_issue_count": (
+                    diagnostics.total_schema_issue_count if diagnostics else 0
+                ),
+                "schema_issues": (
+                    [
+                        issue.model_dump(mode="json")
+                        for issue in diagnostics.issues
+                    ]
+                    if diagnostics else []
+                ),
+                "latency_ms": item.latency_ms,
+                "usage": item.usage.model_dump(mode="json"),
+                "schema_retry": item.schema_retry,
+                "transport_retry": item.transport_retry,
+                "request_hash": item.request_hash,
+                "payload_hash": item.payload_hash,
+            })
+        result = {
+            "schema_version": "1.0",
+            "pilot_id": self.config.pilot_id,
+            "source_pilot_id": source_pilot_id,
+            "recovery_pilot_id": recovery_pilot_id,
+            "run_id": recovery_run_id,
+            "gate_materialization_mode": "recovered_existing_validated_run",
+            "provider_calls_during_recovery": 0,
+            "dataset_identity": {
+                "challenge_id": challenge_id,
+                "generator_version": challenge_value.get("public", {}).get(
+                    "generator_version"
+                ),
+                "public_dataset_path": str(dataset_root),
+                "public_dataset_hash": public_entry["public_dataset_hash"],
+                "sample_count": sample_count,
+                "metadata_columns": metadata_columns,
+            },
+            "status": "passed",
+            "attempt_count": len(records),
+            "draft_schema_result": "passed",
+            "deterministic_finalization_result": "passed",
+            "qualitative_output_counts": {
+                "observations": len(canonical_result.payload.observations),
+                "comparisons": len(canonical_result.payload.comparisons),
+                "interpretations": len(canonical_result.payload.interpretations),
+            },
+            "qualitative_result_model_validate": "passed",
+            "validate_qualitative_result": "passed",
+            "invariant_failure_category": None,
+            "schema_retry_count": telemetry.schema_retry_calls,
+            "draft_invariant_retry_count": draft_invariant_telemetry.get(
+                "draft_invariant_retry_count", 0
+            ),
+            "max_draft_invariant_retries": MAX_DRAFT_INVARIANT_RETRIES,
+            "transport_retry_count": telemetry.retry_calls,
+            "latency_ms": telemetry.total_model_latency_ms,
+            "usage_available": telemetry.usage_complete,
+            "scientific_payload_hash_equal": payload_hash_equal,
+            "scientific_input_hash_equal_across_draft_attempts": (
+                scientific_input_hash_equal
+            ),
+            "scientific_input_hash": scientific_input_hashes[0],
+            "draft_invariant_attempts": draft_invariant_attempts,
+            "attempts": attempts,
+            "artifact_hashes": {
+                "input": file_hash(input_paths[0]),
+                "draft": file_hash(draft_paths[0]),
+                "draft_invariant_telemetry": file_hash(invariant_paths[0]),
+                "canonical_result": file_hash(result_paths[0]),
+                "model_telemetry": file_hash(
+                    run_root / "model_calls" / "telemetry.json"
+                ),
+            },
+            "error_type": None,
+            "error_message": None,
+        }
+        path = self.pilot_root / "qualitative_diagnostic.json"
+        atomic_write_json(path, result, error_type=PilotRunnerError)
+        return result
+
+    def qualitative_diagnostic(
+        self,
+        *,
+        source_pilot_id: str,
+        recovery_pilot_id: str | None = None,
+    ) -> dict[str, Any]:
         """Re-run only Qualitative with equivalent persisted canary evidence."""
         self._require_complete_real_configuration()
         self.dry_run()
+        if recovery_pilot_id is not None:
+            return self._recover_qualitative_diagnostic(
+                source_pilot_id=source_pilot_id,
+                recovery_pilot_id=recovery_pilot_id,
+            )
         self._assert_real()
         source = self._require_source_provider_gates(source_pilot_id)
         path = self.pilot_root / "qualitative_diagnostic.json"

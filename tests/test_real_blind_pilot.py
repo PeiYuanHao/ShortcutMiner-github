@@ -247,6 +247,183 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
     assert runner.canary() == saved
 
 
+def test_qualitative_diagnostic_recovers_completed_result_and_writes_gate(
+    tmp_path: Path,
+):
+    from shortcutminer.experiment.qualitative_context import (
+        build_qualitative_context,
+    )
+    from shortcutminer.experiment.qualitative_executor import (
+        finalize_qualitative_draft,
+    )
+    from shortcutminer.protocol.model_runtime import ModelInvocationRecord
+    from shortcutminer.runtime.openai_compatible import canonical_json_hash
+    from shortcutminer.storage.model_calls import save_model_invocation
+    from test_qualitative_context import _dataset, _request
+    from test_qualitative_finalizer import _draft
+
+    config = _config(tmp_path)
+    runner = PilotRunner(config)
+    runner.dry_run()
+    current_snapshot = runner._snapshot()
+    pilots_root = runner.pilot_root.parent
+    source_pilot_id = "phase16-source"
+    recovery_pilot_id = "phase16-recovery"
+    source_root = pilots_root / source_pilot_id
+    recovery_root = pilots_root / recovery_pilot_id
+    source_root.mkdir(parents=True)
+    recovery_root.mkdir(parents=True)
+    (source_root / "preflight.json").write_text(
+        json.dumps({"status": "passed"}), encoding="utf-8"
+    )
+    (source_root / "identify_diagnostic.json").write_text(
+        json.dumps({"status": "passed"}), encoding="utf-8"
+    )
+    snapshot_json = current_snapshot.model_dump_json()
+    (source_root / "snapshot.json").write_text(snapshot_json, encoding="utf-8")
+    (recovery_root / "snapshot.json").write_text(
+        snapshot_json, encoding="utf-8"
+    )
+
+    dataset_root = source_root / "datasets" / "test_dataset"
+    _dataset(dataset_root)
+    source_request = _request(dataset_root)
+    source_context = build_qualitative_context(source_request)
+    source_scope = (
+        source_root / "runs" / f"{source_pilot_id}-canary"
+        / "qualitative" / source_request.task.task_id
+    )
+    source_scope.mkdir(parents=True)
+    source_value = {
+        "request": source_request.model_dump(mode="json"),
+        "evidence_context": source_context.model_dump(mode="json"),
+    }
+    (source_scope / "input.json").write_text(
+        json.dumps(source_value), encoding="utf-8"
+    )
+    relative_dataset = dataset_root.relative_to(source_root).as_posix()
+    (source_root / "suite_public.json").write_text(
+        json.dumps({
+            "challenges": [{
+                "challenge_id": "test_dataset",
+                "dataset_reference": relative_dataset,
+                "public_dataset_hash": "c" * 64,
+            }]
+        }),
+        encoding="utf-8",
+    )
+    challenge_root = source_root / "challenges" / "test_dataset"
+    challenge_root.mkdir(parents=True)
+    (challenge_root / "challenge.json").write_text(
+        json.dumps({"public": {"generator_version": "blind_synthetic_v1"}}),
+        encoding="utf-8",
+    )
+
+    recovery_run_id = f"{recovery_pilot_id}-qualitative-diagnostic"
+    request = source_request.model_copy(update={
+        "run_id": recovery_run_id,
+        "task": source_request.task.model_copy(update={"run_id": recovery_run_id}),
+    })
+    context = source_context.model_copy(update={"run_id": recovery_run_id})
+    canonical = finalize_qualitative_draft(_draft(), request, context)
+    recovery_scope = (
+        recovery_root / "runs" / recovery_run_id
+        / "qualitative" / request.task.task_id
+    )
+    recovery_scope.mkdir(parents=True)
+    current_value = {
+        "request": request.model_dump(mode="json"),
+        "evidence_context": context.model_dump(mode="json"),
+    }
+    (recovery_scope / "input.json").write_text(
+        json.dumps(current_value), encoding="utf-8"
+    )
+    (recovery_scope / "raw_output.json").write_text(
+        _draft().model_dump_json(), encoding="utf-8"
+    )
+    (recovery_scope / "result.json").write_text(
+        canonical.model_dump_json(), encoding="utf-8"
+    )
+    scientific_input_hash = canonical_json_hash(current_value)
+    (recovery_scope / "draft_invariant_telemetry.json").write_text(
+        json.dumps({
+            "scientific_input_hash": scientific_input_hash,
+            "draft_invariant_retry_count": 0,
+            "status": "passed",
+            "attempts": [{
+                "attempt": 1,
+                "scientific_input_hash": scientific_input_hash,
+                "draft_schema_result": "passed",
+                "draft_invariant_result": "passed",
+                "failure": None,
+            }],
+        }),
+        encoding="utf-8",
+    )
+    record = ModelInvocationRecord.model_validate({
+        "invocation_id": "qualitative-recovery-test",
+        "run_id": recovery_run_id,
+        "agent_name": "qualitative",
+        "runtime_kind": "text_agent",
+        "provider": "openai_compatible",
+        "model": "offline-contract-model",
+        "attempt": 1,
+        "request_hash": "a" * 64,
+        "system_prompt_hash": "b" * 64,
+        "payload_hash": "c" * 64,
+        "response_hash": "d" * 64,
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "completed_at": "2026-01-01T00:00:01+00:00",
+        "latency_ms": 1000.0,
+        "status": "completed",
+        "retryable": False,
+        "usage": {
+            "available": True,
+            "prompt_tokens": 10,
+            "completion_tokens": 5,
+            "total_tokens": 15,
+        },
+        "schema_valid": True,
+        "response_kind": "final_result",
+        "response_diagnostics": {
+            "finish_reason": "stop",
+            "content_present": True,
+            "content_length": 100,
+            "content_whitespace_only": False,
+            "content_first_token_class": "object_open",
+            "content_last_token_class": "object_close",
+            "json_parse_status": "valid_object",
+        },
+    })
+    save_model_invocation(
+        recovery_root / "runs",
+        record,
+        runtime_snapshot_ids=["model-runtime-test"],
+    )
+
+    gate = runner.qualitative_diagnostic(
+        source_pilot_id=source_pilot_id,
+        recovery_pilot_id=recovery_pilot_id,
+    )
+
+    assert gate["status"] == "passed"
+    assert gate["gate_materialization_mode"] == (
+        "recovered_existing_validated_run"
+    )
+    assert gate["provider_calls_during_recovery"] == 0
+    assert gate["draft_schema_result"] == "passed"
+    assert gate["deterministic_finalization_result"] == "passed"
+    assert gate["qualitative_result_model_validate"] == "passed"
+    assert gate["validate_qualitative_result"] == "passed"
+    assert gate["scientific_payload_hash_equal"] is True
+    assert gate["scientific_input_hash_equal_across_draft_attempts"] is True
+    assert json.loads(
+        (runner.pilot_root / "qualitative_diagnostic.json").read_text(
+            encoding="utf-8"
+        )
+    )["status"] == "passed"
+
+
 def test_resume_skips_every_attempted_matrix_cell(tmp_path: Path, monkeypatch):
     config = _config(tmp_path)
     runner = PilotRunner(config)
