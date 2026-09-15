@@ -25,6 +25,23 @@ def test_agent_contract_matches_qualitative_protocol():
 
     assert "artifact_refs:" not in instructions
     assert "serialization may vary" not in instructions
+    for literal_contract in (
+        "supported |",
+        "partially_supported |",
+        "inconclusive |",
+        "contradicted |",
+        "insufficient_evidence",
+        "inspection_quality: sufficient | limited | unusable",
+        "confidence: high | medium | low",
+        "missing_samples | missing_metadata |",
+        "inspection_failure | tool_failure",
+        "source: qualitative",
+        "target: summarize",
+        "message_type: qualitative_analysis_result",
+        "QO-<candidate_id>-001",
+        "using `[]` when no",
+    ):
+        assert literal_contract in instructions
 
 
 def test_tool_contract_preserves_control_layer_evidence_boundary():

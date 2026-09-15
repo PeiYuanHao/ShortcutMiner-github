@@ -58,6 +58,7 @@ def _parser() -> argparse.ArgumentParser:
         ("credentials", "Report configured credential variables as SET or MISSING"),
         ("preflight", "Verify configured real text and VLM providers"),
         ("identify-diagnostic", "Run one gated real Identify compatibility diagnostic"),
+        ("qualitative-diagnostic", "Run one gated real Qualitative compatibility diagnostic"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -65,6 +66,11 @@ def _parser() -> argparse.ArgumentParser:
     ):
         command = pilot_commands.add_parser(name, help=help_text)
         command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
+        if name == "qualitative-diagnostic":
+            command.add_argument(
+                "--source-pilot-id", required=True,
+                help="Prior failed canary whose persisted public input is reused",
+            )
     return parser
 
 
@@ -107,7 +113,8 @@ def main(argv: list[str] | None = None) -> int:
                 artifact_root = repository_root / artifact_root
             pilot_root = artifact_root.resolve(strict=False) / config.pilot_id
             needs_provider = args.pilot_command in {
-                "preflight", "identify-diagnostic", "canary", "run", "resume"
+                "preflight", "identify-diagnostic", "qualitative-diagnostic",
+                "canary", "run", "resume"
             }
             text_client = None
             semantic_inspector = None
@@ -137,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
                 value = pilot_runner.preflight().model_dump(mode="json")
             elif args.pilot_command == "identify-diagnostic":
                 value = pilot_runner.identify_diagnostic()
+            elif args.pilot_command == "qualitative-diagnostic":
+                value = pilot_runner.qualitative_diagnostic(
+                    source_pilot_id=args.source_pilot_id,
+                )
             elif args.pilot_command == "canary":
                 value = pilot_runner.canary().model_dump(mode="json")
             elif args.pilot_command == "run":

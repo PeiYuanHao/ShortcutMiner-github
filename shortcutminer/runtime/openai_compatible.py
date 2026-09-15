@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import socket
 import time
 import uuid
@@ -27,6 +28,8 @@ from shortcutminer.protocol.model_runtime import (
     ModelInvocationRecord,
     ModelResponseDiagnostics,
     ModelRuntimeSnapshot,
+    ModelSchemaDiagnostics,
+    ModelSchemaIssue,
     ModelUsage,
 )
 from shortcutminer.storage.events import append_event
@@ -253,6 +256,81 @@ _SCHEMA_CORRECTION = (
     "not change scientific conclusions merely to satisfy validation."
 )
 
+_SCHEMA_GUIDANCE = {
+    "missing": "required field is missing",
+    "extra_forbidden": "remove the extra field",
+    "literal_error": "use one of the exact allowed schema literals",
+    "int_type": "field must be an integer",
+    "string_type": "field must be a string",
+    "list_type": "field must be a JSON array",
+    "dict_type": "field must be a JSON object",
+    "string_pattern_mismatch": "follow the exact identifier pattern defined by the protocol",
+    "too_short": "satisfy the protocol minimum length",
+}
+
+
+def _response_kind(
+    output: dict[str, Any] | None,
+    validator: Callable[[dict[str, Any]], None] | None,
+) -> str:
+    if output is not None and "tool_calls" in output:
+        return "tool_call"
+    if output is not None and validator is not None:
+        return "final_result"
+    return "unknown"
+
+
+def _safe_schema_diagnostics(exc: ValidationError) -> ModelSchemaDiagnostics:
+    """Whitelist value-free Pydantic metadata and bound persisted issue volume."""
+    raw_errors = exc.errors(include_input=False, include_context=False)
+    issues: list[ModelSchemaIssue] = []
+    for error in raw_errors[:8]:
+        error_type = str(error.get("type", "validation_error"))
+        if re.fullmatch(r"[a-z0-9_]{1,64}", error_type) is None:
+            error_type = "validation_error"
+        location = list(error.get("loc", ()))
+        safe_parts: list[str] = []
+        for index, part in enumerate(location):
+            if isinstance(part, int) and part >= 0:
+                safe_parts.append(str(part))
+            elif isinstance(part, str):
+                if error_type == "extra_forbidden" and index == len(location) - 1:
+                    safe_parts.append("<extra_field>")
+                elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", part):
+                    safe_parts.append(part)
+                else:
+                    safe_parts.append("<field>")
+            else:
+                safe_parts.append("<field>")
+        issues.append(ModelSchemaIssue(
+            field_path=".".join(safe_parts) or "<root>",
+            error_type=error_type,
+        ))
+    return ModelSchemaDiagnostics(
+        total_schema_issue_count=len(raw_errors),
+        issues=issues,
+    )
+
+
+def _schema_correction(diagnostics: ModelSchemaDiagnostics | None) -> str:
+    if diagnostics is None or not diagnostics.issues:
+        return _SCHEMA_CORRECTION
+    lines = [
+        "The previous JSON was syntactically valid but failed the required protocol schema.",
+        "Schema issues:",
+    ]
+    for issue in diagnostics.issues:
+        guidance = _SCHEMA_GUIDANCE.get(issue.error_type)
+        suffix = f" ({guidance})" if guidance else ""
+        lines.append(f"- {issue.field_path}: {issue.error_type}{suffix}")
+    lines.extend([
+        "Correct only protocol conformance.",
+        "Do not change the scientific interpretation merely to satisfy validation.",
+        "Preserve the original evidence, observations, candidate, hypothesis, sample identities and conclusions.",
+        "Return exactly one valid JSON object.",
+    ])
+    return "\n".join(lines)
+
 
 def _http_failure(status: int) -> ModelFailure:
     if status == 401:
@@ -438,6 +516,8 @@ class OpenAICompatibleClient:
         transport_retry: bool,
         schema_retry: bool,
         response_diagnostics: ModelResponseDiagnostics | None = None,
+        response_kind: str = "unknown",
+        schema_diagnostics: ModelSchemaDiagnostics | None = None,
         limitations: list[str] | None = None,
         image_inputs: list[ModelImageInput] | None = None,
     ) -> ModelInvocationRecord:
@@ -469,7 +549,9 @@ class OpenAICompatibleClient:
                 "json_object"
                 if self.config.capabilities.supports_json_object else "none"
             ),
+            response_kind=response_kind,
             response_diagnostics=response_diagnostics,
+            schema_diagnostics=schema_diagnostics,
             image_inputs=image_inputs or [],
             limitations=limitations or [],
         )
@@ -567,12 +649,16 @@ class OpenAICompatibleClient:
         prompt_digest = text_hash(system_prompt)
         transport_retries = 0
         schema_retries = 0
+        previous_schema_diagnostics: ModelSchemaDiagnostics | None = None
         attempt = 0
         while True:
             attempt += 1
             attempt_messages = list(messages)
             if schema_retries:
-                attempt_messages.append({"role": "user", "content": _SCHEMA_CORRECTION})
+                attempt_messages.append({
+                    "role": "user",
+                    "content": _schema_correction(previous_schema_diagnostics),
+                })
             body: dict[str, Any] = {
                 "model": self.config.model,
                 "messages": attempt_messages,
@@ -678,11 +764,18 @@ class OpenAICompatibleClient:
             usage = _usage(response)
             response_digest = canonical_json_hash(response)
             response_diagnostics = _response_diagnostics(response)
+            result: dict[str, Any] | None = None
+            kind = "unknown"
             try:
                 result = self._parse_response(response)
+                kind = _response_kind(result, validator)
                 if validator is not None:
                     validator(result)
             except (ModelRuntimeError, ValidationError, ValueError, TypeError) as exc:
+                schema_diagnostics = (
+                    _safe_schema_diagnostics(exc)
+                    if isinstance(exc, ValidationError) else None
+                )
                 if isinstance(exc, ModelRuntimeError) and exc.failure is not None:
                     failure = exc.failure
                 else:
@@ -718,10 +811,13 @@ class OpenAICompatibleClient:
                     transport_retry=transport_retries > 0,
                     schema_retry=schema_retries > 0,
                     response_diagnostics=response_diagnostics,
+                    response_kind=kind,
+                    schema_diagnostics=schema_diagnostics,
                     image_inputs=image_inputs,
                 )
                 if can_schema_retry:
                     schema_retries += 1
+                    previous_schema_diagnostics = schema_diagnostics
                     if self._runs_root is not None:
                         append_event(
                             self._runs_root,
@@ -760,6 +856,7 @@ class OpenAICompatibleClient:
                 transport_retry=transport_retries > 0,
                 schema_retry=schema_retries > 0,
                 response_diagnostics=response_diagnostics,
+                response_kind=kind,
                 limitations=limitations,
                 image_inputs=image_inputs,
             )

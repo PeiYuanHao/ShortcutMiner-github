@@ -1,5 +1,6 @@
 import json
 import socket
+from copy import deepcopy
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
@@ -10,6 +11,7 @@ from shortcutminer.protocol.model import (
     OpenAICompatibleModelConfig,
 )
 from shortcutminer.protocol.model_runtime import ModelCallBudget, ModelCapabilities
+from shortcutminer.protocol.qualitative import QualitativeResult
 from shortcutminer.runtime.openai_compatible import (
     ModelRuntimeError,
     OpenAICompatibleClient,
@@ -56,6 +58,55 @@ def config(**updates):
     }
     values.update(updates)
     return OpenAICompatibleModelConfig.model_validate(values)
+
+
+def qualitative_result() -> dict:
+    return {
+        "protocol_version": "1.0",
+        "run_id": "safe-schema-diagnostic",
+        "message_id": "qualitative:result:C001",
+        "source": "qualitative",
+        "target": "summarize",
+        "message_type": "qualitative_analysis_result",
+        "in_reply_to": "qualitative:request:C001",
+        "payload": {
+            "task_id": "TASK-C001-QL",
+            "candidate_id": "C001",
+            "candidate_name": "dark_border",
+            "hypothesis": "A dark border may be associated with the label.",
+            "evidence_status": "partially_supported",
+            "evidence_summary": "A border was visible, with exceptions.",
+            "sampling": {
+                "strategy": "group_balanced",
+                "seed": 42,
+                "groups": {"label=A": 1},
+                "sample_count": 1,
+                "sample_ids": ["S1"],
+            },
+            "observations": [{
+                "observation_id": "QO-C001-001",
+                "group": "label=A",
+                "sample_refs": ["S1"],
+                "observation": "A dark border is visible.",
+                "inspection_quality": "sufficient",
+            }],
+            "interpretations": [{
+                "interpretation": "The border may reflect preprocessing.",
+                "supporting_observation_ids": ["QO-C001-001"],
+                "confidence": "low",
+            }],
+            "counterevidence": [],
+            "metadata_evidence": [],
+            "failures": [],
+            "limitations": [],
+            "artifact_references": [],
+            "recommended_followup": [],
+        },
+    }
+
+
+def validate_qualitative(value: dict) -> None:
+    QualitativeResult.model_validate(value)
 
 
 @pytest.mark.parametrize(
@@ -183,6 +234,186 @@ def test_valid_json_with_invalid_schema_is_corrected_once():
     assert [item.status for item in client.invocations] == [
         "protocol_schema_failed", "completed"
     ]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "field_path", "error_type", "unsafe_value"),
+    [
+        (
+            lambda value: value["payload"]["observations"][0].__setitem__(
+                "inspection_quality", "unsafe-invalid-quality"
+            ),
+            "payload.observations.0.inspection_quality",
+            "literal_error",
+            "unsafe-invalid-quality",
+        ),
+        (
+            lambda value: value["payload"].pop("artifact_references"),
+            "payload.artifact_references",
+            "missing",
+            None,
+        ),
+        (
+            lambda value: value["payload"].__setitem__(
+                "untrusted-dataset-field-name", "unsafe-extra-value"
+            ),
+            "payload.<extra_field>",
+            "extra_forbidden",
+            "unsafe-extra-value",
+        ),
+        (
+            lambda value: value["payload"]["sampling"].__setitem__(
+                "sample_count", "unsafe-string-count"
+            ),
+            "payload.sampling.sample_count",
+            "int_type",
+            "unsafe-string-count",
+        ),
+    ],
+)
+def test_pydantic_schema_diagnostics_are_value_free(
+    tmp_path: Path, mutate, field_path, error_type, unsafe_value,
+):
+    invalid = qualitative_result()
+    mutate(invalid)
+    client = OpenAICompatibleClient(
+        config(model_call_budget={"max_schema_retries": 0}),
+        api_key="secret",
+        transport=SequenceTransport(response(invalid)),
+        runs_root=tmp_path,
+    )
+    with pytest.raises(ModelRuntimeError):
+        client.invoke_agent_validated(
+            "qualitative", {"run_id": "safe-schema-diagnostic"},
+            system_prompt="policy", validator=validate_qualitative,
+        )
+    record = client.invocations[0]
+    assert record.status == "protocol_schema_failed"
+    assert record.response_kind == "final_result"
+    assert record.schema_diagnostics.total_schema_issue_count == 1
+    assert record.schema_diagnostics.issues[0].field_path == field_path
+    assert record.schema_diagnostics.issues[0].error_type == error_type
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*.json")
+    )
+    if unsafe_value is not None:
+        assert unsafe_value not in persisted
+    assert "untrusted-dataset-field-name" not in persisted
+
+
+def test_schema_diagnostics_are_capped_at_eight_without_losing_total():
+    invalid = qualitative_result()
+    for field in (
+        "candidate_name", "hypothesis", "evidence_status", "evidence_summary",
+        "sampling", "observations", "interpretations", "counterevidence",
+        "metadata_evidence", "failures", "limitations", "artifact_references",
+    ):
+        invalid["payload"].pop(field)
+    client = OpenAICompatibleClient(
+        config(model_call_budget={"max_schema_retries": 0}),
+        api_key="secret", transport=SequenceTransport(response(invalid)),
+    )
+    with pytest.raises(ModelRuntimeError):
+        client.invoke_agent_validated(
+            "qualitative", {"run_id": "safe-schema-diagnostic"},
+            system_prompt="policy", validator=validate_qualitative,
+        )
+    diagnostics = client.invocations[0].schema_diagnostics
+    assert diagnostics.total_schema_issue_count == 12
+    assert len(diagnostics.issues) == 8
+
+
+def test_targeted_schema_retry_uses_only_safe_issue_metadata(tmp_path: Path):
+    invalid = qualitative_result()
+    invalid["payload"]["observations"][0]["inspection_quality"] = (
+        "unsafe-invalid-quality"
+    )
+    valid = qualitative_result()
+    transport = SequenceTransport(response(invalid), response(valid))
+    client = OpenAICompatibleClient(
+        config(), api_key="secret", transport=transport, runs_root=tmp_path,
+    )
+    result = client.invoke_agent_validated(
+        "qualitative", {"run_id": "safe-schema-diagnostic"},
+        system_prompt="policy", validator=validate_qualitative,
+    )
+    QualitativeResult.model_validate(result)
+    correction = transport.calls[1]["body"]["messages"][-1]["content"]
+    assert "payload.observations.0.inspection_quality: literal_error" in correction
+    assert "use one of the exact allowed schema literals" in correction
+    assert "unsafe-invalid-quality" not in correction
+    assert json.dumps(invalid, sort_keys=True) not in correction
+    assert client.invocations[0].schema_diagnostics is not None
+    assert client.invocations[1].schema_diagnostics is None
+    assert client.invocations[1].schema_valid is True
+
+
+def test_both_protocol_schema_attempts_invalid_fail_with_safe_diagnostics():
+    first = qualitative_result()
+    second = deepcopy(first)
+    first["payload"].pop("artifact_references")
+    second["payload"].pop("recommended_followup")
+    client = OpenAICompatibleClient(
+        config(), api_key="secret",
+        transport=SequenceTransport(response(first), response(second)),
+    )
+    with pytest.raises(ModelRuntimeError) as exc:
+        client.invoke_agent_validated(
+            "qualitative", {"run_id": "safe-schema-diagnostic"},
+            system_prompt="policy", validator=validate_qualitative,
+        )
+    assert exc.value.failure.category == "protocol_schema_failed"
+    assert [record.schema_valid for record in client.invocations] == [False, False]
+    assert client.invocations[1].schema_diagnostics.issues[0].field_path == (
+        "payload.recommended_followup"
+    )
+
+
+def test_valid_qualitative_result_has_no_schema_issues():
+    client = OpenAICompatibleClient(
+        config(), api_key="secret",
+        transport=SequenceTransport(response(qualitative_result())),
+    )
+    output = client.invoke_agent_validated(
+        "qualitative", {"run_id": "safe-schema-diagnostic"},
+        system_prompt="policy", validator=validate_qualitative,
+    )
+    QualitativeResult.model_validate(output)
+    record = client.invocations[0]
+    assert record.status == "completed"
+    assert record.response_kind == "final_result"
+    assert record.schema_diagnostics is None
+
+
+def test_tool_call_schema_failure_is_classified_separately(tmp_path: Path):
+    invalid_tool_call = {
+        "tool_calls": [{
+            "protocol_version": "1.0",
+            "tool_call_id": "bad-tool-call",
+            "agent_name": "identify",
+            "run_id": "tool-call-schema-diagnostic",
+            "arguments": {},
+        }]
+    }
+    client = OpenAICompatibleClient(
+        config(model_call_budget={"max_schema_retries": 0}),
+        api_key="secret", transport=SequenceTransport(response(invalid_tool_call)),
+    )
+    runtime = ToolRuntime(
+        build_default_tool_registry(),
+        run_id="tool-call-schema-diagnostic", agent_name="identify",
+        dataset_root=tmp_path, runs_root=tmp_path / "runs",
+    )
+    with pytest.raises(ModelRuntimeError):
+        invoke_agent_with_tools(
+            client, "identify", {"request": {"run_id": "tool-call-schema-diagnostic"}},
+            system_prompt="policy", tool_runtime=runtime,
+        )
+    record = client.invocations[0]
+    assert record.response_kind == "tool_call"
+    assert record.schema_diagnostics.issues[0].field_path == "tool_name"
+    assert record.schema_diagnostics.issues[0].error_type == "missing"
 
 
 def test_both_schema_attempts_invalid_fail_without_silent_repair():

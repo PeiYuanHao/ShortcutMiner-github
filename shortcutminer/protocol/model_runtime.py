@@ -146,6 +146,26 @@ class ModelResponseDiagnostics(StrictProtocolModel):
     ]
 
 
+class ModelSchemaIssue(StrictProtocolModel):
+    """A value-free Pydantic issue safe to persist or return to a model."""
+
+    field_path: NonEmptyText
+    error_type: NonEmptyText
+
+
+class ModelSchemaDiagnostics(StrictProtocolModel):
+    """Bounded schema metadata which never contains rejected input values."""
+
+    total_schema_issue_count: int = Field(ge=0)
+    issues: list[ModelSchemaIssue] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_issue_count(self):
+        if len(self.issues) > self.total_schema_issue_count:
+            raise ValueError("saved schema issues cannot exceed the total issue count")
+        return self
+
+
 class ModelEndpointIdentity(StrictProtocolModel):
     scheme: Literal["http", "https"]
     host: NonEmptyText
@@ -212,7 +232,9 @@ class ModelInvocationRecord(StrictProtocolModel):
     transport_retry: bool = False
     schema_retry: bool = False
     structured_output_mode: Literal["json_object", "none"] = "none"
+    response_kind: Literal["final_result", "tool_call", "unknown"] = "unknown"
     response_diagnostics: ModelResponseDiagnostics | None = None
+    schema_diagnostics: ModelSchemaDiagnostics | None = None
     image_inputs: list[ModelImageInput] = Field(default_factory=list)
     limitations: list[NonEmptyText] = Field(default_factory=list)
     artifact_reference: SafeRelativePath | None = None
@@ -289,6 +311,8 @@ __all__ = [
     "ModelImageInput",
     "ModelReasoningConfig",
     "ModelResponseDiagnostics",
+    "ModelSchemaDiagnostics",
+    "ModelSchemaIssue",
     "ModelRetryPolicy",
     "ModelRuntimeSnapshot",
     "ModelUsage",

@@ -27,17 +27,20 @@ from shortcutminer.evaluation.pilot.snapshot import (
     build_pilot_snapshot, save_pilot_snapshot, verify_pilot_snapshot,
 )
 from shortcutminer.evaluation.pilot.suite import build_suite
+from shortcutminer.experiment.qualitative_executor import execute_qualitative
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
+from shortcutminer.protocol.qualitative import QualitativeRequest
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.protocol.run import RunRequest
 from shortcutminer.runner import build_local_tool_runtimes, run
-from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
-from shortcutminer.runtime.openai_compatible import UrllibJsonTransport
+from shortcutminer.runtime.openai_compatible import (
+    OpenAICompatibleClient, UrllibJsonTransport, canonical_json_hash,
+)
 from shortcutminer.storage.json_artifacts import atomic_write_json
 from shortcutminer.storage.model_calls import load_run_model_telemetry
 from shortcutminer.workflow.nodes import identify_node
@@ -53,6 +56,52 @@ def _now() -> str:
 
 def _mean(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 10) if values else None
+
+
+def _qualitative_scientific_payload(value: dict[str, Any]) -> dict[str, Any]:
+    """Remove only run/message identity before comparing diagnostic evidence."""
+    request = value["request"]
+    context = value["evidence_context"]
+    task = request["task"]
+    return {
+        "candidate": request["candidate"],
+        "task": {
+            key: task[key]
+            for key in (
+                "task_id", "candidate_id", "hypothesis", "objective", "inputs",
+                "requested_checks", "expected_outputs", "priority", "dependencies",
+                "status",
+            )
+        },
+        "metadata_file": request["metadata_file"],
+        "preparation": request["preparation"],
+        "limitations": request["limitations"],
+        "evidence_context": {
+            key: item for key, item in context.items() if key != "run_id"
+        },
+    }
+
+
+def _qualitative_invariant_category(exc: Exception) -> str:
+    """Map value-free executor messages to deterministic diagnostic categories."""
+    message = str(exc)
+    mappings = (
+        ("sample_count does not match sample_ids", "sampling_count_mismatch"),
+        ("group counts do not match", "sampling_group_mismatch"),
+        ("unauthorized metadata field", "unauthorized_metadata_field"),
+        ("unselected sample", "unknown_sample_reference"),
+        ("unknown sample", "unknown_sample_reference"),
+        ("uninspected sample", "unknown_sample_reference"),
+        ("omitted evidence-context limitations", "missing_context_limitation"),
+        ("artifact", "artifact_consistency_failure"),
+        ("observation IDs", "observation_id_invariant_failure"),
+        ("sampling strategy", "sampling_strategy_mismatch"),
+        ("sampling seed", "sampling_seed_mismatch"),
+    )
+    for fragment, category in mappings:
+        if fragment in message:
+            return category
+    return "qualitative_invariant_failed"
 
 
 def _empty_aggregate(config: PilotConfig) -> PilotAggregate:
@@ -155,6 +204,48 @@ class PilotRunner:
         if not path.is_file():
             raise PilotRunnerError(f"required pilot gate is missing: {name}")
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def _source_pilot_root(self, source_pilot_id: str) -> Path:
+        if (
+            not source_pilot_id
+            or len(source_pilot_id) > 128
+            or any(
+                character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+                for character in source_pilot_id
+            )
+        ):
+            raise PilotRunnerError("source pilot ID is unsafe")
+        if source_pilot_id == self.config.pilot_id:
+            raise PilotRunnerError("source pilot must differ from the remediation pilot")
+        parent = self.pilot_root.parent.resolve(strict=False)
+        source = (parent / source_pilot_id).resolve(strict=False)
+        try:
+            source.relative_to(parent)
+        except ValueError as exc:
+            raise PilotRunnerError("source pilot escaped the artifact root") from exc
+        if not source.is_dir():
+            raise PilotRunnerError("source pilot artifacts are missing")
+        return source
+
+    def _require_source_provider_gates(self, source_pilot_id: str) -> Path:
+        source = self._source_pilot_root(source_pilot_id)
+        preflight = json.loads((source / "preflight.json").read_text(encoding="utf-8"))
+        identify = json.loads(
+            (source / "identify_diagnostic.json").read_text(encoding="utf-8")
+        )
+        source_snapshot = PilotSnapshot.model_validate_json(
+            (source / "snapshot.json").read_text(encoding="utf-8")
+        )
+        if preflight.get("status") != "passed" or identify.get("status") != "passed":
+            raise PilotRunnerError("source pilot provider gates did not pass")
+        if (
+            source_snapshot.provider_combination_id
+            != self._snapshot().provider_combination_id
+        ):
+            raise PilotRunnerError(
+                "source pilot provider combination differs from remediation runtime"
+            )
+        return source
 
     def _assert_real(self) -> None:
         if self.text_client is None or self.semantic_inspector is None:
@@ -316,15 +407,155 @@ class PilotRunner:
             evaluation=evaluated,
         )
 
+    def qualitative_diagnostic(self, *, source_pilot_id: str) -> dict[str, Any]:
+        """Re-run only Qualitative with equivalent persisted canary evidence."""
+        self._require_complete_real_configuration()
+        self.dry_run()
+        self._assert_real()
+        source = self._require_source_provider_gates(source_pilot_id)
+        path = self.pilot_root / "qualitative_diagnostic.json"
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        source_run_id = f"{source_pilot_id}-canary"
+        source_inputs = sorted(
+            (source / "runs" / source_run_id / "qualitative").glob("*/input.json")
+        )
+        if len(source_inputs) != 1:
+            raise PilotRunnerError(
+                "source canary must contain exactly one Qualitative input artifact"
+            )
+        source_value = json.loads(source_inputs[0].read_text(encoding="utf-8"))
+        source_request = QualitativeRequest.model_validate(source_value["request"])
+        run_id = f"{self.config.pilot_id}-qualitative-diagnostic"
+        request = source_request.model_copy(update={
+            "run_id": run_id,
+            "task": source_request.task.model_copy(update={"run_id": run_id}),
+        })
+        dataset_root = Path(request.task.inputs.dataset_reference).resolve(strict=True)
+        runtimes = build_local_tool_runtimes(
+            run_id=run_id,
+            dataset_root=dataset_root,
+            runs_root=self.runs_root,
+        )
+        assert self.text_client is not None
+        text_start = len(self.text_client.invocations)
+        error: Exception | None = None
+        try:
+            execute_qualitative(
+                request,
+                self.text_client,
+                runs_root=self.runs_root,
+                artifact_scope=request.task.task_id,
+                tool_runtime=runtimes["qualitative"],
+            )
+        except Exception as exc:
+            error = exc
+
+        records = self.text_client.invocations[text_start:]
+        final_record = records[-1] if records else None
+        diagnostic_input = (
+            self.runs_root / run_id / "qualitative"
+            / request.task.task_id / "input.json"
+        )
+        current_value = (
+            json.loads(diagnostic_input.read_text(encoding="utf-8"))
+            if diagnostic_input.is_file() else None
+        )
+        payload_hash_equal = bool(current_value) and (
+            canonical_json_hash(_qualitative_scientific_payload(source_value))
+            == canonical_json_hash(_qualitative_scientific_payload(current_value))
+        )
+        model_validate_passed = bool(
+            final_record is not None and final_record.status == "completed"
+        )
+        invariant_result = (
+            "passed" if error is None
+            else "failed" if model_validate_passed
+            else "not_run"
+        )
+        attempts = []
+        for item in records:
+            diagnostics = item.schema_diagnostics
+            attempts.append({
+                "attempt": item.attempt,
+                "status": item.status,
+                "response_kind": item.response_kind,
+                "json_parse_status": (
+                    item.response_diagnostics.json_parse_status
+                    if item.response_diagnostics is not None else "content_missing"
+                ),
+                "finish_reason": (
+                    item.response_diagnostics.finish_reason
+                    if item.response_diagnostics is not None else "missing"
+                ),
+                "schema_valid": item.schema_valid,
+                "total_schema_issue_count": (
+                    diagnostics.total_schema_issue_count if diagnostics else 0
+                ),
+                "schema_issues": (
+                    [issue.model_dump(mode="json") for issue in diagnostics.issues]
+                    if diagnostics else []
+                ),
+                "latency_ms": item.latency_ms,
+                "usage": item.usage.model_dump(mode="json"),
+                "schema_retry": item.schema_retry,
+                "transport_retry": item.transport_retry,
+                "request_hash": item.request_hash,
+                "payload_hash": item.payload_hash,
+            })
+        result = {
+            "schema_version": "1.0",
+            "pilot_id": self.config.pilot_id,
+            "source_pilot_id": source_pilot_id,
+            "run_id": run_id,
+            "status": (
+                "passed" if error is None and payload_hash_equal else "failed"
+            ),
+            "attempt_count": len(records),
+            "qualitative_result_model_validate": (
+                "passed" if model_validate_passed else "failed"
+            ),
+            "validate_qualitative_result": invariant_result,
+            "invariant_failure_category": (
+                _qualitative_invariant_category(error)
+                if error is not None and model_validate_passed else None
+            ),
+            "schema_retry_count": sum(item.schema_retry for item in records),
+            "transport_retry_count": sum(item.transport_retry for item in records),
+            "latency_ms": round(sum(item.latency_ms for item in records), 6),
+            "usage_available": bool(records) and all(
+                item.usage.available for item in records
+            ),
+            "scientific_payload_hash_equal": payload_hash_equal,
+            "attempts": attempts,
+            "error_type": type(error).__name__ if error is not None else None,
+            "error_message": (
+                "Qualitative protocol validation failed; inspect only saved safe metadata."
+                if error is not None else None
+            ),
+        }
+        atomic_write_json(path, result, error_type=PilotRunnerError)
+        return result
+
     def canary(self) -> PilotRunRecord:
         self._require_complete_real_configuration()
         self.dry_run()
-        preflight = PilotPreflightResult.model_validate(self._require_gate("preflight.json"))
-        if preflight.status != "passed":
-            raise PilotRunnerError("real-provider preflight did not pass")
-        diagnostic = self._require_gate("identify_diagnostic.json")
-        if diagnostic.get("status") != "passed":
-            raise PilotRunnerError("real Identify diagnostic did not pass")
+        remediation_path = self.pilot_root / "qualitative_diagnostic.json"
+        if remediation_path.is_file():
+            remediation = json.loads(remediation_path.read_text(encoding="utf-8"))
+            if remediation.get("status") != "passed":
+                raise PilotRunnerError("real Qualitative diagnostic did not pass")
+            self._require_source_provider_gates(remediation["source_pilot_id"])
+        else:
+            preflight = PilotPreflightResult.model_validate(
+                self._require_gate("preflight.json")
+            )
+            if preflight.status != "passed":
+                raise PilotRunnerError("real-provider preflight did not pass")
+            diagnostic = self._require_gate("identify_diagnostic.json")
+            if diagnostic.get("status") != "passed":
+                raise PilotRunnerError("real Identify diagnostic did not pass")
         snapshot = self._snapshot()
         generated = build_suite(self.config, self.pilot_root)[0]
         path = self.pilot_root / "canary.json"

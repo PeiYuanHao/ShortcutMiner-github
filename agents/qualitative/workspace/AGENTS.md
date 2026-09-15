@@ -557,7 +557,7 @@ payload:
   evidence_summary:
 
   sampling:
-    strategy:
+    strategy: random | group_balanced
     seed:
     groups:
     sample_count:
@@ -568,12 +568,12 @@ payload:
       group:
       sample_refs:
       observation:
-      inspection_quality:
+      inspection_quality: sufficient | limited | unusable
 
   interpretations:
     - interpretation:
       supporting_observation_ids:
-      confidence:
+      confidence: high | medium | low
 
   counterevidence:
     - sample_refs:
@@ -585,7 +585,10 @@ payload:
       sample_refs:
 
   failures:
-    - category:
+    - category: missing_samples | missing_metadata |
+        invalid_artifact_reference | unsupported_file_format |
+        insufficient_group_coverage | ambiguous_candidate_definition |
+        inspection_failure | tool_failure
       description:
       sample_refs:
       artifact_references:
@@ -599,6 +602,11 @@ payload:
   recommended_followup:
     - ...
 ```
+
+The following required list fields must always be present, using `[]` when no
+items apply: `observations`, `interpretations`, `counterevidence`,
+`metadata_evidence`, `failures`, `limitations`, `artifact_references`, and
+`recommended_followup`.
 
 Use the exact field names above. Set `in_reply_to` to
 `request.message_id`; copy protocol, run, task_id, candidate, hypothesis, sampling
