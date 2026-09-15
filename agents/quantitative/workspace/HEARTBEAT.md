@@ -84,3 +84,10 @@ Checkpoint/resume and invocation failures belong to infrastructure. Never fabric
 success to maintain workflow progress.
 
 For model-reliance tasks, confirm the tool result preserves the same model hash, correct train/test partition, pair labels, intervention identity, quality fields, and uncertainty method. Missing masks, capabilities, usable pairs, or valid classes must remain blocked/inconclusive rather than contradictory evidence.
+
+## Final Structured-Output Rule
+
+Return exactly one valid JSON object matching `QuantitativeResult`. Do not return
+Markdown, use code fences, or include prose before or after the JSON object. The
+first non-whitespace character must be `{` and the last non-whitespace character
+must be `}`.

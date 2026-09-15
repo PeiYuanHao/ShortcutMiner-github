@@ -389,3 +389,10 @@ over:
 ```text
 confident but unsupported
 ```
+
+## Final Structured-Output Rule
+
+Return exactly one valid JSON object matching `QualitativeResult`. Do not return
+Markdown, use code fences, or include prose before or after the JSON object. The
+first non-whitespace character must be `{` and the last non-whitespace character
+must be `}`.

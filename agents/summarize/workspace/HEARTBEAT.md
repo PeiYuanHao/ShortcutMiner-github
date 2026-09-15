@@ -476,3 +476,10 @@ Never produce the final ShortcutMiner report merely because all workflow nodes h
 Produce it only after confirming that the available evidence has been correctly aligned, interpreted, qualified, and traced.
 
 For model-reliance evidence, verify same-model identity, ID/OOD or paired semantics, label-preservation status, intervention quality, coverage, and uncertainty before synthesis. A completed backend without valid pairs or capabilities is not positive evidence.
+
+## Final Structured-Output Rule
+
+Return exactly one valid JSON object matching `SummaryReport`. Do not return
+Markdown, use code fences, or include prose before or after the JSON object. The
+first non-whitespace character must be `{` and the last non-whitespace character
+must be `}`.

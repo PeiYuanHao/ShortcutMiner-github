@@ -223,3 +223,10 @@ Its purpose is only to determine whether the current Identify execution remains 
 ## 14. Permanent Rule
 
 > **Fail visibly when execution is invalid, degrade transparently when evidence is incomplete, and never fabricate progress.**
+
+## Final Structured-Output Rule
+
+Return exactly one valid JSON object matching `CandidateReport`. Do not return
+Markdown, use code fences, or include prose before or after the JSON object. The
+first non-whitespace character must be `{` and the last non-whitespace character
+must be `}`.

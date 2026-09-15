@@ -88,6 +88,16 @@ request hashes, token usage when the provider reports it, and limitations when u
 Runtime failures are separated from scientific misses. Poor discovery performance is a result,
 not a protocol failure and has no arbitrary pass threshold.
 
+Structured-output retries append one deterministic serialization-only correction without
+including the rejected response. The scientific payload hash remains unchanged, while each
+materially different retry body receives its own request hash. Invocation records retain only
+safe response diagnostics such as finish reason, content length, categorical first/last token
+classes, and JSON parse status; raw response content and reasoning content are never persisted.
+
+The current DeepSeek text runtime explicitly freezes thinking mode as enabled with reasoning
+effort high. DeepSeek documents that temperature is ignored in thinking mode, so the serialized
+temperature value must not be interpreted as a determinism guarantee.
+
 Phase status is `BLOCKED` when real configuration, preflight, canary, or the required successful
 runs are missing. It is `FAIL` for a protocol breach such as hidden-truth leakage, mock use,
 snapshot drift, unsafe resume, or invalid evaluation. It is `PASS` only after all twelve frozen

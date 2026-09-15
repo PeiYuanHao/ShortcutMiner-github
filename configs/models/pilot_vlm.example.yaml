@@ -9,6 +9,7 @@ capabilities:
   supports_image_input: true
   supports_json_object: true
   supports_model_seed: false
+  supports_reasoning_config: false
 model_call_budget:
   max_total_calls: 50
   max_calls_per_agent: 50

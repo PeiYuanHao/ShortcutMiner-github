@@ -25,6 +25,7 @@ from shortcutminer.protocol.model_runtime import (
     ModelFailure,
     ModelImageInput,
     ModelInvocationRecord,
+    ModelResponseDiagnostics,
     ModelRuntimeSnapshot,
     ModelUsage,
 )
@@ -130,6 +131,13 @@ def build_runtime_snapshot(
             config.model_seed if config.capabilities.supports_model_seed else None
         ),
         "capabilities": config.capabilities.model_dump(mode="json"),
+        "reasoning": (
+            config.reasoning.model_dump(mode="json")
+            if config.reasoning is not None else None
+        ),
+        "structured_output_mode": (
+            "json_object" if config.capabilities.supports_json_object else "none"
+        ),
         "raw_response_persistence": False,
     }
     return ModelRuntimeSnapshot(
@@ -165,6 +173,85 @@ def _usage(response: object) -> ModelUsage:
             reasoning if isinstance(reasoning, int) and reasoning >= 0 else None
         ),
     )
+
+
+def _response_diagnostics(response: object) -> ModelResponseDiagnostics:
+    choice: object = None
+    message: object = None
+    if isinstance(response, dict):
+        choices = response.get("choices")
+        if isinstance(choices, list) and choices:
+            choice = choices[0]
+    if isinstance(choice, dict):
+        message = choice.get("message")
+        raw_finish_reason = choice.get("finish_reason")
+    else:
+        raw_finish_reason = None
+    finish_reason = (
+        raw_finish_reason
+        if raw_finish_reason in {"stop", "length", "content_filter", "tool_calls"}
+        else "missing" if raw_finish_reason is None else "other"
+    )
+    if not isinstance(message, dict) or "content" not in message:
+        return ModelResponseDiagnostics(
+            finish_reason=finish_reason,
+            content_present=False,
+            content_length=0,
+            content_whitespace_only=False,
+            content_first_token_class="empty",
+            content_last_token_class="empty",
+            json_parse_status="content_missing",
+        )
+    content = message.get("content")
+    if not isinstance(content, str):
+        return ModelResponseDiagnostics(
+            finish_reason=finish_reason,
+            content_present=False,
+            content_length=0,
+            content_whitespace_only=False,
+            content_first_token_class="empty",
+            content_last_token_class="empty",
+            json_parse_status="content_not_string",
+        )
+    stripped = content.strip()
+    if not stripped:
+        first_class = last_class = "empty"
+    else:
+        first_class = (
+            "markdown_fence" if stripped.startswith("```")
+            else "object_open" if stripped.startswith("{")
+            else "array_open" if stripped.startswith("[")
+            else "other"
+        )
+        last_class = (
+            "markdown_fence" if stripped.endswith("```")
+            else "object_close" if stripped.endswith("}")
+            else "array_close" if stripped.endswith("]")
+            else "other"
+        )
+    try:
+        parsed = json.loads(content)
+        parse_status = "valid_object" if isinstance(parsed, dict) else "valid_non_object"
+    except json.JSONDecodeError:
+        parse_status = "invalid_json"
+    return ModelResponseDiagnostics(
+        finish_reason=finish_reason,
+        content_present=bool(content),
+        content_length=len(content),
+        content_whitespace_only=bool(content) and not bool(stripped),
+        content_first_token_class=first_class,
+        content_last_token_class=last_class,
+        json_parse_status=parse_status,
+    )
+
+
+_SCHEMA_CORRECTION = (
+    "The previous model response could not be accepted because it was not valid "
+    "JSON or did not satisfy the required protocol schema. Return exactly one JSON "
+    "object matching the required output contract. Do not include Markdown fences, "
+    "commentary, or explanatory text. Preserve the original task and evidence; do "
+    "not change scientific conclusions merely to satisfy validation."
+)
 
 
 def _http_failure(status: int) -> ModelFailure:
@@ -350,6 +437,7 @@ class OpenAICompatibleClient:
         schema_valid: bool | None,
         transport_retry: bool,
         schema_retry: bool,
+        response_diagnostics: ModelResponseDiagnostics | None = None,
         limitations: list[str] | None = None,
         image_inputs: list[ModelImageInput] | None = None,
     ) -> ModelInvocationRecord:
@@ -377,6 +465,11 @@ class OpenAICompatibleClient:
             schema_valid=schema_valid,
             transport_retry=transport_retry,
             schema_retry=schema_retry,
+            structured_output_mode=(
+                "json_object"
+                if self.config.capabilities.supports_json_object else "none"
+            ),
+            response_diagnostics=response_diagnostics,
             image_inputs=image_inputs or [],
             limitations=limitations or [],
         )
@@ -470,27 +563,34 @@ class OpenAICompatibleClient:
     ) -> dict[str, Any]:
         if not agent_name.strip():
             raise ModelRuntimeError("agent_name must not be empty.")
-        body: dict[str, Any] = {
-            "model": self.config.model,
-            "messages": messages,
-            "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens,
-        }
-        if self.config.capabilities.supports_json_object:
-            body["response_format"] = {"type": "json_object"}
-        if (
-            self.config.model_seed is not None
-            and self.config.capabilities.supports_model_seed
-        ):
-            body["seed"] = self.config.model_seed
         payload_digest = canonical_json_hash(payload_for_hash)
         prompt_digest = text_hash(system_prompt)
-        request_digest = canonical_json_hash(body)
         transport_retries = 0
         schema_retries = 0
         attempt = 0
         while True:
             attempt += 1
+            attempt_messages = list(messages)
+            if schema_retries:
+                attempt_messages.append({"role": "user", "content": _SCHEMA_CORRECTION})
+            body: dict[str, Any] = {
+                "model": self.config.model,
+                "messages": attempt_messages,
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_tokens,
+            }
+            if self.config.capabilities.supports_json_object:
+                body["response_format"] = {"type": "json_object"}
+            if self.config.reasoning is not None:
+                body["thinking"] = {"type": self.config.reasoning.mode}
+                if self.config.reasoning.effort is not None:
+                    body["reasoning_effort"] = self.config.reasoning.effort
+            if (
+                self.config.model_seed is not None
+                and self.config.capabilities.supports_model_seed
+            ):
+                body["seed"] = self.config.model_seed
+            request_digest = canonical_json_hash(body)
             budget_failure = self._reserve_call(agent_name)
             started = self._wall_clock().isoformat()
             start_tick = self._monotonic()
@@ -577,6 +677,7 @@ class OpenAICompatibleClient:
 
             usage = _usage(response)
             response_digest = canonical_json_hash(response)
+            response_diagnostics = _response_diagnostics(response)
             try:
                 result = self._parse_response(response)
                 if validator is not None:
@@ -616,6 +717,7 @@ class OpenAICompatibleClient:
                     schema_valid=False,
                     transport_retry=transport_retries > 0,
                     schema_retry=schema_retries > 0,
+                    response_diagnostics=response_diagnostics,
                     image_inputs=image_inputs,
                 )
                 if can_schema_retry:
@@ -657,6 +759,7 @@ class OpenAICompatibleClient:
                 schema_valid=True,
                 transport_retry=transport_retries > 0,
                 schema_retry=schema_retries > 0,
+                response_diagnostics=response_diagnostics,
                 limitations=limitations,
                 image_inputs=image_inputs,
             )

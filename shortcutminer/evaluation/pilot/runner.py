@@ -28,6 +28,7 @@ from shortcutminer.evaluation.pilot.snapshot import (
 )
 from shortcutminer.evaluation.pilot.suite import build_suite
 from shortcutminer.inspection.semantic import SemanticVisualInspector
+from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.protocol.executive import RoutingPlan
@@ -39,6 +40,7 @@ from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
 from shortcutminer.runtime.openai_compatible import UrllibJsonTransport
 from shortcutminer.storage.json_artifacts import atomic_write_json
 from shortcutminer.storage.model_calls import load_run_model_telemetry
+from shortcutminer.workflow.nodes import identify_node
 
 
 class PilotRunnerError(RuntimeError):
@@ -320,6 +322,9 @@ class PilotRunner:
         preflight = PilotPreflightResult.model_validate(self._require_gate("preflight.json"))
         if preflight.status != "passed":
             raise PilotRunnerError("real-provider preflight did not pass")
+        diagnostic = self._require_gate("identify_diagnostic.json")
+        if diagnostic.get("status") != "passed":
+            raise PilotRunnerError("real Identify diagnostic did not pass")
         snapshot = self._snapshot()
         generated = build_suite(self.config, self.pilot_root)[0]
         path = self.pilot_root / "canary.json"
@@ -332,6 +337,134 @@ class PilotRunner:
         )
         atomic_write_json(path, record.model_dump(mode="json"), error_type=PilotRunnerError)
         return record
+
+    def identify_diagnostic(self) -> dict[str, Any]:
+        """Run only the real Identify path after preflight, with safe diagnostics."""
+        self._require_complete_real_configuration()
+        self.dry_run()
+        preflight = PilotPreflightResult.model_validate(self._require_gate("preflight.json"))
+        if preflight.status != "passed":
+            raise PilotRunnerError("real-provider preflight did not pass")
+        self._assert_real()
+        self._snapshot()
+        path = self.pilot_root / "identify_diagnostic.json"
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        generated = build_suite(self.config, self.pilot_root)[0]
+        run_id = f"{self.config.pilot_id}-identify-diagnostic"
+        request = self._request(
+            generated,
+            run_id=run_id,
+            seed=self.config.runtime_seeds[0],
+        )
+        state = build_initial_workflow_state(request, run_id)
+        runtimes = build_local_tool_runtimes(
+            run_id=run_id,
+            dataset_root=generated.public_dataset_root,
+            runs_root=self.runs_root,
+        )
+        text_start = len(self.text_client.invocations)
+        semantic_client = getattr(self.semantic_inspector, "client", None)
+        semantic_start = (
+            len(semantic_client.invocations) if semantic_client is not None else 0
+        )
+        error: Exception | None = None
+        try:
+            output = identify_node(
+                state,
+                client=self.text_client,
+                tool_runtime=runtimes["identify"],
+                semantic_inspector=self.semantic_inspector,
+            )
+            CandidateReport.model_validate(output["identify_result"])
+        except Exception as exc:
+            error = exc
+
+        text_records = self.text_client.invocations[text_start:]
+        semantic_records = (
+            semantic_client.invocations[semantic_start:]
+            if semantic_client is not None else []
+        )
+        final_record = text_records[-1] if text_records else None
+        attempts = [
+            {
+                "attempt": item.attempt,
+                "status": item.status,
+                "request_hash": item.request_hash,
+                "payload_hash": item.payload_hash,
+                "finish_reason": (
+                    item.response_diagnostics.finish_reason
+                    if item.response_diagnostics is not None else "missing"
+                ),
+                "content_present": (
+                    item.response_diagnostics.content_present
+                    if item.response_diagnostics is not None else False
+                ),
+                "content_length": (
+                    item.response_diagnostics.content_length
+                    if item.response_diagnostics is not None else 0
+                ),
+                "content_whitespace_only": (
+                    item.response_diagnostics.content_whitespace_only
+                    if item.response_diagnostics is not None else False
+                ),
+                "content_first_token_class": (
+                    item.response_diagnostics.content_first_token_class
+                    if item.response_diagnostics is not None else "empty"
+                ),
+                "content_last_token_class": (
+                    item.response_diagnostics.content_last_token_class
+                    if item.response_diagnostics is not None else "empty"
+                ),
+                "json_parse_status": (
+                    item.response_diagnostics.json_parse_status
+                    if item.response_diagnostics is not None else "content_missing"
+                ),
+                "completion_tokens": item.usage.completion_tokens,
+                "reasoning_tokens": item.usage.reasoning_tokens,
+                "latency_ms": item.latency_ms,
+                "schema_retry": item.schema_retry,
+                "transport_retry": item.transport_retry,
+                "structured_output_mode": item.structured_output_mode,
+            }
+            for item in text_records
+        ]
+        payload_hashes = [item.payload_hash for item in text_records]
+        result = {
+            "schema_version": "1.0",
+            "pilot_id": self.config.pilot_id,
+            "run_id": run_id,
+            "status": "passed" if error is None else "failed",
+            "attempt_count": len(text_records),
+            "valid_json": bool(
+                final_record is not None
+                and final_record.response_diagnostics is not None
+                and final_record.response_diagnostics.json_parse_status == "valid_object"
+            ),
+            "candidate_report_schema_valid": error is None,
+            "schema_retry_count": sum(item.schema_retry for item in text_records),
+            "transport_retry_count": sum(item.transport_retry for item in text_records),
+            "latency_ms": round(sum(item.latency_ms for item in text_records), 6),
+            "vlm_latency_ms": round(sum(item.latency_ms for item in semantic_records), 6),
+            "usage_available": bool(text_records) and all(
+                item.usage.available for item in text_records
+            ),
+            "response_format_sent": bool(text_records) and all(
+                item.structured_output_mode == "json_object" for item in text_records
+            ),
+            "scientific_payload_hash_equal": (
+                bool(payload_hashes) and len(set(payload_hashes)) == 1
+            ),
+            "attempts": attempts,
+            "error_type": type(error).__name__ if error is not None else None,
+            "error_message": (
+                "Identify diagnostic failed; inspect only the saved safe metadata."
+                if error is not None else None
+            ),
+        }
+        atomic_write_json(path, result, error_type=PilotRunnerError)
+        return result
 
     def _load_records(self) -> list[PilotRunRecord]:
         path = self.pilot_root / "run_records.json"

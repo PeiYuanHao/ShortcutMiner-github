@@ -112,6 +112,144 @@ def test_invalid_json_and_schema_are_retried_separately():
     assert client.invocations[-1].schema_retry is True
 
 
+def test_schema_retry_adds_correction_and_rehashes_without_changing_payload(tmp_path: Path):
+    malformed = {
+        "choices": [{
+            "message": {
+                "content": "not-json-sensitive-marker",
+                "reasoning_content": "reasoning-sensitive-marker",
+            },
+            "finish_reason": "stop",
+        }],
+        "usage": {
+            "prompt_tokens": 10,
+            "completion_tokens": 4,
+            "total_tokens": 14,
+            "completion_tokens_details": {"reasoning_tokens": 3},
+        },
+    }
+    valid = response(
+        {"ok": True},
+        usage={"prompt_tokens": 11, "completion_tokens": 2, "total_tokens": 13},
+    )
+    transport = SequenceTransport(malformed, valid)
+    client = OpenAICompatibleClient(
+        config(model_call_budget={"max_schema_retries": 1}),
+        api_key="secret", transport=transport, runs_root=tmp_path,
+    )
+
+    assert client.invoke_agent_validated(
+        "identify", {"run_id": "corrective-schema-retry", "evidence": [1, 2]},
+        system_prompt="policy", validator=lambda value: value == {"ok": True},
+    ) == {"ok": True}
+
+    assert len(transport.calls) == 2
+    first_body, retry_body = (item["body"] for item in transport.calls)
+    assert first_body != retry_body
+    assert retry_body["messages"][:-1] == first_body["messages"]
+    assert "previous model response" in retry_body["messages"][-1]["content"]
+    assert "not-json-sensitive-marker" not in retry_body["messages"][-1]["content"]
+    assert all(
+        body["response_format"] == {"type": "json_object"}
+        for body in (first_body, retry_body)
+    )
+    first, retry = client.invocations
+    assert first.payload_hash == retry.payload_hash
+    assert first.request_hash != retry.request_hash
+    assert first.schema_retry is False
+    assert retry.schema_retry is True
+    assert first.structured_output_mode == retry.structured_output_mode == "json_object"
+    assert first.response_diagnostics.json_parse_status == "invalid_json"
+    persisted = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in tmp_path.rglob("*") if path.is_file()
+    )
+    assert "not-json-sensitive-marker" not in persisted
+    assert "reasoning-sensitive-marker" not in persisted
+
+
+def test_valid_json_with_invalid_schema_is_corrected_once():
+    transport = SequenceTransport(response({"wrong": True}), response({"ok": True}))
+    client = OpenAICompatibleClient(config(), api_key="secret", transport=transport)
+
+    def validate(value):
+        if value != {"ok": True}:
+            raise ValueError("wrong schema")
+
+    assert client.invoke_agent_validated(
+        "identify", {"run_id": "schema-only-retry"},
+        system_prompt="policy", validator=validate,
+    ) == {"ok": True}
+    assert [item.status for item in client.invocations] == [
+        "protocol_schema_failed", "completed"
+    ]
+
+
+def test_both_schema_attempts_invalid_fail_without_silent_repair():
+    fenced = "```json\n{\"ok\": true}\n```"
+    transport = SequenceTransport(
+        {"choices": [{"message": {"content": fenced}, "finish_reason": "stop"}]},
+        {"choices": [{"message": {"content": "still not json"}, "finish_reason": "stop"}]},
+    )
+    client = OpenAICompatibleClient(config(), api_key="secret", transport=transport)
+    with pytest.raises(ModelRuntimeError) as exc:
+        client.invoke_agent("identify", {"run_id": "invalid-twice"})
+    assert exc.value.failure.category == "invalid_json"
+    assert len(transport.calls) == 2
+    assert client.invocations[0].response_diagnostics.content_first_token_class == "markdown_fence"
+    assert client.invocations[0].response_diagnostics.json_parse_status == "invalid_json"
+    assert [item.status for item in client.invocations] == ["invalid_json", "invalid_json"]
+
+
+def test_transport_500_retry_does_not_add_schema_correction():
+    failure = HTTPError("https://provider.example", 500, "failure", {}, None)
+    transport = SequenceTransport(failure, response({"ok": True}))
+    client = OpenAICompatibleClient(
+        config(), api_key="secret", transport=transport, sleeper=lambda _: None,
+    )
+    assert client.invoke_agent("identify", {"run_id": "transport-only-retry"}) == {"ok": True}
+    assert transport.calls[0]["body"] == transport.calls[1]["body"]
+    assert client.invocations[0].request_hash == client.invocations[1].request_hash
+    assert client.invocations[1].transport_retry is True
+    assert all(not item.schema_retry for item in client.invocations)
+
+
+def test_empty_and_length_responses_have_safe_diagnostics():
+    empty = {
+        "choices": [{"message": {"content": ""}, "finish_reason": "length"}],
+        "usage": {"prompt_tokens": 3, "completion_tokens": 8, "total_tokens": 11},
+    }
+    client = OpenAICompatibleClient(
+        config(model_call_budget={"max_schema_retries": 0}),
+        api_key="secret", transport=SequenceTransport(empty),
+    )
+    with pytest.raises(ModelRuntimeError):
+        client.invoke_agent("identify", {"run_id": "empty-length"})
+    diagnostics = client.invocations[0].response_diagnostics
+    assert diagnostics.finish_reason == "length"
+    assert diagnostics.content_present is False
+    assert diagnostics.content_length == 0
+    assert diagnostics.content_first_token_class == "empty"
+    assert diagnostics.content_last_token_class == "empty"
+    assert diagnostics.json_parse_status == "invalid_json"
+
+
+def test_explicit_reasoning_configuration_is_capability_checked_and_sent():
+    with pytest.raises(ValueError, match="supports_reasoning_config"):
+        config(reasoning={"mode": "enabled", "effort": "high"})
+    transport = SequenceTransport(response({"ok": True}))
+    configured = config(
+        reasoning={"mode": "enabled", "effort": "high"},
+        capabilities={"supports_reasoning_config": True},
+    )
+    client = OpenAICompatibleClient(configured, api_key="secret", transport=transport)
+    client.invoke_agent("identify", {"run_id": "explicit-reasoning"})
+    assert transport.calls[0]["body"]["thinking"] == {"type": "enabled"}
+    assert transport.calls[0]["body"]["reasoning_effort"] == "high"
+    assert client.runtime_snapshot.reasoning == configured.reasoning
+    assert client.runtime_snapshot.structured_output_mode == "json_object"
+
+
 def test_invalid_provider_json_envelope_has_explicit_category():
     client = OpenAICompatibleClient(
         config(), api_key="secret", transport=SequenceTransport(ProviderResponseJSONError("x"))

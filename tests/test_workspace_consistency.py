@@ -92,7 +92,23 @@ def test_real_workspace_loading_needs_no_network_or_environment(agent, monkeypat
         patch.setattr(socket, "create_connection", _forbidden_dependency)
         patch.setattr(socket, "getaddrinfo", _forbidden_dependency)
         actual = load_agent_workspace_prompt(agent)
-    assert actual == expected
+        assert actual == expected
+
+
+@pytest.mark.parametrize(
+    ("agent", "protocol"),
+    [
+        ("identify", "CandidateReport"),
+        ("executive", "RoutingPlan"),
+        ("quantitative", "QuantitativeResult"),
+        ("qualitative", "QualitativeResult"),
+        ("summarize", "SummaryReport"),
+    ],
+)
+def test_workspace_prompt_ends_with_strict_json_output_rule(agent, protocol):
+    prompt = load_agent_workspace_prompt(agent).rstrip()
+    assert f"exactly one valid JSON object matching `{protocol}`" in prompt
+    assert prompt.endswith("must be `}`.")
 
 
 @pytest.mark.parametrize("agent", AGENTS)

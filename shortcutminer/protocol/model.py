@@ -3,12 +3,13 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from shortcutminer.protocol.identify import NonEmptyText, StrictProtocolModel
 from shortcutminer.protocol.model_runtime import (
     ModelCallBudget,
     ModelCapabilities,
+    ModelReasoningConfig,
     ModelRetryPolicy,
 )
 
@@ -36,6 +37,7 @@ class OpenAICompatibleModelConfig(StrictProtocolModel):
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_tokens: int = Field(default=4096, gt=0)
     model_seed: int | None = None
+    reasoning: ModelReasoningConfig | None = None
     capabilities: ModelCapabilities = Field(default_factory=ModelCapabilities)
     retry_policy: ModelRetryPolicy = Field(default_factory=ModelRetryPolicy)
     model_call_budget: ModelCallBudget = Field(default_factory=ModelCallBudget)
@@ -58,6 +60,14 @@ class OpenAICompatibleModelConfig(StrictProtocolModel):
         if not value.replace("_", "a").isalnum() or value[0].isdigit():
             raise ValueError("api_key_env must be an environment variable name")
         return value
+
+    @model_validator(mode="after")
+    def validate_optional_capabilities(self):
+        if self.reasoning is not None and not self.capabilities.supports_reasoning_config:
+            raise ValueError(
+                "reasoning configuration requires supports_reasoning_config=true"
+            )
+        return self
 
 
 class ModelRuntimeConfigSet(StrictProtocolModel):

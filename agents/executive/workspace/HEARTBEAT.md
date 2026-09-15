@@ -42,3 +42,10 @@ Malformed input or invalid output is an execution failure handled by the control
 layer; never fabricate a valid-looking plan from missing identifiers.
 
 Before returning a model-reliance plan, verify that the Candidate itself resolves the intended cue/region, every new check declares its required model capabilities, and no training task survives `no_retraining`. Treat unavailable intervention inference or segmentation as unresolved scope, not contradiction.
+
+## Final Structured-Output Rule
+
+Return exactly one valid JSON object matching `RoutingPlan`. Do not return
+Markdown, use code fences, or include prose before or after the JSON object. The
+first non-whitespace character must be `{` and the last non-whitespace character
+must be `}`.

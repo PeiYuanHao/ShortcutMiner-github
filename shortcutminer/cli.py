@@ -57,6 +57,7 @@ def _parser() -> argparse.ArgumentParser:
         ("dry-run", "Generate and freeze the six-challenge plan without API calls"),
         ("credentials", "Report configured credential variables as SET or MISSING"),
         ("preflight", "Verify configured real text and VLM providers"),
+        ("identify-diagnostic", "Run one gated real Identify compatibility diagnostic"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -105,7 +106,9 @@ def main(argv: list[str] | None = None) -> int:
             if not artifact_root.is_absolute():
                 artifact_root = repository_root / artifact_root
             pilot_root = artifact_root.resolve(strict=False) / config.pilot_id
-            needs_provider = args.pilot_command in {"preflight", "canary", "run", "resume"}
+            needs_provider = args.pilot_command in {
+                "preflight", "identify-diagnostic", "canary", "run", "resume"
+            }
             text_client = None
             semantic_inspector = None
             if needs_provider:
@@ -132,6 +135,8 @@ def main(argv: list[str] | None = None) -> int:
                 value = {"credentials": credential_readiness(config)}
             elif args.pilot_command == "preflight":
                 value = pilot_runner.preflight().model_dump(mode="json")
+            elif args.pilot_command == "identify-diagnostic":
+                value = pilot_runner.identify_diagnostic()
             elif args.pilot_command == "canary":
                 value = pilot_runner.canary().model_dump(mode="json")
             elif args.pilot_command == "run":

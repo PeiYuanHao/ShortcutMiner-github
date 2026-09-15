@@ -226,6 +226,11 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
         "completed_at": "2026-01-01T00:00:00+00:00",
     })
     (runner.pilot_root / "preflight.json").write_text(preflight.model_dump_json(), encoding="utf-8")
+    with pytest.raises(PilotRunnerError, match="identify_diagnostic"):
+        runner.canary()
+    (runner.pilot_root / "identify_diagnostic.json").write_text(
+        json.dumps({"status": "passed"}), encoding="utf-8"
+    )
     saved = PilotRunRecord(
         challenge_id="pilot_001", challenge_kind="positive", repeat_index=0,
         run_id="phase16-test-canary", runtime_seed=101, bootstrap_seed=201,

@@ -1,15 +1,23 @@
 schema_version: "1.0"
-pilot_id: phase16-real-provider-pilot
+pilot_id: phase16-real-provider-pilot-v2
 artifact_root: /runs/pilots
 repository_root: .
-frozen_git_commit: 83c6118d087c2224b7679e0ea8cd8d85ec58fe7e
 text_runtime:
   provider: openai_compatible
   model: deepseek-v4-flash
   base_url: https://api.deepseek.com
   api_key_env: SHORTCUTMINER_TEXT_API_KEY
   temperature: 0.0
-  max_tokens: 4096
+  max_tokens: 8192
+  reasoning:
+    mode: enabled
+    effort: high
+  capabilities:
+    supports_text: true
+    supports_image_input: false
+    supports_json_object: true
+    supports_model_seed: false
+    supports_reasoning_config: true
   model_call_budget:
     max_total_calls: 200
     max_calls_per_agent: 40
@@ -25,6 +33,7 @@ semantic_runtime:
     supports_image_input: true
     supports_json_object: true
     supports_model_seed: false
+    supports_reasoning_config: false
   model_call_budget:
     max_total_calls: 50
     max_calls_per_agent: 50

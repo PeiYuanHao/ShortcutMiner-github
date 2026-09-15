@@ -113,6 +113,37 @@ class ModelCapabilities(StrictProtocolModel):
     supports_image_input: bool = False
     supports_json_object: bool = True
     supports_model_seed: bool = False
+    supports_reasoning_config: bool = False
+
+
+class ModelReasoningConfig(StrictProtocolModel):
+    mode: Literal["enabled", "disabled"]
+    effort: Literal["low", "high", "max"] | None = None
+
+    @model_validator(mode="after")
+    def validate_effort(self):
+        if self.mode == "disabled" and self.effort is not None:
+            raise ValueError("disabled reasoning mode must not set an effort")
+        return self
+
+
+class ModelResponseDiagnostics(StrictProtocolModel):
+    finish_reason: Literal[
+        "stop", "length", "content_filter", "tool_calls", "other", "missing"
+    ]
+    content_present: bool
+    content_length: int = Field(ge=0)
+    content_whitespace_only: bool
+    content_first_token_class: Literal[
+        "object_open", "array_open", "markdown_fence", "other", "empty"
+    ]
+    content_last_token_class: Literal[
+        "object_close", "array_close", "markdown_fence", "other", "empty"
+    ]
+    json_parse_status: Literal[
+        "valid_object", "valid_non_object", "invalid_json",
+        "content_missing", "content_not_string",
+    ]
 
 
 class ModelEndpointIdentity(StrictProtocolModel):
@@ -135,6 +166,8 @@ class ModelRuntimeSnapshot(StrictProtocolModel):
     model_call_budget: ModelCallBudget
     model_seed: int | None = None
     capabilities: ModelCapabilities
+    reasoning: ModelReasoningConfig | None = None
+    structured_output_mode: Literal["json_object", "none"] = "none"
     raw_response_persistence: Literal[False] = False
 
 
@@ -178,6 +211,8 @@ class ModelInvocationRecord(StrictProtocolModel):
     schema_valid: bool | None = None
     transport_retry: bool = False
     schema_retry: bool = False
+    structured_output_mode: Literal["json_object", "none"] = "none"
+    response_diagnostics: ModelResponseDiagnostics | None = None
     image_inputs: list[ModelImageInput] = Field(default_factory=list)
     limitations: list[NonEmptyText] = Field(default_factory=list)
     artifact_reference: SafeRelativePath | None = None
@@ -252,6 +287,8 @@ __all__ = [
     "ModelFailure",
     "ModelInvocationRecord",
     "ModelImageInput",
+    "ModelReasoningConfig",
+    "ModelResponseDiagnostics",
     "ModelRetryPolicy",
     "ModelRuntimeSnapshot",
     "ModelUsage",
