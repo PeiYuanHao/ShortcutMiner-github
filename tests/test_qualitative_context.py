@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from PIL import Image
+import pytest
 
 from shortcutminer.experiment.qualitative_context import (
+    QualitativeContextError,
     build_qualitative_context,
     build_qualitative_request,
 )
@@ -193,3 +195,91 @@ def test_request_is_built_from_validated_executive_state(tmp_path: Path):
     assert request.candidate == executive_request.candidate_report.candidates[0]
     assert request.task == routing_plan.tasks[1]
     assert request.in_reply_to == routing_plan.tasks[1].message_id
+
+
+def _addressing_state(tmp_path: Path):
+    executive_request = _executive_request(tmp_path)
+    executive_request.routing_context.capabilities.available_metadata_fields = [
+        "id", "label", "path", "device", "site",
+    ]
+    output = _executive_output(executive_request)
+    qualitative_task = output["tasks"][1]
+    qualitative_task["inputs"]["metadata_fields"] = []
+    routing_plan = RoutingPlan.model_validate(output)
+    return executive_request, routing_plan
+
+
+def _addressing_preparation(**overrides) -> QualitativePreparationOptions:
+    values = {
+        "sampling_strategy": "group_balanced",
+        "seed": 42,
+        "sample_id_column": "id",
+        "sample_path_column": "path",
+        "group_columns": ["label"],
+        "max_evidence_records": 20,
+    }
+    values.update(overrides)
+    return QualitativePreparationOptions.model_validate(values)
+
+
+def test_addressing_columns_use_authoritative_dataset_fields(tmp_path: Path):
+    executive_request, routing_plan = _addressing_state(tmp_path)
+
+    request = build_qualitative_request(
+        executive_request=executive_request,
+        routing_plan=routing_plan,
+        task_id="TASK-C001-QL",
+        message_id="qualitative:request:C001",
+        preparation=_addressing_preparation(),
+    )
+
+    assert request.preparation.sample_id_column == "id"
+    assert request.preparation.sample_path_column == "path"
+    assert request.task.inputs.metadata_fields == []
+
+
+@pytest.mark.parametrize(
+    ("override", "unknown"),
+    [
+        ({"sample_id_column": "unknown_id"}, "unknown_id"),
+        ({"sample_path_column": "unknown_path"}, "unknown_path"),
+    ],
+)
+def test_unknown_addressing_column_is_rejected(
+    tmp_path: Path, override: dict, unknown: str,
+):
+    executive_request, routing_plan = _addressing_state(tmp_path)
+
+    with pytest.raises(QualitativeContextError, match=unknown):
+        build_qualitative_request(
+            executive_request=executive_request,
+            routing_plan=routing_plan,
+            task_id="TASK-C001-QL",
+            message_id="qualitative:request:C001",
+            preparation=_addressing_preparation(**override),
+        )
+
+
+def test_group_column_requires_task_evidence_authorization(tmp_path: Path):
+    executive_request, routing_plan = _addressing_state(tmp_path)
+
+    with pytest.raises(QualitativeContextError, match="grouping"):
+        build_qualitative_request(
+            executive_request=executive_request,
+            routing_plan=routing_plan,
+            task_id="TASK-C001-QL",
+            message_id="qualitative:request:C001",
+            preparation=_addressing_preparation(group_columns=["device"]),
+        )
+
+    output = routing_plan.model_dump(mode="json")
+    output["tasks"][1]["inputs"]["metadata_fields"] = ["device"]
+    authorized_plan = RoutingPlan.model_validate(output)
+    request = build_qualitative_request(
+        executive_request=executive_request,
+        routing_plan=authorized_plan,
+        task_id="TASK-C001-QL",
+        message_id="qualitative:request:C001",
+        preparation=_addressing_preparation(group_columns=["device"]),
+    )
+    assert request.preparation.group_columns == ["device"]

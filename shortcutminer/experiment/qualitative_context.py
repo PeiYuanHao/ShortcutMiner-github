@@ -125,9 +125,23 @@ def build_qualitative_request(
         )
     candidate = candidates[0]
 
-    permitted_fields = {task.inputs.label_column, *task.inputs.metadata_fields}
-    requested_preparation_fields = {
-        *preparation.group_columns,
+    permitted_group_fields = {
+        task.inputs.label_column,
+        *task.inputs.metadata_fields,
+    }
+    unavailable_group_fields = (
+        set(preparation.group_columns) - permitted_group_fields
+    )
+    if unavailable_group_fields:
+        raise QualitativeContextError(
+            "Qualitative grouping uses fields absent from AnalysisTask evidence "
+            "authorization: " + ", ".join(sorted(unavailable_group_fields))
+        )
+
+    authoritative_fields = set(
+        executive_request.routing_context.capabilities.available_metadata_fields
+    )
+    requested_addressing_fields = {
         *(
             [preparation.sample_id_column]
             if preparation.sample_id_column is not None
@@ -144,11 +158,13 @@ def build_qualitative_request(
             else []
         ),
     }
-    unavailable_fields = requested_preparation_fields - permitted_fields
-    if unavailable_fields:
+    unavailable_addressing_fields = (
+        requested_addressing_fields - authoritative_fields
+    )
+    if unavailable_addressing_fields:
         raise QualitativeContextError(
-            "Qualitative preparation uses fields absent from AnalysisTask: "
-            + ", ".join(sorted(unavailable_fields))
+            "Qualitative addressing uses fields absent from authoritative dataset "
+            "metadata: " + ", ".join(sorted(unavailable_addressing_fields))
         )
 
     if (
