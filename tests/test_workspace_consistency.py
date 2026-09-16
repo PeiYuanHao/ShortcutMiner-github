@@ -111,6 +111,12 @@ def test_workspace_prompt_ends_with_strict_json_output_rule(agent, protocol):
     assert prompt.endswith("must be `}`.")
 
 
+def test_quantitative_workspace_prompt_stays_within_runtime_size_ceiling():
+    prompt = load_agent_workspace_prompt("quantitative")
+    assert len(prompt) <= 20_000
+    assert len(prompt.encode("utf-8")) <= 20_000
+
+
 @pytest.mark.parametrize("agent", AGENTS)
 def test_workspace_has_no_retired_platform_or_obsolete_identifier_contract(agent):
     prompt = load_agent_workspace_prompt(agent).lower()
