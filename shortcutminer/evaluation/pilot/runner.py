@@ -273,6 +273,49 @@ class PilotRunner:
             )
         return source
 
+    def _require_hardened_source_gates(self, source_pilot_id: str) -> Path:
+        """Accept direct provider gates or a validated Qualitative recovery chain."""
+
+        source = self._source_pilot_root(source_pilot_id)
+        snapshot = PilotSnapshot.model_validate_json(
+            (source / "snapshot.json").read_text(encoding="utf-8")
+        )
+        if (
+            snapshot.provider_combination_id
+            != self._snapshot().provider_combination_id
+        ):
+            raise PilotRunnerError(
+                "source pilot provider combination differs from current runtime"
+            )
+        direct = all(
+            (source / name).is_file()
+            for name in ("preflight.json", "identify_diagnostic.json")
+        )
+        if direct:
+            self._require_source_provider_gates(source_pilot_id)
+        else:
+            qualitative_path = source / "qualitative_diagnostic.json"
+            if not qualitative_path.is_file():
+                raise PilotRunnerError(
+                    "source pilot has neither direct provider gates nor a "
+                    "Qualitative recovery gate"
+                )
+            qualitative = json.loads(
+                qualitative_path.read_text(encoding="utf-8")
+            )
+            if (
+                qualitative.get("status") != "passed"
+                or qualitative.get("provider_calls_during_recovery") != 0
+                or not qualitative.get("source_pilot_id")
+            ):
+                raise PilotRunnerError(
+                    "source Qualitative recovery gate is not readiness-qualified"
+                )
+            self._require_source_provider_gates(
+                qualitative["source_pilot_id"]
+            )
+        return source
+
     def _assert_real(self) -> None:
         if self.text_client is None or self.semantic_inspector is None:
             raise PilotRealnessError("scientific execution requires both real providers")
@@ -996,7 +1039,7 @@ class PilotRunner:
         self._require_complete_real_configuration()
         self.dry_run()
         self._assert_real()
-        source = self._require_source_provider_gates(source_pilot_id)
+        source = self._require_hardened_source_gates(source_pilot_id)
         path = self.pilot_root / "quantitative_diagnostic.json"
         if path.is_file():
             return json.loads(path.read_text(encoding="utf-8"))
@@ -1201,7 +1244,7 @@ class PilotRunner:
         quantitative = self._require_gate("quantitative_diagnostic.json")
         if quantitative.get("status") != "passed":
             raise PilotRunnerError("real Quantitative diagnostic did not pass")
-        source = self._require_source_provider_gates(
+        source = self._require_hardened_source_gates(
             quantitative["source_pilot_id"]
         )
         remediation_path = self.pilot_root / "qualitative_diagnostic.json"
