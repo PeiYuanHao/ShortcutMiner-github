@@ -59,6 +59,7 @@ def _parser() -> argparse.ArgumentParser:
         ("preflight", "Verify configured real text and VLM providers"),
         ("identify-diagnostic", "Run one gated real Identify compatibility diagnostic"),
         ("qualitative-diagnostic", "Run one gated real Qualitative compatibility diagnostic"),
+        ("quantitative-diagnostic", "Run one gated real Quantitative compatibility diagnostic"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -66,11 +67,12 @@ def _parser() -> argparse.ArgumentParser:
     ):
         command = pilot_commands.add_parser(name, help=help_text)
         command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
-        if name == "qualitative-diagnostic":
+        if name in {"qualitative-diagnostic", "quantitative-diagnostic"}:
             command.add_argument(
                 "--source-pilot-id", required=True,
                 help="Prior failed canary whose persisted public input is reused",
             )
+        if name == "qualitative-diagnostic":
             command.add_argument(
                 "--recover-from-pilot-id",
                 help="Materialize the gate from one completed diagnostic run",
@@ -118,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
             pilot_root = artifact_root.resolve(strict=False) / config.pilot_id
             needs_provider = args.pilot_command in {
                 "preflight", "identify-diagnostic", "qualitative-diagnostic",
-                "canary", "run", "resume"
+                "quantitative-diagnostic", "canary", "run", "resume"
             }
             if (
                 args.pilot_command == "qualitative-diagnostic"
@@ -157,6 +159,10 @@ def main(argv: list[str] | None = None) -> int:
                 value = pilot_runner.qualitative_diagnostic(
                     source_pilot_id=args.source_pilot_id,
                     recovery_pilot_id=args.recover_from_pilot_id,
+                )
+            elif args.pilot_command == "quantitative-diagnostic":
+                value = pilot_runner.quantitative_diagnostic(
+                    source_pilot_id=args.source_pilot_id,
                 )
             elif args.pilot_command == "canary":
                 value = pilot_runner.canary().model_dump(mode="json")

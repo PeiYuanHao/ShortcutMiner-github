@@ -586,10 +586,6 @@ class ToolCallingDemoClient(DemoAgentClient):
             return {"tool_calls": [call]}
 
         output = getattr(self, f"_{agent_name}")(payload)
-        if agent_name == "quantitative" and runtime is not None:
-            output["payload"]["artifact_references"] = runtime["results"][0][
-                "artifacts"
-            ]
         return output
 
 

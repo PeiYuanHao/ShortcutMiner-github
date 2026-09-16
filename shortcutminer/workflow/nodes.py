@@ -68,6 +68,10 @@ class QuantitativeNodeError(WorkflowNodeError):
     """Raised when state cannot execute Quantitative."""
 
 
+class DownstreamPlanFeasibilityError(WorkflowNodeError):
+    """Raised before fan-out when a planned downstream task is not executable."""
+
+
 class QualitativeNodeError(WorkflowNodeError):
     """Raised when state cannot execute Qualitative."""
 
@@ -350,6 +354,53 @@ def _qualitative_preparation(
         raise QualitativeNodeError(
             f"Invalid qualitative preparation: {exc}"
         ) from exc
+
+
+def feasibility_node(state: ShortcutMinerState) -> dict[str, Any]:
+    """Validate every routed task deterministically before either branch runs."""
+
+    try:
+        executive_request, plan = _executive_state(
+            state, DownstreamPlanFeasibilityError
+        )
+        quantitative_config = _stage_config(state, "quantitative_config")
+        qualitative_config = _stage_config(state, "qualitative_config")
+        for task in plan.tasks:
+            if task.target == "quantitative":
+                build_quantitative_request(
+                    executive_request=executive_request,
+                    routing_plan=plan,
+                    task_id=task.task_id,
+                    message_id=(
+                        f"{plan.run_id}:quantitative:{task.task_id}:request"
+                    ),
+                    limitations=quantitative_config.get("limitations"),
+                )
+            elif task.target == "qualitative":
+                preparation = _qualitative_preparation(
+                    state, task, qualitative_config
+                )
+                build_qualitative_request(
+                    executive_request=executive_request,
+                    routing_plan=plan,
+                    task_id=task.task_id,
+                    message_id=(
+                        f"{plan.run_id}:qualitative:{task.task_id}:request"
+                    ),
+                    preparation=preparation,
+                    limitations=qualitative_config.get("limitations"),
+                )
+            else:
+                raise DownstreamPlanFeasibilityError(
+                    f"Unsupported downstream target: {task.target}"
+                )
+    except DownstreamPlanFeasibilityError:
+        raise
+    except Exception as exc:
+        raise DownstreamPlanFeasibilityError(
+            f"Downstream plan is not executable: {exc}"
+        ) from exc
+    return {"stage_status": {"feasibility": "completed"}}
 
 
 def qualitative_node(

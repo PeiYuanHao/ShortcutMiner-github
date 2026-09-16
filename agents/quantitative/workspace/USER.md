@@ -2,7 +2,7 @@
 
 ## Current Invocation Boundary
 
-Use the exact QuantitativeRequest → QuantitativeResult contract in AGENTS.md.
+Use the exact QuantitativeRequest → QuantitativeAgentDraft provider contract in AGENTS.md.
 Current AgentClient has no execution or file/artifact tools: a path or plan is not
 measured evidence. Missing measurements require blocked/Q0/not_tested with explicit
 limitations. The executor owns validation/persistence; infrastructure owns resume.
@@ -221,7 +221,7 @@ Important outputs should be saved as structured artifacts.
 
 # 11. Preferred Result Format
 
-Always return the full QuantitativeResult. Use payload.metrics for exact values and payload.evidence_summary for the human-readable interpretation. User formatting preferences affect text fields only; they cannot replace or extend the inter-agent schema.
+Always return the short QuantitativeAgentDraft. Select supporting successful ToolResult IDs and provide the human-readable interpretation; Python owns exact metrics and the canonical QuantitativeResult. User formatting preferences cannot replace or extend the inter-agent schema.
 
 ---
 

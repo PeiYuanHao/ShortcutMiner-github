@@ -17,7 +17,7 @@ from shortcutminer.evaluation.evidence_ledger import _qualitative_records
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
 from shortcutminer.protocol.qualitative import QualitativeAgentDraft, QualitativeResult
-from shortcutminer.protocol.quantitative import QuantitativeResult
+from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.runtime.openai_compatible import canonical_json_hash
 from shortcutminer.tooling.agent_loop import _FINAL_SCHEMAS, _validate_provider_output
@@ -370,7 +370,7 @@ def test_j_tool_call_contract_and_k_other_agent_schemas_are_unchanged():
     assert _FINAL_SCHEMAS == {
         "identify": CandidateReport,
         "executive": RoutingPlan,
-        "quantitative": QuantitativeResult,
+        "quantitative": QuantitativeAgentDraft,
         "qualitative": QualitativeAgentDraft,
         "summarize": SummaryReport,
     }

@@ -214,29 +214,30 @@ class DemoAgentClient(MockAgentClient):
         }
 
     def _quantitative(self, payload: dict) -> dict:
-        request = payload["request"]
+        runtime = payload.get("tool_runtime")
+        results = runtime.get("results", []) if isinstance(runtime, dict) else []
+        selected = [
+            item["tool_call_id"]
+            for item in results
+            if item.get("status") == "success"
+            and item.get("tool_name") == "run_experiment"
+        ]
+        completed = bool(selected)
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:quantitative:result",
-            "source": "quantitative",
-            "target": "summarize",
-            "message_type": "quantitative_analysis_result",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "task_id": request["task"]["task_id"],
-                "candidate_id": request["candidate"]["candidate_id"],
-                "hypothesis": request["candidate"]["hypothesis"],
-                "status": "completed",
-                "analysis_type": "dataset_association",
-                "metrics": {"association_score": 0.75},
-                "evidence_level": "Q2",
-                "evidence_direction": "supports",
-                "evidence_summary": "The mock association is strong.",
-                "limitations": request["limitations"],
-                "artifact_references": [],
-                "recommended_followup": [],
-            },
+            "status": "completed" if completed else "blocked",
+            "analysis_type": "dataset_association",
+            "evidence_level": "Q2" if completed else "Q0",
+            "evidence_direction": "supports" if completed else "not_tested",
+            "evidence_summary": (
+                "The selected experiment result supports the interpretation."
+                if completed
+                else "No successful experiment result is available."
+            ),
+            "evidence_tool_call_ids": selected,
+            "additional_limitations": (
+                [] if completed else ["No successful experiment result is available."]
+            ),
+            "recommended_followup": [],
         }
 
     def _qualitative(self, payload: dict) -> dict:

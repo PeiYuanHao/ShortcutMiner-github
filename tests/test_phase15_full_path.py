@@ -152,25 +152,15 @@ class Phase15Reasoning:
                     "preservation_status": "guaranteed_by_construction", "max_intervention_samples": 20,
                 })
             else:
-                last = results[-1]["output"]
-                artifacts = list(dict.fromkeys(
-                    reference for result in results for reference in result.get("artifacts", [])
-                ))
                 return {
-                    "protocol_version": "1.0", "run_id": request["run_id"],
-                    "message_id": f"{request['run_id']}:quantitative:result",
-                    "source": "quantitative", "target": "summarize",
-                    "message_type": "quantitative_analysis_result", "in_reply_to": request["message_id"],
-                    "payload": {
-                        "task_id": "TASK-C001-QT", "candidate_id": "C001",
-                        "hypothesis": request["candidate"]["hypothesis"], "status": "completed",
-                        "analysis_type": "task_model OOD paired counterfactual intervention",
-                        "metrics": last["metrics"], "evidence_level": "Q4",
-                        "evidence_direction": "mixed",
-                        "evidence_summary": "The same reference model was measured under a candidate-driven paired intervention; validity limitations remain explicit.",
-                        "limitations": request["limitations"], "artifact_references": artifacts,
-                        "recommended_followup": ["Repeat with a paper-grade allowlisted task-model adapter."],
-                    },
+                    "status": "completed",
+                    "analysis_type": "task_model OOD paired counterfactual intervention",
+                    "evidence_level": "Q4",
+                    "evidence_direction": "mixed",
+                    "evidence_summary": "The same reference model was measured under a candidate-driven paired intervention; validity limitations remain explicit.",
+                    "evidence_tool_call_ids": [results[-1]["tool_call_id"]],
+                    "additional_limitations": [],
+                    "recommended_followup": ["Repeat with a paper-grade allowlisted task-model adapter."],
                 }
         call = {
             **base_call, "tool_call_id": f"phase15-{experiment_type}",

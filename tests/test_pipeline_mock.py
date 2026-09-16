@@ -10,6 +10,7 @@ from shortcutminer.runner import run_workflow
 from shortcutminer.runtime.demo import DemoAgentClient
 from shortcutminer.runtime.mock import MockAgentClient
 from shortcutminer.workflow.nodes import (
+    DownstreamPlanFeasibilityError,
     ExecutiveNodeError,
     SummarizeNodeError,
     build_executive_request_from_state,
@@ -132,6 +133,7 @@ def test_complete_mock_workflow_is_parallel_typed_and_network_free(tmp_path: Pat
     assert result["stage_status"] == {
         "identify": "completed",
         "executive": "completed",
+        "feasibility": "completed",
         "quantitative": "completed",
         "qualitative": "completed",
         "summarize": "completed",
@@ -228,3 +230,16 @@ def test_summarize_requires_both_branch_results(tmp_path: Path):
 
     with pytest.raises(SummarizeNodeError, match="complete branch state"):
         build_summarize_request_from_state(state)
+
+
+def test_feasibility_gate_blocks_both_downstream_models(tmp_path: Path):
+    state = _initial_state(tmp_path)
+    state["qualitative_config"]["preparation"]["sample_id_column"] = "unknown_id"
+    client = DeterministicAgentClient()
+
+    with pytest.raises(DownstreamPlanFeasibilityError, match="unknown_id"):
+        run_workflow(state, agent_client=client)
+
+    assert [call["agent_name"] for call in client.calls] == [
+        "identify", "executive"
+    ]

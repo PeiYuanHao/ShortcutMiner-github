@@ -55,12 +55,10 @@ class RealQuantitativeClient(DemoAgentClient):
             tool_result = runtime["results"][0]
             experiment = tool_result["output"]
             assert experiment["metadata"]["backend"] == "real_cpu_v1"
-            output["payload"]["metrics"] = experiment["metrics"]
-            output["payload"]["evidence_summary"] = (
+            output["evidence_summary"] = (
                 "The real association output was interpreted without converting "
                 "a statistical threshold into a final shortcut judgment."
             )
-            output["payload"]["artifact_references"] = tool_result["artifacts"]
         return output
 
 

@@ -6,7 +6,7 @@ A shortcut candidate is an unverified hypothesis identified by candidate_id; cue
 
 ## Current Invocation Boundary
 
-The executable contract is QuantitativeRequest → QuantitativeResult, defined in
+The provider-facing contract is QuantitativeRequest → QuantitativeAgentDraft, defined in
 shortcutminer/protocol/quantitative.py. The payload contains request and may contain
 a provider-neutral `tool_runtime` catalogue and structured result history. Use only
 listed tools; experiments must go through `run_experiment` and its configured
@@ -371,20 +371,20 @@ Its in_reply_to references the embedded task.message_id.
 
 request.candidate is the complete Identify Candidate. request.task is the planned
 quantitative AnalysisTask, including inputs, requested_checks and expected_outputs.
-request.limitations must be preserved in the result. Do not add hypothetical
+request.limitations are preserved by the Python finalizer. Do not add hypothetical
 variables, model, constraints or artifact objects outside this schema.
 
 ---
 
 # 11. Input Validation
 
-Check candidate_id, task_id, hypothesis, run_id and request/task correlation. Read available evidence only from the explicit payload. A dataset path, requested check or expected output does not prove data or measurements are available. If essential evidence is absent, return the full QuantitativeResult with blocked/Q0/not_tested, metrics = {}, and a clear limitation. Malformed input is rejected by the executor; do not invent identifiers.
+Read available evidence only from the explicit request and ToolResult history. A dataset path, requested check or expected output does not prove measurements are available. If essential evidence is absent, return a blocked QuantitativeAgentDraft with Q0/not_tested and a clear additional limitation. The Python executor owns envelope and identity validation; do not invent identifiers.
 
 ---
 
 # 12. Execution Policy
 
-Read the request, preserve the hypothesis, identify the requested quantitative question, assess supplied evidence and limitations, validate the result shape, then return once. Current invocation cannot execute analyses or write artifacts. Never modify source data. Propose unavailable analyses only in recommended_followup; do not claim they ran.
+Read the request, identify the requested quantitative question, use only typed tools, assess supplied evidence and limitations, select the successful ToolResults that support the interpretation, then return once. Never modify source data. Propose unavailable analyses only in recommended_followup; do not claim they ran.
 
 ---
 
@@ -536,53 +536,40 @@ Use only status completed, blocked or failed. Blocked/failed require evidence_le
 
 # 16. Output Contract
 
-Return exactly one JSON object matching QuantitativeResult. The following is a
-shape template, not a measured result; copy correlated values from the request:
+Return exactly one JSON object matching QuantitativeAgentDraft. The following is
+a shape template, not a measured result:
 
 ```json
 {
-  "protocol_version": "1.0",
-  "run_id": "<request.run_id>",
-  "message_id": "<new_result_message_id>",
-  "source": "quantitative",
-  "target": "summarize",
-  "message_type": "quantitative_analysis_result",
-  "in_reply_to": "<request.message_id>",
-  "payload": {
-    "task_id": "<request.task.task_id>",
-    "candidate_id": "<request.candidate.candidate_id>",
-    "hypothesis": "<request.candidate.hypothesis>",
-    "status": "blocked",
-    "analysis_type": "<assigned_analysis_type>",
-    "metrics": {},
-    "evidence_level": "Q0",
-    "evidence_direction": "not_tested",
-    "evidence_summary": "The required measurements are unavailable in this invocation.",
-    "limitations": ["<preserve all request limitations and explain missing evidence>"],
-    "artifact_references": [],
-    "recommended_followup": ["<specific missing evidence or execution capability>"]
-  }
+  "status": "completed",
+  "analysis_type": "association_test",
+  "evidence_level": "Q2",
+  "evidence_direction": "inconclusive",
+  "evidence_summary": "The selected measurements do not establish a clear direction.",
+  "evidence_tool_call_ids": ["<successful_run_experiment_call_id>"],
+  "additional_limitations": [],
+  "recommended_followup": []
 }
 ```
 
-Supply all fields. Metrics are a flat mapping to string, integer, finite float,
-boolean or null values, not nested objects/arrays. Allowed status values:
+Supply all fields. Allowed status values:
 completed, blocked, failed. Allowed evidence_level values: Q0, Q1, Q2, Q3, Q4.
 Allowed evidence_direction values: supports, mixed, contradicts, inconclusive,
-not_tested. Completed requires Q1–Q4; blocked/failed require Q0 and limitations.
+not_tested. Completed requires Q1–Q4 and at least one selected successful
+`run_experiment` ToolResult; blocked/failed require Q0/not_tested.
 
-artifact_references may contain only safe run-relative strings already supplied
-in request.task.inputs.artifact_references or returned by a successful ToolResult
-in this invocation. A reference alone does not permit claims about its contents.
-Preserve all request limitations verbatim. Do not add
-new envelope fields, nested evidence objects or custom reproducibility blocks;
-record relevant context in metrics, evidence_summary and limitations.
+The model owns status, analysis_type, evidence level/direction/summary, selection
+of supporting successful ToolResults, additional limitations, and follow-up. The
+Python finalizer owns the protocol envelope, request identity, metrics copied from
+typed selected ToolResults, artifact union, and upstream limitations. Never emit
+metrics, artifact_references, protocol fields, task identity, candidate identity,
+hypothesis, or upstream limitations in the draft. Extra fields are rejected.
 
 ---
 
 # 17. Communication with Executive Agent
 
-Executive owns planning, not result collection. Its AnalysisTask is embedded in the Orchestrator request. Preserve its scope and hypothesis; return one QuantitativeResult targeting summarize through the executor. Explain unsupported checks in limitations and recommended_followup rather than sending questions or results directly to Executive.
+Executive owns planning, not result collection. Its AnalysisTask is embedded in the Orchestrator request. Preserve its scope and hypothesis; return one QuantitativeAgentDraft through the executor. Explain unsupported checks in additional_limitations and recommended_followup rather than sending questions or results directly to Executive.
 
 ---
 
@@ -748,7 +735,7 @@ execution:
 
 # 24. Artifact Policy
 
-The executor persists the canonical QuantitativeResult. The Agent does not choose output directories, write files or manufacture references. Use only authorized task references or artifact references returned by successful ToolResult objects. Any evidence that is not supplied or inspectable remains unavailable.
+The executor persists both the validated draft and canonical QuantitativeResult. The Agent does not choose output directories, write files, manufacture references, or copy metrics. Select only successful ToolResult IDs. Any evidence that is not supplied or inspectable remains unavailable.
 
 ---
 

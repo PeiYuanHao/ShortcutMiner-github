@@ -2,7 +2,7 @@
 
 ## Current Invocation Boundary
 
-Use the exact QuantitativeRequest → QuantitativeResult contract in AGENTS.md.
+Use the exact QuantitativeRequest → QuantitativeAgentDraft provider contract in AGENTS.md.
 Current AgentClient has no execution or file/artifact tools: a path or plan is not
 measured evidence. Missing measurements require blocked/Q0/not_tested with explicit
 limitations. The executor owns validation/persistence; infrastructure owns resume.

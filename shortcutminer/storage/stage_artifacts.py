@@ -28,7 +28,7 @@ def save_stage_json(
     """Persist JSON below a fixed workflow stage and optional task scope."""
     if stage not in {"quantitative", "summarize"}:
         raise StageArtifactError(f"Unsupported stage artifact scope: {stage}")
-    if filename not in {"input.json", "raw_output.json", "result.json"}:
+    if filename not in {"input.json", "raw_output.json", "draft.json", "result.json"}:
         raise StageArtifactError(f"Unsupported stage artifact filename: {filename}")
     if scope is not None and (
         not scope or any(character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-" for character in scope)

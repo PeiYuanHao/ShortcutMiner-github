@@ -2,7 +2,7 @@
 
 ## Current Invocation Boundary
 
-The executable contract is QuantitativeRequest → QuantitativeResult, defined in
+The provider-facing contract is QuantitativeRequest → QuantitativeAgentDraft, defined in
 shortcutminer/protocol/quantitative.py. The payload contains request and, when
 configured, a provider-neutral `tool_runtime` catalogue/result history. Permitted
 tools are `inspect_dataset`, `inspect_metadata`, `get_column_distribution`,
@@ -20,7 +20,7 @@ The method guidance and numerical examples below are scientific reference materi
 not real run results or alternative output schemas. Apply a method only through a
 listed authorized tool with the necessary evidence. Return
 `{"tool_calls": [ToolCall, ...]}` to request execution, then use the structured
-ToolResult history to form the normal QuantitativeResult. Recommendations do not
+ToolResult history to form a short draft; Python forms QuantitativeResult. Recommendations do not
 authorize execution. Exact output fields are defined in AGENTS.md.
 
 ## 1. Purpose
@@ -778,13 +778,13 @@ rather than only as rendered images.
 
 # 30. Artifact Writing
 
-Artifact persistence belongs to the executor and Tool Runtime. Return QuantitativeResult; reference only supplied task inputs or artifact paths returned by successful ToolResult objects. Do not choose a new results directory or claim an unreported artifact was written.
+Artifact persistence belongs to the executor and Tool Runtime. Return QuantitativeAgentDraft and select supporting successful ToolResult IDs; Python owns artifact references. Do not choose a new results directory or claim an unreported artifact was written.
 
 ---
 
 # 31. Result JSON
 
-The stored result.json is the executor-persisted QuantitativeResult with the exact envelope and payload in AGENTS.md. There is no separate result schema. Numerical evidence belongs in flat payload.metrics, explanatory context in evidence_summary/limitations, and follow-up in a list of strings.
+The stored draft.json is the validated provider draft. The stored result.json is the Python-finalized QuantitativeResult. Numerical evidence is copied deterministically from selected typed ToolResults; the model supplies only interpretation, additional limitations, and follow-up.
 
 ---
 

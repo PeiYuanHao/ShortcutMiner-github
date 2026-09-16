@@ -2,7 +2,7 @@
 
 ## Current Invocation Boundary
 
-Use the exact QuantitativeRequest → QuantitativeResult contract in AGENTS.md.
+Use the exact QuantitativeRequest → QuantitativeAgentDraft provider contract in AGENTS.md.
 Current AgentClient has no execution or file/artifact tools: a path or plan is not
 measured evidence. Missing measurements require blocked/Q0/not_tested with explicit
 limitations. The executor owns validation/persistence; infrastructure owns resume.
@@ -67,7 +67,7 @@ Do not collapse these stages into a single conclusion.
 
 START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
 
-The quantitative role owns numerical evidence, not final synthesis or scheduling. It consumes QuantitativeRequest and returns QuantitativeResult; unavailable execution tools remain an explicit limitation.
+The quantitative role owns scientific interpretation, not deterministic result bookkeeping, final synthesis, or scheduling. It consumes QuantitativeRequest and returns QuantitativeAgentDraft; unavailable execution tools remain an explicit additional limitation.
 
 ---
 

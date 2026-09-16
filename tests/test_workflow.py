@@ -50,8 +50,9 @@ def test_workflow_graph_has_expected_topology():
 
     assert ("__start__", "identify") in edges
     assert ("identify", "executive") in edges
-    assert ("executive", "quantitative") in edges
-    assert ("executive", "qualitative") in edges
+    assert ("executive", "feasibility") in edges
+    assert ("feasibility", "quantitative") in edges
+    assert ("feasibility", "qualitative") in edges
     assert ("quantitative", "summarize") in edges
     assert ("qualitative", "summarize") in edges
     assert ("summarize", "__end__") in edges

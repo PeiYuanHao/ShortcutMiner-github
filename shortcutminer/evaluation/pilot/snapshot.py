@@ -99,6 +99,11 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/real_executor.py",
         "shortcutminer/experiment/qualitative_backend.py",
         "shortcutminer/experiment/qualitative_executor.py",
+        "shortcutminer/experiment/qualitative_context.py",
+        "shortcutminer/experiment/quantitative_executor.py",
+        "shortcutminer/tooling/agent_loop.py",
+        "shortcutminer/workflow/nodes.py",
+        "shortcutminer/workflow/graph.py",
         "shortcutminer/evaluation/evidence_ledger.py",
         "shortcutminer/protocol/evidence.py",
     )

@@ -17,7 +17,7 @@ from shortcutminer.experiment.agent_workspace import (
     default_agent_workspace_dir,
     load_agent_workspace_prompt,
 )
-from shortcutminer.protocol.quantitative import QuantitativeResult
+from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
 from shortcutminer.protocol.summarize import SummaryReport
 
 
@@ -100,7 +100,7 @@ def test_real_workspace_loading_needs_no_network_or_environment(agent, monkeypat
     [
         ("identify", "CandidateReport"),
         ("executive", "RoutingPlan"),
-        ("quantitative", "QuantitativeResult"),
+        ("quantitative", "QuantitativeAgentDraft"),
         ("qualitative", "QualitativeResult"),
         ("summarize", "SummaryReport"),
     ],
@@ -154,7 +154,7 @@ def test_invalid_required_document_fails_clearly(filename, invalid_content, tmp_
 
 
 @pytest.mark.parametrize("agent,schema,message_type", [
-    ("quantitative", QuantitativeResult, "quantitative_analysis_result"),
+    ("quantitative", QuantitativeAgentDraft, None),
     ("summarize", SummaryReport, "summary_report"),
 ])
 def test_documented_output_templates_match_real_pydantic_schema(
@@ -162,7 +162,10 @@ def test_documented_output_templates_match_real_pydantic_schema(
 ):
     text = (default_agent_workspace_dir(agent) / "AGENTS.md").read_text("utf-8")
     examples = [json.loads(block) for block in re.findall(r"```json\n(.*?)\n```", text, re.S)]
-    example, = [item for item in examples if item.get("message_type") == message_type]
+    if message_type is None:
+        example, = [item for item in examples if "evidence_tool_call_ids" in item]
+    else:
+        example, = [item for item in examples if item.get("message_type") == message_type]
 
     def substitute(value):
         if isinstance(value, dict):

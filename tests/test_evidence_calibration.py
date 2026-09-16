@@ -37,6 +37,13 @@ def _inputs(result):
 
 def _replace_quantitative(batch, **payload_updates):
     data = batch.model_dump(mode="json")
+    if payload_updates.get("status") not in {"failed", "blocked"} and (
+        "metrics" in payload_updates or "evidence_direction" in payload_updates
+    ):
+        payload_updates.setdefault("status", "completed")
+        payload_updates.setdefault("evidence_level", "Q2")
+        if payload_updates.get("evidence_direction") is None:
+            payload_updates["evidence_direction"] = "inconclusive"
     data["results"][0]["payload"].update(payload_updates)
     return QuantitativeResultBatch.model_validate(data)
 

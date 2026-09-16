@@ -93,6 +93,8 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
         "shortcutminer/experiment/qualitative_executor.py"
         in first.backend_hashes
     )
+    assert "shortcutminer/experiment/quantitative_executor.py" in first.backend_hashes
+    assert "shortcutminer/workflow/nodes.py" in first.backend_hashes
     assert "shortcutminer/evaluation/evidence_ledger.py" in first.backend_hashes
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
@@ -220,26 +222,32 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
     config = _config(tmp_path)
     runner = PilotRunner(config)
     runner.dry_run()
-    with pytest.raises(PilotRunnerError, match="preflight"):
+    with pytest.raises(PilotRunnerError, match="quantitative_diagnostic"):
         runner.canary()
-    preflight = PilotPreflightResult.model_validate({
-        "pilot_id": config.pilot_id, "status": "passed",
-        "text": {"name": "text", "success": True, "provider": "openai_compatible", "model": "m", "runtime_kind": "real_provider", "latency_ms": 1.0, "usage_available": True, "message": "ok"},
-        "semantic_vlm": {"name": "vlm", "success": True, "provider": "openai_compatible", "model": "m", "runtime_kind": "real_provider", "latency_ms": 1.0, "usage_available": True, "message": "ok"},
-        "image_content_distinguishable": True,
-        "image_names": ["sample_a.png", "sample_b.png"],
-        "completed_at": "2026-01-01T00:00:00+00:00",
-    })
-    (runner.pilot_root / "preflight.json").write_text(preflight.model_dump_json(), encoding="utf-8")
-    with pytest.raises(PilotRunnerError, match="identify_diagnostic"):
-        runner.canary()
-    (runner.pilot_root / "identify_diagnostic.json").write_text(
+    snapshot = runner._snapshot()
+    source_id = "phase16-source-canary-gates"
+    source = runner.pilot_root.parent / source_id
+    source.mkdir()
+    (source / "preflight.json").write_text(
         json.dumps({"status": "passed"}), encoding="utf-8"
+    )
+    (source / "identify_diagnostic.json").write_text(
+        json.dumps({"status": "passed"}), encoding="utf-8"
+    )
+    (source / "qualitative_diagnostic.json").write_text(
+        json.dumps({"status": "passed"}), encoding="utf-8"
+    )
+    (source / "snapshot.json").write_text(
+        snapshot.model_dump_json(), encoding="utf-8"
+    )
+    (runner.pilot_root / "quantitative_diagnostic.json").write_text(
+        json.dumps({"status": "passed", "source_pilot_id": source_id}),
+        encoding="utf-8",
     )
     saved = PilotRunRecord(
         challenge_id="pilot_001", challenge_kind="positive", repeat_index=0,
         run_id="phase16-test-canary", runtime_seed=101, bootstrap_seed=201,
-        status="completed", snapshot_id=runner._snapshot().snapshot_id,
+        status="completed", snapshot_id=snapshot.snapshot_id,
         public_challenge_hash="a" * 64,
     )
     (runner.pilot_root / "canary.json").write_text(saved.model_dump_json(), encoding="utf-8")

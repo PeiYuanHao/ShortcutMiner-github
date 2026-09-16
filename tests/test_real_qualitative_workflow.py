@@ -63,8 +63,6 @@ class RealEvidenceClient(DemoAgentClient):
             output = super()._quantitative(payload)
             experiment = runtime["results"][0]
             assert experiment["output"]["metadata"]["backend"] == "real_cpu_v1"
-            output["payload"]["metrics"] = experiment["output"]["metrics"]
-            output["payload"]["artifact_references"] = experiment["artifacts"]
             return output
         if agent_name == "qualitative":
             return self._real_qualitative(payload)

@@ -1,8 +1,8 @@
 """Strict messages for one Quantitative Agent task and result."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, field_validator, model_validator
+from pydantic import Field, FiniteFloat, StringConstraints, field_validator, model_validator
 
 from shortcutminer.protocol.executive import AnalysisTask
 from shortcutminer.protocol.identify import (
@@ -22,6 +22,13 @@ EvidenceDirection = Literal[
     "supports", "mixed", "contradicts", "inconclusive", "not_tested"
 ]
 MetricValue = str | int | FiniteFloat | bool | None
+EvidenceToolCallId = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+    ),
+]
 
 
 def _reject_duplicates(values: list[str], field_name: str) -> list[str]:
@@ -46,6 +53,44 @@ class QuantitativeRequest(StrictProtocolModel):
     @classmethod
     def validate_unique_limitations(cls, values: list[str]) -> list[str]:
         return _reject_duplicates(values, "limitations")
+
+
+class QuantitativeAgentDraft(StrictProtocolModel):
+    """Provider-owned scientific interpretation without deterministic bookkeeping."""
+
+    status: QuantitativeStatus
+    analysis_type: NonEmptyText
+    evidence_level: EvidenceLevel
+    evidence_direction: EvidenceDirection
+    evidence_summary: NonEmptyText
+    evidence_tool_call_ids: list[EvidenceToolCallId]
+    additional_limitations: list[NonEmptyText]
+    recommended_followup: list[NonEmptyText]
+
+    @field_validator(
+        "evidence_tool_call_ids", "additional_limitations", "recommended_followup"
+    )
+    @classmethod
+    def validate_unique_lists(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_status_evidence(self):
+        if self.status == "completed":
+            if self.evidence_level == "Q0":
+                raise ValueError("completed quantitative draft cannot use Q0")
+            if self.evidence_direction == "not_tested":
+                raise ValueError(
+                    "completed quantitative draft cannot be marked not_tested"
+                )
+        else:
+            if self.evidence_level != "Q0":
+                raise ValueError("blocked or failed quantitative draft must use Q0")
+            if self.evidence_direction != "not_tested":
+                raise ValueError(
+                    "blocked or failed quantitative draft must be marked not_tested"
+                )
+        return self
 
 
 class QuantitativeResultPayload(StrictProtocolModel):

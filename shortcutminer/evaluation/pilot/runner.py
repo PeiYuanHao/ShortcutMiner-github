@@ -10,6 +10,8 @@ from pathlib import Path
 import time
 from typing import Any
 
+from pydantic import ValidationError
+
 from shortcutminer.evaluation.blind.evaluator import BlindEvaluator
 from shortcutminer.evaluation.blind.protocol import EvaluationSnapshot
 from shortcutminer.evaluation.blind.snapshot import build_evaluation_snapshot
@@ -36,6 +38,10 @@ from shortcutminer.experiment.qualitative_executor import (
     validate_qualitative_result,
 )
 from shortcutminer.experiment.qualitative_context import QualitativeEvidenceContext
+from shortcutminer.experiment.quantitative_executor import (
+    execute_quantitative,
+    validate_quantitative_result,
+)
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
@@ -47,6 +53,11 @@ from shortcutminer.protocol.qualitative import (
     QualitativeAgentDraft,
     QualitativeRequest,
     QualitativeResult,
+)
+from shortcutminer.protocol.quantitative import (
+    QuantitativeAgentDraft,
+    QuantitativeRequest,
+    QuantitativeResult,
 )
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.protocol.run import RunRequest
@@ -975,24 +986,248 @@ class PilotRunner:
         atomic_write_json(path, result, error_type=PilotRunnerError)
         return result
 
+    def quantitative_diagnostic(
+        self,
+        *,
+        source_pilot_id: str,
+    ) -> dict[str, Any]:
+        """Run exactly one real Quantitative task from a persisted pilot_001 canary."""
+
+        self._require_complete_real_configuration()
+        self.dry_run()
+        self._assert_real()
+        source = self._require_source_provider_gates(source_pilot_id)
+        path = self.pilot_root / "quantitative_diagnostic.json"
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        source_run_id = f"{source_pilot_id}-canary"
+        inputs = sorted(
+            (source / "runs" / source_run_id / "quantitative").glob(
+                "*/input.json"
+            )
+        )
+        matches = [
+            item for item in inputs if item.parent.name == "TASK-C002-QT"
+        ]
+        if len(matches) != 1:
+            raise PilotRunnerError(
+                "source canary must contain exactly one TASK-C002-QT input"
+            )
+        source_value = json.loads(matches[0].read_text(encoding="utf-8"))
+        source_request = QuantitativeRequest.model_validate(source_value["request"])
+        if (
+            source_request.task.inputs.dataset != "pilot_001"
+            or source_request.task.task_id != "TASK-C002-QT"
+        ):
+            raise PilotRunnerError(
+                "Quantitative diagnostic source is not pilot_001/TASK-C002-QT"
+            )
+        public_manifest = json.loads(
+            (source / "suite_public.json").read_text(encoding="utf-8")
+        )
+        public_entries = [
+            item for item in public_manifest["challenges"]
+            if item["challenge_id"] == "pilot_001"
+        ]
+        if len(public_entries) != 1:
+            raise PilotRunnerError(
+                "source public suite does not identify pilot_001 exactly once"
+            )
+        public_entry = public_entries[0]
+        dataset_root = Path(
+            source_request.task.inputs.dataset_reference
+        ).resolve(strict=True)
+        expected_dataset_root = (
+            source / public_entry["dataset_reference"]
+        ).resolve(strict=True)
+        if dataset_root != expected_dataset_root:
+            raise PilotRunnerError(
+                "Quantitative diagnostic dataset differs from the public suite"
+            )
+        run_id = f"{self.config.pilot_id}-quantitative-diagnostic"
+        task = source_request.task.model_copy(update={
+            "run_id": run_id,
+            "message_id": f"{run_id}:executive:{source_request.task.task_id}:task",
+        })
+        request = source_request.model_copy(update={
+            "run_id": run_id,
+            "message_id": (
+                f"{run_id}:quantitative:{source_request.task.task_id}:request"
+            ),
+            "in_reply_to": task.message_id,
+            "task": task,
+        })
+        runtimes = build_local_tool_runtimes(
+            run_id=run_id,
+            dataset_root=dataset_root,
+            runs_root=self.runs_root,
+        )
+        assert self.text_client is not None
+        start = len(self.text_client.invocations)
+        error: Exception | None = None
+        canonical_result: QuantitativeResult | None = None
+        try:
+            canonical_result = execute_quantitative(
+                request,
+                self.text_client,
+                runs_root=self.runs_root,
+                tool_runtime=runtimes["quantitative"],
+            )
+            QuantitativeResult.model_validate(
+                canonical_result.model_dump(mode="json")
+            )
+            validate_quantitative_result(
+                canonical_result,
+                request,
+                tool_results=tuple(runtimes["quantitative"].history),
+            )
+        except Exception as exc:
+            error = exc
+
+        records = self.text_client.invocations[start:]
+        final_record = records[-1] if records else None
+        draft_path = (
+            self.runs_root / run_id / "quantitative"
+            / request.task.task_id / "draft.json"
+        )
+        result_path = draft_path.with_name("result.json")
+        draft_valid = False
+        if draft_path.is_file():
+            try:
+                QuantitativeAgentDraft.model_validate_json(
+                    draft_path.read_text(encoding="utf-8")
+                )
+                draft_valid = True
+            except ValidationError:
+                draft_valid = False
+        tool_results = runtimes["quantitative"].history
+        successful = [item for item in tool_results if item.status == "success"]
+        failed = [item for item in tool_results if item.status == "failed"]
+        passed = bool(
+            error is None
+            and canonical_result is not None
+            and draft_valid
+            and result_path.is_file()
+            and successful
+            and final_record is not None
+            and final_record.status == "completed"
+            and final_record.schema_valid is True
+        )
+        attempts = [
+            {
+                "attempt": item.attempt,
+                "status": item.status,
+                "finish_reason": (
+                    item.response_diagnostics.finish_reason
+                    if item.response_diagnostics is not None else "missing"
+                ),
+                "content_present": (
+                    item.response_diagnostics.content_present
+                    if item.response_diagnostics is not None else False
+                ),
+                "content_length": (
+                    item.response_diagnostics.content_length
+                    if item.response_diagnostics is not None else 0
+                ),
+                "json_parse_status": (
+                    item.response_diagnostics.json_parse_status
+                    if item.response_diagnostics is not None
+                    else "content_missing"
+                ),
+                "schema_valid": item.schema_valid,
+                "completion_tokens": item.usage.completion_tokens,
+                "reasoning_tokens": item.usage.reasoning_tokens,
+                "total_tokens": item.usage.total_tokens,
+                "latency_ms": item.latency_ms,
+                "schema_retry": item.schema_retry,
+                "transport_retry": item.transport_retry,
+                "request_hash": item.request_hash,
+                "payload_hash": item.payload_hash,
+            }
+            for item in records
+        ]
+        result = {
+            "schema_version": "1.0",
+            "pilot_id": self.config.pilot_id,
+            "source_pilot_id": source_pilot_id,
+            "run_id": run_id,
+            "dataset_identity": {
+                "challenge_id": "pilot_001",
+                "public_dataset_hash": public_entry["public_dataset_hash"],
+                "task_id": request.task.task_id,
+                "candidate_id": request.candidate.candidate_id,
+            },
+            "status": "passed" if passed else "failed",
+            "provider_call_count": len(records),
+            "tool_loop_iteration_count": sum(
+                item.status == "completed"
+                and item.response_kind in {"tool_calls", "final_result"}
+                for item in records
+            ),
+            "tool_call_count": len(tool_results),
+            "successful_tool_result_count": len(successful),
+            "failed_tool_result_count": len(failed),
+            "tool_names": [item.tool_name for item in tool_results],
+            "valid_json": bool(
+                final_record is not None
+                and final_record.response_diagnostics is not None
+                and final_record.response_diagnostics.json_parse_status
+                == "valid_object"
+            ),
+            "draft_schema_valid": draft_valid,
+            "draft_invariant_valid": canonical_result is not None,
+            "deterministic_finalization_valid": canonical_result is not None,
+            "canonical_result_valid": canonical_result is not None,
+            "schema_retry_count": sum(item.schema_retry for item in records),
+            "transport_retry_count": sum(item.transport_retry for item in records),
+            "latency_ms": round(sum(item.latency_ms for item in records), 6),
+            "usage_available": bool(records) and all(
+                item.usage.available for item in records
+            ),
+            "attempts": attempts,
+            "error_type": type(error).__name__ if error is not None else None,
+            "error_message": (
+                "Quantitative diagnostic failed; inspect saved safe metadata only."
+                if error is not None else None
+            ),
+        }
+        atomic_write_json(path, result, error_type=PilotRunnerError)
+        return result
+
     def canary(self) -> PilotRunRecord:
         self._require_complete_real_configuration()
         self.dry_run()
+        quantitative = self._require_gate("quantitative_diagnostic.json")
+        if quantitative.get("status") != "passed":
+            raise PilotRunnerError("real Quantitative diagnostic did not pass")
+        source = self._require_source_provider_gates(
+            quantitative["source_pilot_id"]
+        )
         remediation_path = self.pilot_root / "qualitative_diagnostic.json"
         if remediation_path.is_file():
             remediation = json.loads(remediation_path.read_text(encoding="utf-8"))
             if remediation.get("status") != "passed":
                 raise PilotRunnerError("real Qualitative diagnostic did not pass")
-            self._require_source_provider_gates(remediation["source_pilot_id"])
+            if remediation.get("source_pilot_id") != quantitative.get(
+                "source_pilot_id"
+            ):
+                raise PilotRunnerError(
+                    "Quantitative and Qualitative gates use different source pilots"
+                )
         else:
-            preflight = PilotPreflightResult.model_validate(
-                self._require_gate("preflight.json")
+            source_qualitative_path = source / "qualitative_diagnostic.json"
+            if not source_qualitative_path.is_file():
+                raise PilotRunnerError(
+                    "required source Qualitative diagnostic is missing"
+                )
+            source_qualitative = json.loads(
+                source_qualitative_path.read_text(
+                    encoding="utf-8"
+                )
             )
-            if preflight.status != "passed":
-                raise PilotRunnerError("real-provider preflight did not pass")
-            diagnostic = self._require_gate("identify_diagnostic.json")
-            if diagnostic.get("status") != "passed":
-                raise PilotRunnerError("real Identify diagnostic did not pass")
+            if source_qualitative.get("status") != "passed":
+                raise PilotRunnerError("real Qualitative diagnostic did not pass")
         snapshot = self._snapshot()
         generated = build_suite(self.config, self.pilot_root)[0]
         path = self.pilot_root / "canary.json"

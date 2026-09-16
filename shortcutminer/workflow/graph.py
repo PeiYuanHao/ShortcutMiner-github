@@ -10,6 +10,7 @@ from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.nodes import (
     executive_node,
+    feasibility_node,
     identify_node,
     qualitative_node,
     quantitative_node,
@@ -66,6 +67,7 @@ def create_workflow_graph(
             tool_runtime=runtimes.get("quantitative"),
         ),
     )
+    graph.add_node("feasibility", feasibility_node)
     graph.add_node(
         "qualitative",
         partial(
@@ -85,8 +87,9 @@ def create_workflow_graph(
 
     graph.add_edge(START, "identify")
     graph.add_edge("identify", "executive")
-    graph.add_edge("executive", "quantitative")
-    graph.add_edge("executive", "qualitative")
+    graph.add_edge("executive", "feasibility")
+    graph.add_edge("feasibility", "quantitative")
+    graph.add_edge("feasibility", "qualitative")
     graph.add_edge(["quantitative", "qualitative"], "summarize")
     graph.add_edge("summarize", END)
 

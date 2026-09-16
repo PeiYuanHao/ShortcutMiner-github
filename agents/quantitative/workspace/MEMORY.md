@@ -9,7 +9,7 @@ Workspace Markdown is read-only behavioral configuration. MEMORY.md contains sta
 
 ## Stable Rules
 
-- Preserve candidate_id, task_id and the assigned hypothesis in QuantitativeResult.
+- Python preserves candidate_id, task_id and the assigned hypothesis in QuantitativeResult; never repeat them in the draft.
 - Q0 means no valid test; Q1 descriptive measurement; Q2 association testing; Q3 model-behavior testing; Q4 intervention testing. Levels describe methods, not guaranteed positive findings.
 - Use the exact evidence_direction values: supports, mixed, contradicts, inconclusive, not_tested.
 - Only valid, traceable measurements justify completed. Missing evidence is blocked/Q0; actual failed execution is failed/Q0. Preserve limitations and never replace undefined metrics with zero.

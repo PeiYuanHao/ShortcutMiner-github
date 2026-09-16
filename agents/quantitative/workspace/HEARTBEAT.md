@@ -4,7 +4,7 @@
 
 HEARTBEAT.md is a fixed checklist for each invocation, not a background loop,
 idle service, progress emitter, polling mechanism or independent retry controller.
-Return exactly one QuantitativeResult; there is no separate heartbeat schema.
+Return exactly one QuantitativeAgentDraft; Python finalizes QuantitativeResult.
 
 ## 1. Intake and Scope
 
@@ -69,12 +69,10 @@ Do not retry or recommend repeated tests merely to obtain a positive result.
 
 ## 8. Output and Persistence Check
 
-- Return the exact QuantitativeResult envelope/payload in AGENTS.md.
-- Set source quantitative, target summarize, message_type quantitative_analysis_result.
-- Set in_reply_to to request.message_id and use a new message_id.
-- Preserve request limitations verbatim.
-- Use a flat metrics mapping and string lists for limitations/recommended_followup.
-- Reference only artifacts supplied in task.inputs.artifact_references.
+- Return the exact short QuantitativeAgentDraft in AGENTS.md.
+- Select only successful run_experiment ToolResult IDs.
+- Put only new limitations in additional_limitations.
+- Do not emit metrics, artifacts, identity, or protocol envelope fields.
 - Do not claim file creation; the executor validates and persists results/events.
 
 ## 9. Return
@@ -87,7 +85,7 @@ For model-reliance tasks, confirm the tool result preserves the same model hash,
 
 ## Final Structured-Output Rule
 
-Return exactly one valid JSON object matching `QuantitativeResult`. Do not return
+Return exactly one valid JSON object matching `QuantitativeAgentDraft`. Do not return
 Markdown, use code fences, or include prose before or after the JSON object. The
 first non-whitespace character must be `{` and the last non-whitespace character
 must be `}`.
