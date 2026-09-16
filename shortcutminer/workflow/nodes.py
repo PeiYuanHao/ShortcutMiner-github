@@ -18,7 +18,10 @@ from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.qualitative_context import build_qualitative_request
 from shortcutminer.experiment.qualitative_executor import execute_qualitative
 from shortcutminer.experiment.quantitative_context import build_quantitative_request
-from shortcutminer.experiment.quantitative_executor import execute_quantitative
+from shortcutminer.experiment.quantitative_executor import (
+    determine_quantitative_execution_requirement,
+    execute_quantitative,
+)
 from shortcutminer.experiment.summarize_executor import execute_summarize
 from shortcutminer.protocol.batches import (
     QualitativeResultBatch,
@@ -45,6 +48,7 @@ from shortcutminer.storage.dataset_profiles import (
     save_dataset_profile,
 )
 from shortcutminer.protocol.qualitative import QualitativePreparationOptions
+from shortcutminer.protocol.quantitative import QuantitativeExecutionRequirement
 from shortcutminer.protocol.summarize import SummarizeRequest
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.evaluation.evidence_ledger import EvidenceLedgerBuilder
@@ -304,6 +308,14 @@ def quantitative_node(
             message_id=f"{plan.run_id}:quantitative:{task.task_id}:request",
             limitations=config.get("limitations"),
         )
+        try:
+            requirement = QuantitativeExecutionRequirement.model_validate(
+                state["quantitative_execution_requirements"][task.task_id]
+            )
+        except (KeyError, TypeError, ValidationError) as exc:
+            raise QuantitativeNodeError(
+                f"Missing validated execution requirement for {task.task_id}: {exc}"
+            ) from exc
         results.append(
             execute_quantitative(
                 request,
@@ -311,6 +323,7 @@ def quantitative_node(
                 runs_root=_runs_root(state, config),
                 workspace_dir=config.get("workspace_dir"),
                 tool_runtime=tool_runtime,
+                execution_requirement=requirement,
             )
         )
     batch = QuantitativeResultBatch(
@@ -356,7 +369,11 @@ def _qualitative_preparation(
         ) from exc
 
 
-def feasibility_node(state: ShortcutMinerState) -> dict[str, Any]:
+def feasibility_node(
+    state: ShortcutMinerState,
+    *,
+    quantitative_tool_runtime: ToolRuntime | None = None,
+) -> dict[str, Any]:
     """Validate every routed task deterministically before either branch runs."""
 
     try:
@@ -365,9 +382,10 @@ def feasibility_node(state: ShortcutMinerState) -> dict[str, Any]:
         )
         quantitative_config = _stage_config(state, "quantitative_config")
         qualitative_config = _stage_config(state, "qualitative_config")
+        quantitative_requirements: dict[str, dict[str, Any]] = {}
         for task in plan.tasks:
             if task.target == "quantitative":
-                build_quantitative_request(
+                request = build_quantitative_request(
                     executive_request=executive_request,
                     routing_plan=plan,
                     task_id=task.task_id,
@@ -375,6 +393,14 @@ def feasibility_node(state: ShortcutMinerState) -> dict[str, Any]:
                         f"{plan.run_id}:quantitative:{task.task_id}:request"
                     ),
                     limitations=quantitative_config.get("limitations"),
+                )
+                requirement = determine_quantitative_execution_requirement(
+                    request,
+                    quantitative_tool_runtime,
+                    feasibility_confirmed=True,
+                )
+                quantitative_requirements[task.task_id] = requirement.model_dump(
+                    mode="json"
                 )
             elif task.target == "qualitative":
                 preparation = _qualitative_preparation(
@@ -400,7 +426,10 @@ def feasibility_node(state: ShortcutMinerState) -> dict[str, Any]:
         raise DownstreamPlanFeasibilityError(
             f"Downstream plan is not executable: {exc}"
         ) from exc
-    return {"stage_status": {"feasibility": "completed"}}
+    return {
+        "quantitative_execution_requirements": quantitative_requirements,
+        "stage_status": {"feasibility": "completed"},
+    }
 
 
 def qualitative_node(

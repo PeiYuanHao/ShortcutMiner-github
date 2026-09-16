@@ -73,6 +73,7 @@ class ShortcutMinerState(TypedDict, total=False):
     identify_result: NotRequired[dict[str, Any]]
     executive_request: NotRequired[dict[str, Any]]
     executive_result: NotRequired[dict[str, Any]]
+    quantitative_execution_requirements: NotRequired[dict[str, dict[str, Any]]]
     quantitative_result: NotRequired[dict[str, Any]]
     qualitative_result: NotRequired[dict[str, Any]]
     evidence_ledger: NotRequired[dict[str, Any]]

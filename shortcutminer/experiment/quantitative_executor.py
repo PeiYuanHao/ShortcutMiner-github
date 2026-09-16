@@ -9,13 +9,17 @@ from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.protocol.quantitative import (
     MetricValue,
     QuantitativeAgentDraft,
+    QuantitativeExecutionRequirement,
     QuantitativeRequest,
     QuantitativeResult,
     QuantitativeResultPayload,
 )
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.stage_artifacts import save_stage_json
-from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.agent_loop import (
+    RequiredExperimentNotAttempted,
+    invoke_agent_with_tools,
+)
 from shortcutminer.tooling.builtins import ExperimentToolOutput
 from shortcutminer.tooling.protocol import ToolResult
 from shortcutminer.tooling.runtime import ToolRuntime
@@ -29,8 +33,48 @@ class QuantitativeDraftInvariantError(QuantitativeExecutionError):
     """Raised when a schema-valid draft cites unusable quantitative evidence."""
 
 
-def build_quantitative_agent_payload(request: QuantitativeRequest) -> dict:
-    return {"request": request.model_dump(mode="json")}
+def build_quantitative_agent_payload(
+    request: QuantitativeRequest,
+    execution_requirement: QuantitativeExecutionRequirement,
+) -> dict:
+    return {
+        "request": request.model_dump(mode="json"),
+        "execution_requirement": execution_requirement.model_dump(mode="json"),
+    }
+
+
+def determine_quantitative_execution_requirement(
+    request: QuantitativeRequest,
+    tool_runtime: ToolRuntime | None,
+    *,
+    feasibility_confirmed: bool,
+) -> QuantitativeExecutionRequirement:
+    """Turn validated feasibility and runtime availability into a safe obligation."""
+
+    validate_quantitative_request(request)
+    if not feasibility_confirmed:
+        return QuantitativeExecutionRequirement(
+            must_attempt_run_experiment=False,
+            reason="feasibility_not_confirmed",
+        )
+    if (
+        tool_runtime is None
+        or not tool_runtime.can_attempt_run_experiment(
+            requested_checks=request.task.requested_checks,
+            required_model_capabilities=(
+                request.task.inputs.required_model_capabilities
+            ),
+            requires_sample_access=request.task.inputs.requires_sample_access,
+        )
+    ):
+        return QuantitativeExecutionRequirement(
+            must_attempt_run_experiment=False,
+            reason="run_experiment_unavailable",
+        )
+    return QuantitativeExecutionRequirement(
+        must_attempt_run_experiment=True,
+        reason="task_is_executable",
+    )
 
 
 def validate_quantitative_request(request: QuantitativeRequest) -> None:
@@ -178,6 +222,34 @@ def extract_quantitative_metrics(
     return metrics
 
 
+def validate_quantitative_execution_obligation(
+    draft: QuantitativeAgentDraft,
+    request: QuantitativeRequest,
+    requirement: QuantitativeExecutionRequirement,
+    tool_results: tuple[ToolResult, ...],
+) -> None:
+    """Enforce status semantics from actual current-task experiment attempts."""
+
+    if not requirement.must_attempt_run_experiment:
+        return
+    attempts = [
+        result for result in tool_results
+        if result.tool_name == "run_experiment"
+        and result.agent_name == "quantitative"
+        and result.run_id == request.run_id
+        and result.candidate_id == request.candidate.candidate_id
+        and result.task_id == request.task.task_id
+    ]
+    if not attempts:
+        raise QuantitativeDraftInvariantError(
+            "required_experiment_not_attempted"
+        )
+    if any(result.status == "success" for result in attempts) and draft.status != "completed":
+        raise QuantitativeDraftInvariantError(
+            "A successful required experiment cannot finalize as blocked or failed."
+        )
+
+
 def finalize_quantitative_result(
     draft: QuantitativeAgentDraft,
     request: QuantitativeRequest,
@@ -253,6 +325,7 @@ def execute_quantitative(
     runs_root: str | Path | None = None,
     workspace_dir: str | Path | None = None,
     tool_runtime: ToolRuntime | None = None,
+    execution_requirement: QuantitativeExecutionRequirement | None = None,
 ) -> QuantitativeResult:
     """Invoke, validate, and optionally persist one quantitative task."""
     try:
@@ -264,7 +337,12 @@ def execute_quantitative(
                 stage="quantitative",
                 details={"task_id": request.task.task_id},
             )
-        payload = build_quantitative_agent_payload(request)
+        requirement = execution_requirement or determine_quantitative_execution_requirement(
+            request,
+            tool_runtime,
+            feasibility_confirmed=False,
+        )
+        payload = build_quantitative_agent_payload(request, requirement)
         prompt = load_agent_workspace_prompt("quantitative", workspace_dir)
         if tool_runtime is not None:
             tool_runtime.bind_analysis_task(
@@ -280,6 +358,7 @@ def execute_quantitative(
                 filename="input.json",
                 payload=payload,
             )
+        invocation = None
         try:
             invocation = invoke_agent_with_tools(
                 client,
@@ -289,6 +368,21 @@ def execute_quantitative(
                 tool_runtime=tool_runtime,
             )
             raw_output = invocation.output
+        except RequiredExperimentNotAttempted as exc:
+            if runs_root is not None:
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="execution_obligation.json",
+                    payload={
+                        "category": exc.category,
+                        "execution_requirement": requirement.model_dump(mode="json"),
+                        "execution_obligation_retry_count": exc.retry_count,
+                    },
+                )
+            raise QuantitativeExecutionError(exc.category) from exc
         except Exception as exc:
             raise QuantitativeExecutionError(
                 f"Quantitative agent invocation failed: {exc}"
@@ -303,7 +397,27 @@ def execute_quantitative(
             raise QuantitativeExecutionError(
                 "Quantitative agent returned an invalid QuantitativeAgentDraft."
             ) from exc
+        validate_quantitative_execution_obligation(
+            draft,
+            request,
+            requirement,
+            invocation.tool_results,
+        )
         if runs_root is not None:
+            save_stage_json(
+                runs_root,
+                run_id=request.run_id,
+                stage="quantitative",
+                scope=request.task.task_id,
+                filename="execution_obligation.json",
+                payload={
+                    "category": None,
+                    "execution_requirement": requirement.model_dump(mode="json"),
+                    "execution_obligation_retry_count": (
+                        invocation.execution_obligation_retry_count
+                    ),
+                },
+            )
             save_stage_json(
                 runs_root,
                 run_id=request.run_id,

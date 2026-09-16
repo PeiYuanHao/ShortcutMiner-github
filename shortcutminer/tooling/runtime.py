@@ -18,6 +18,20 @@ from shortcutminer.tooling.protocol import AgentName, ToolCall, ToolResult, Tool
 from shortcutminer.tooling.registry import ToolRegistry
 
 
+QUANTITATIVE_EXPERIMENT_TYPES = frozenset({
+    "statistical_check",
+    "model_evaluation",
+    "intervention",
+    "ablation",
+    "subgroup_evaluation",
+    "metric_computation",
+    "task_model_training",
+    "task_model_evaluation",
+    "ood_evaluation",
+    "counterfactual_intervention",
+})
+
+
 class ToolBudget(StrictProtocolModel):
     max_tool_calls: int = Field(default=8, ge=1, le=100)
     timeout_seconds: float = Field(default=30.0, gt=0, le=3600)
@@ -113,18 +127,40 @@ class ToolRuntime:
     ) -> None:
         """Bind Executive policy to the mutable tool boundary before Agent use."""
 
-        experiment_types = {
-            "statistical_check", "model_evaluation", "intervention", "ablation",
-            "subgroup_evaluation", "metric_computation", "task_model_training",
-            "task_model_evaluation", "ood_evaluation", "counterfactual_intervention",
-        }
         self.context = replace(
             self.context,
             runtime_constraints=frozenset(runtime_constraints),
             allowed_experiment_types=frozenset(
-                check for check in requested_checks if check in experiment_types
+                check
+                for check in requested_checks
+                if check in QUANTITATIVE_EXPERIMENT_TYPES
             ),
         )
+
+    def can_attempt_run_experiment(
+        self,
+        *,
+        requested_checks: list[str],
+        required_model_capabilities: list[str],
+        requires_sample_access: bool,
+    ) -> bool:
+        """Report deterministic runtime feasibility without executing a tool."""
+
+        if self.agent_name != "quantitative":
+            return False
+        if not any(spec.name == "run_experiment" for spec in self.tool_specs()):
+            return False
+        if not requested_checks or not set(requested_checks).issubset(
+            QUANTITATIVE_EXPERIMENT_TYPES
+        ):
+            return False
+        if not set(required_model_capabilities).issubset(
+            self.context.model_capabilities
+        ):
+            return False
+        if requires_sample_access and self.context.dataset_root is None:
+            return False
+        return True
 
     def execute(self, call: ToolCall | dict[str, Any]) -> ToolResult:
         parsed = call if isinstance(call, ToolCall) else ToolCall.model_validate(call)

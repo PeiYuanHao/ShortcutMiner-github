@@ -17,6 +17,11 @@ from shortcutminer.protocol.identify import (
 
 
 QuantitativeStatus = Literal["completed", "blocked", "failed"]
+QuantitativeExecutionReason = Literal[
+    "task_is_executable",
+    "feasibility_not_confirmed",
+    "run_experiment_unavailable",
+]
 EvidenceLevel = Literal["Q0", "Q1", "Q2", "Q3", "Q4"]
 EvidenceDirection = Literal[
     "supports", "mixed", "contradicts", "inconclusive", "not_tested"
@@ -53,6 +58,21 @@ class QuantitativeRequest(StrictProtocolModel):
     @classmethod
     def validate_unique_limitations(cls, values: list[str]) -> list[str]:
         return _reject_duplicates(values, "limitations")
+
+
+class QuantitativeExecutionRequirement(StrictProtocolModel):
+    """Control-layer decision about whether measurement must be attempted."""
+
+    must_attempt_run_experiment: bool
+    reason: QuantitativeExecutionReason
+
+    @model_validator(mode="after")
+    def validate_reason(self):
+        if self.must_attempt_run_experiment != (self.reason == "task_is_executable"):
+            raise ValueError(
+                "task_is_executable is the only reason that requires an experiment"
+            )
+        return self
 
 
 class QuantitativeAgentDraft(StrictProtocolModel):

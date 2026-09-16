@@ -39,6 +39,7 @@ from shortcutminer.experiment.qualitative_executor import (
 )
 from shortcutminer.experiment.qualitative_context import QualitativeEvidenceContext
 from shortcutminer.experiment.quantitative_executor import (
+    determine_quantitative_execution_requirement,
     execute_quantitative,
     validate_quantitative_result,
 )
@@ -1106,6 +1107,11 @@ class PilotRunner:
             dataset_root=dataset_root,
             runs_root=self.runs_root,
         )
+        execution_requirement = determine_quantitative_execution_requirement(
+            request,
+            runtimes["quantitative"],
+            feasibility_confirmed=True,
+        )
         assert self.text_client is not None
         start = len(self.text_client.invocations)
         error: Exception | None = None
@@ -1116,6 +1122,7 @@ class PilotRunner:
                 self.text_client,
                 runs_root=self.runs_root,
                 tool_runtime=runtimes["quantitative"],
+                execution_requirement=execution_requirement,
             )
             QuantitativeResult.model_validate(
                 canonical_result.model_dump(mode="json")
@@ -1145,8 +1152,22 @@ class PilotRunner:
             except ValidationError:
                 draft_valid = False
         tool_results = runtimes["quantitative"].history
-        successful = [item for item in tool_results if item.status == "success"]
-        failed = [item for item in tool_results if item.status == "failed"]
+        attempts_for_task = [
+            item for item in tool_results
+            if item.tool_name == "run_experiment"
+            and item.run_id == run_id
+            and item.task_id == request.task.task_id
+            and item.candidate_id == request.candidate.candidate_id
+        ]
+        successful = [
+            item for item in attempts_for_task if item.status == "success"
+        ]
+        failed = [item for item in attempts_for_task if item.status == "failed"]
+        obligation_path = draft_path.with_name("execution_obligation.json")
+        obligation = (
+            json.loads(obligation_path.read_text(encoding="utf-8"))
+            if obligation_path.is_file() else {}
+        )
         passed = bool(
             error is None
             and canonical_result is not None
@@ -1209,6 +1230,7 @@ class PilotRunner:
                 for item in records
             ),
             "tool_call_count": len(tool_results),
+            "run_experiment_attempt_count": len(attempts_for_task),
             "successful_tool_result_count": len(successful),
             "failed_tool_result_count": len(failed),
             "tool_names": [item.tool_name for item in tool_results],
@@ -1223,10 +1245,28 @@ class PilotRunner:
             "deterministic_finalization_valid": canonical_result is not None,
             "canonical_result_valid": canonical_result is not None,
             "schema_retry_count": sum(item.schema_retry for item in records),
+            "execution_obligation_retry_count": obligation.get(
+                "execution_obligation_retry_count", 0
+            ),
             "transport_retry_count": sum(item.transport_retry for item in records),
             "latency_ms": round(sum(item.latency_ms for item in records), 6),
             "usage_available": bool(records) and all(
                 item.usage.available for item in records
+            ),
+            "prompt_tokens": (
+                sum(item.usage.prompt_tokens or 0 for item in records)
+                if records and all(item.usage.available for item in records)
+                else None
+            ),
+            "completion_tokens": (
+                sum(item.usage.completion_tokens or 0 for item in records)
+                if records and all(item.usage.available for item in records)
+                else None
+            ),
+            "total_tokens": (
+                sum(item.usage.total_tokens or 0 for item in records)
+                if records and all(item.usage.available for item in records)
+                else None
             ),
             "attempts": attempts,
             "error_type": type(error).__name__ if error is not None else None,

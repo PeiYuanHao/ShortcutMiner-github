@@ -67,7 +67,13 @@ def create_workflow_graph(
             tool_runtime=runtimes.get("quantitative"),
         ),
     )
-    graph.add_node("feasibility", feasibility_node)
+    graph.add_node(
+        "feasibility",
+        partial(
+            feasibility_node,
+            quantitative_tool_runtime=runtimes.get("quantitative"),
+        ),
+    )
     graph.add_node(
         "qualitative",
         partial(
