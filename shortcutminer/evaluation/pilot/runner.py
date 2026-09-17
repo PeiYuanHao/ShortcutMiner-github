@@ -1090,10 +1090,11 @@ class PilotRunner:
         executive_request = ExecutiveRequest.model_validate(
             executive_value["request"]
         )
+        routing_path = source_run_root / "executive" / "result.json"
+        if not routing_path.is_file():
+            routing_path = routing_path.with_name("routing.json")
         routing_plan = RoutingPlan.model_validate_json(
-            (source_run_root / "executive" / "result.json").read_text(
-                encoding="utf-8"
-            )
+            routing_path.read_text(encoding="utf-8")
         )
         initial_state = json.loads(
             (source_run_root / "input.json").read_text(encoding="utf-8")
@@ -1390,8 +1391,11 @@ class PilotRunner:
             (source_run_root / "executive" / "input.json").read_text(encoding="utf-8")
         )
         executive_request = ExecutiveRequest.model_validate(executive_value["request"])
+        routing_path = source_run_root / "executive" / "result.json"
+        if not routing_path.is_file():
+            routing_path = routing_path.with_name("routing.json")
         routing_plan = RoutingPlan.model_validate_json(
-            (source_run_root / "executive" / "result.json").read_text(encoding="utf-8")
+            routing_path.read_text(encoding="utf-8")
         )
         initial_state = json.loads(
             (source_run_root / "input.json").read_text(encoding="utf-8")
