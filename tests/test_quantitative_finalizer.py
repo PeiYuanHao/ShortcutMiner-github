@@ -23,6 +23,11 @@ from test_executive_executor import _valid_output as _executive_output
 
 
 def _request(tmp_path: Path):
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    (tmp_path / "metadata.csv").write_text(
+        "site,label\nA,0\nA,0\nB,1\nB,1\n",
+        encoding="utf-8",
+    )
     executive_request = _executive_request(tmp_path)
     plan = RoutingPlan.model_validate(_executive_output(executive_request))
     return build_quantitative_request(

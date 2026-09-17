@@ -52,6 +52,7 @@ class QuantitativeRequest(StrictProtocolModel):
     in_reply_to: NonEmptyText
     candidate: Candidate
     task: AnalysisTask
+    execution_resources: "QuantitativeExecutionResources | None" = None
     limitations: list[NonEmptyText] = Field(default_factory=list)
 
     @field_validator("limitations")
@@ -66,8 +67,16 @@ class QuantitativeExecutionRequirement(StrictProtocolModel):
     must_attempt_run_experiment: bool
     reason: QuantitativeExecutionReason
     resolved_experiment_types: list[NonEmptyText] = Field(default_factory=list)
+    available_now_experiment_types: list[NonEmptyText] = Field(default_factory=list)
+    pending_dependency_experiment_types: list[NonEmptyText] = Field(default_factory=list)
+    unsupported_experiment_types: list[NonEmptyText] = Field(default_factory=list)
 
-    @field_validator("resolved_experiment_types")
+    @field_validator(
+        "resolved_experiment_types",
+        "available_now_experiment_types",
+        "pending_dependency_experiment_types",
+        "unsupported_experiment_types",
+    )
     @classmethod
     def validate_unique_resolved_types(cls, values: list[str]) -> list[str]:
         return _reject_duplicates(values, "resolved_experiment_types")
@@ -82,6 +91,90 @@ class QuantitativeExecutionRequirement(StrictProtocolModel):
             raise ValueError(
                 "executable quantitative work requires resolved experiment types"
             )
+        classified = (
+            self.available_now_experiment_types
+            + self.pending_dependency_experiment_types
+            + self.unsupported_experiment_types
+        )
+        if self.must_attempt_run_experiment and not classified:
+            # Backward-compatible parse for persisted pre-plan requirements.
+            # New control-layer construction always writes explicit availability.
+            self.available_now_experiment_types = list(
+                self.resolved_experiment_types
+            )
+            classified = list(self.available_now_experiment_types)
+        if len(classified) != len(set(classified)):
+            raise ValueError("experiment availability classes must not overlap")
+        if not set(classified).issubset(self.resolved_experiment_types):
+            raise ValueError("experiment availability must be resolved first")
+        if self.must_attempt_run_experiment and not self.available_now_experiment_types:
+            raise ValueError("executable quantitative work requires an available experiment")
+        return self
+
+
+class QuantitativeExecutionResources(StrictProtocolModel):
+    """Authoritative resources injected by the control layer, never invented by an LLM."""
+
+    protocol_version: ProtocolVersion = "1.0"
+    dataset_name: NonEmptyText
+    metadata_file: SafeRelativePath | None = None
+    label_column: NonEmptyText
+    available_metadata_fields: list[NonEmptyText] = Field(default_factory=list)
+    allowed_scientific_metadata_fields: list[NonEmptyText] = Field(default_factory=list)
+    sample_id_column: NonEmptyText | None = None
+    sample_path_column: NonEmptyText | None = None
+    split_column: NonEmptyText | None = None
+    selected_split: NonEmptyText | None = None
+    available_splits: list[NonEmptyText] = Field(default_factory=list)
+    authorized_artifact_references: list[SafeRelativePath] = Field(default_factory=list)
+    seed: int = 0
+    max_rows: int = Field(default=100_000, ge=4, le=1_000_000)
+    max_samples: int = Field(default=10_000, ge=1, le=100_000)
+    max_categories: int = Field(default=100, ge=2, le=1_000)
+    min_group_size: int = Field(default=2, ge=1, le=100_000)
+    max_permutations: int = Field(default=100, ge=0, le=1_000)
+    confidence_level: float = Field(default=0.95, ge=0.8, lt=1.0)
+    bootstrap_iterations: int = Field(default=200, ge=0, le=1_000)
+    max_probe_features: int = Field(default=20, ge=1, le=100)
+    max_probe_iterations: int = Field(default=500, ge=10, le=5_000)
+    max_model_iterations: int = Field(default=300, ge=10, le=5_000)
+    max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
+    model_backend: Literal["reference_image_linear"] = "reference_image_linear"
+    feature_version: Literal["reference_image_features_v1"] = "reference_image_features_v1"
+    artifact_policy: Literal["safe_json_npz"] = "safe_json_npz"
+
+    @field_validator(
+        "available_metadata_fields",
+        "allowed_scientific_metadata_fields",
+        "available_splits",
+        "authorized_artifact_references",
+    )
+    @classmethod
+    def validate_unique_resource_lists(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_resource_authority(self):
+        available = set(self.available_metadata_fields)
+        if not set(self.allowed_scientific_metadata_fields).issubset(available):
+            raise ValueError("scientific metadata fields must be available")
+        controlled = {
+            self.label_column,
+            self.sample_id_column,
+            self.sample_path_column,
+            self.split_column,
+        } - {None}
+        if set(self.allowed_scientific_metadata_fields) & controlled:
+            raise ValueError("scientific fields cannot use control/addressing columns")
+        if self.metadata_file is not None and self.label_column not in available:
+            raise ValueError("label_column must be an available metadata field")
+        for field in (
+            self.sample_id_column,
+            self.sample_path_column,
+            self.split_column,
+        ):
+            if self.metadata_file is not None and field is not None and field not in available:
+                raise ValueError("configured addressing columns must be available")
         return self
 
 

@@ -60,6 +60,7 @@ def _parser() -> argparse.ArgumentParser:
         ("identify-diagnostic", "Run one gated real Identify compatibility diagnostic"),
         ("qualitative-diagnostic", "Run one gated real Qualitative compatibility diagnostic"),
         ("quantitative-diagnostic", "Run one gated real Quantitative compatibility diagnostic"),
+        ("offline-quantitative-replay", "Replay TASK-C002 through the local real backend without providers"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -67,7 +68,7 @@ def _parser() -> argparse.ArgumentParser:
     ):
         command = pilot_commands.add_parser(name, help=help_text)
         command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
-        if name in {"qualitative-diagnostic", "quantitative-diagnostic"}:
+        if name in {"qualitative-diagnostic", "quantitative-diagnostic", "offline-quantitative-replay"}:
             command.add_argument(
                 "--source-pilot-id", required=True,
                 help="Prior failed canary whose persisted public input is reused",
@@ -162,6 +163,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
             elif args.pilot_command == "quantitative-diagnostic":
                 value = pilot_runner.quantitative_diagnostic(
+                    source_pilot_id=args.source_pilot_id,
+                )
+            elif args.pilot_command == "offline-quantitative-replay":
+                value = pilot_runner.offline_quantitative_replay(
                     source_pilot_id=args.source_pilot_id,
                 )
             elif args.pilot_command == "canary":

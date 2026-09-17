@@ -34,6 +34,7 @@ def save_stage_json(
         "draft.json",
         "result.json",
         "execution_obligation.json",
+        "execution_contract_failure.json",
     }:
         raise StageArtifactError(f"Unsupported stage artifact filename: {filename}")
     if scope is not None and (

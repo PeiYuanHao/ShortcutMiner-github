@@ -57,9 +57,8 @@ def _call(request):
         "tool_calls": [{
             "name": "run_experiment",
             "arguments": {
-                "candidate_id": request.candidate.candidate_id,
-                "task_id": request.task.task_id,
                 "experiment_type": "statistical_check",
+                "parameters": {"cue_field": "site"},
             },
         }]
     }
@@ -88,15 +87,19 @@ def _runtime(request, executor):
         build_default_tool_registry(experiment_executor=executor),
         run_id=request.run_id,
         agent_name="quantitative",
+        dataset_root=request.task.inputs.dataset_reference,
     )
 
 
 def _payload(request, requirement=None):
     return {
-        "request": request.model_dump(mode="json"),
+        "request": request.model_dump(
+            mode="json", exclude={"execution_resources"}
+        ),
         "execution_requirement": (requirement or _requirement()).model_dump(
             mode="json"
         ),
+        "execution_resources": request.execution_resources.model_dump(mode="json"),
     }
 
 

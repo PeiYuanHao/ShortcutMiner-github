@@ -46,3 +46,10 @@ what the implementation now enforces.
     pre-pilot cost envelope, real canary gate, global pilot budget, pilot-level resume record,
     aggregate failure taxonomy, or pilot report. These components now live in
     `shortcutminer/evaluation/pilot/`.
+15. **Quantitative resource ownership:** provider-facing experiment drafts contain only
+    scientific choices. Dataset-relative paths, identity, label/addressing columns, seeds,
+    budgets, and model artifact references are injected from strict authoritative resources and
+    validated against a frozen ten-experiment ownership matrix.
+16. **Dependency-aware execution:** resolved experiment types are separated into currently
+    available, dependency-pending, and unsupported sets. Deterministic resource and dependency
+    failures do not consume a provider correction retry.

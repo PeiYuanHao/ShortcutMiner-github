@@ -48,11 +48,13 @@ from shortcutminer.experiment.quantitative_executor import (
     execute_quantitative,
     validate_quantitative_result,
 )
+from shortcutminer.experiment.quantitative_context import build_quantitative_request
+from shortcutminer.experiment.execution_contract import ExperimentDependencyPending
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
 from shortcutminer.protocol.evidence import EvidenceLedger
-from shortcutminer.protocol.executive import RoutingPlan
+from shortcutminer.protocol.executive import ExecutiveRequest, RoutingPlan
 from shortcutminer.protocol.identify import CandidateReport
 from shortcutminer.protocol.model_runtime import ModelInvocationRecord
 from shortcutminer.protocol.qualitative import (
@@ -73,6 +75,8 @@ from shortcutminer.runtime.openai_compatible import (
 )
 from shortcutminer.storage.json_artifacts import atomic_write_json
 from shortcutminer.storage.model_calls import load_run_model_telemetry
+from shortcutminer.tooling.agent_loop import finalize_tool_call_draft
+from shortcutminer.tooling.builtins import ExperimentToolInput, ExperimentToolOutput
 from shortcutminer.workflow.nodes import identify_node
 
 
@@ -405,6 +409,17 @@ class PilotRunner:
                     "model_capabilities": ["retraining", "checkpoint", "intervention_inference", "predictions", "logits"],
                     "sample_access": True, "external_services": False,
                     "available_output_types": ["metrics", "observations"],
+                },
+            },
+            quantitative_config={
+                "execution_resources": {
+                    "seed": seed,
+                    "sample_id_column": "id",
+                    "sample_path_column": "path",
+                    "max_rows": max_rows,
+                    "max_samples": max_rows,
+                    "max_permutations": 100,
+                    "bootstrap_iterations": 200,
                 },
             },
             qualitative_config={
@@ -1063,7 +1078,47 @@ class PilotRunner:
                 "source canary must contain exactly one TASK-C002-QT input"
             )
         source_value = json.loads(matches[0].read_text(encoding="utf-8"))
-        source_request = QuantitativeRequest.model_validate(source_value["request"])
+        legacy_source_request = QuantitativeRequest.model_validate(
+            source_value["request"]
+        )
+        source_run_root = source / "runs" / source_run_id
+        executive_value = json.loads(
+            (source_run_root / "executive" / "input.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        executive_request = ExecutiveRequest.model_validate(
+            executive_value["request"]
+        )
+        routing_plan = RoutingPlan.model_validate_json(
+            (source_run_root / "executive" / "result.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        initial_state = json.loads(
+            (source_run_root / "input.json").read_text(encoding="utf-8")
+        )["initial_state"]
+        visual_options = initial_state.get("identify_config", {}).get(
+            "visual_discovery", {}
+        )
+        identify_budget = initial_state.get("identify_config", {}).get(
+            "budget", {}
+        )
+        source_request = build_quantitative_request(
+            executive_request=executive_request,
+            routing_plan=routing_plan,
+            task_id="TASK-C002-QT",
+            message_id=legacy_source_request.message_id,
+            limitations=legacy_source_request.limitations,
+            execution_resource_options={
+                "seed": initial_state["identify_config"]["seed"],
+                "sample_id_column": visual_options.get("sample_id_column"),
+                "sample_path_column": visual_options.get("sample_path_column"),
+                "split_column": visual_options.get("split_column"),
+                "max_rows": identify_budget.get("max_metadata_rows", 100_000),
+                "max_samples": visual_options.get("max_samples", 10_000),
+            },
+        )
         if (
             source_request.task.inputs.dataset != "pilot_001"
             or source_request.task.task_id != "TASK-C002-QT"
@@ -1171,6 +1226,13 @@ class PilotRunner:
         obligation = (
             json.loads(obligation_path.read_text(encoding="utf-8"))
             if obligation_path.is_file() else {}
+        )
+        contract_failure_path = draft_path.with_name(
+            "execution_contract_failure.json"
+        )
+        contract_failure = (
+            json.loads(contract_failure_path.read_text(encoding="utf-8"))
+            if contract_failure_path.is_file() else {}
         )
         passed = bool(
             error is None
@@ -1293,12 +1355,189 @@ class PilotRunner:
             ),
             "attempts": attempts,
             "error_type": type(error).__name__ if error is not None else None,
+            "failure_layer": contract_failure.get("category"),
             "error_message": (
                 "Quantitative diagnostic failed; inspect saved safe metadata only."
                 if error is not None else None
             ),
         }
         atomic_write_json(path, result, error_type=PilotRunnerError)
+        return result
+
+    def offline_quantitative_replay(
+        self,
+        *,
+        source_pilot_id: str,
+    ) -> dict[str, Any]:
+        """Replay persisted pilot_001/TASK-C002 through the real local backend only."""
+
+        self.dry_run()
+        source = self._source_pilot_root(source_pilot_id)
+        output_path = self.pilot_root / "offline_quantitative_replay.json"
+        if output_path.is_file():
+            return json.loads(output_path.read_text(encoding="utf-8"))
+
+        source_run_id = f"{source_pilot_id}-canary"
+        source_input = (
+            source / "runs" / source_run_id / "quantitative"
+            / "TASK-C002-QT" / "input.json"
+        )
+        legacy = QuantitativeRequest.model_validate_json(
+            json.dumps(json.loads(source_input.read_text(encoding="utf-8"))["request"])
+        )
+        source_run_root = source / "runs" / source_run_id
+        executive_value = json.loads(
+            (source_run_root / "executive" / "input.json").read_text(encoding="utf-8")
+        )
+        executive_request = ExecutiveRequest.model_validate(executive_value["request"])
+        routing_plan = RoutingPlan.model_validate_json(
+            (source_run_root / "executive" / "result.json").read_text(encoding="utf-8")
+        )
+        initial_state = json.loads(
+            (source_run_root / "input.json").read_text(encoding="utf-8")
+        )["initial_state"]
+        visual = initial_state.get("identify_config", {}).get("visual_discovery", {})
+        budget = initial_state.get("identify_config", {}).get("budget", {})
+        source_request = build_quantitative_request(
+            executive_request=executive_request,
+            routing_plan=routing_plan,
+            task_id="TASK-C002-QT",
+            message_id=legacy.message_id,
+            limitations=legacy.limitations,
+            execution_resource_options={
+                "seed": initial_state["identify_config"]["seed"],
+                "sample_id_column": visual.get("sample_id_column"),
+                "sample_path_column": visual.get("sample_path_column"),
+                "split_column": visual.get("split_column"),
+                "max_rows": budget.get("max_metadata_rows", 100_000),
+                "max_samples": visual.get("max_samples", 10_000),
+            },
+        )
+        if (
+            source_request.task.inputs.dataset != "pilot_001"
+            or source_request.task.task_id != "TASK-C002-QT"
+            or source_request.candidate.candidate_id != "C002"
+        ):
+            raise PilotRunnerError("offline replay source identity is not pilot_001/TASK-C002-QT/C002")
+        manifest = json.loads((source / "suite_public.json").read_text(encoding="utf-8"))
+        entries = [
+            item for item in manifest["challenges"]
+            if item["challenge_id"] == "pilot_001"
+        ]
+        if len(entries) != 1:
+            raise PilotRunnerError("offline replay source suite is ambiguous")
+        dataset_root = Path(source_request.task.inputs.dataset_reference).resolve(strict=True)
+        expected_root = (source / entries[0]["dataset_reference"]).resolve(strict=True)
+        if dataset_root != expected_root:
+            raise PilotRunnerError("offline replay dataset differs from the public suite")
+
+        run_id = f"{self.config.pilot_id}-task-c002-offline-replay"
+        task = source_request.task.model_copy(update={
+            "run_id": run_id,
+            "message_id": f"{run_id}:executive:TASK-C002-QT:task",
+        })
+        request = source_request.model_copy(update={
+            "run_id": run_id,
+            "message_id": f"{run_id}:quantitative:TASK-C002-QT:request",
+            "in_reply_to": task.message_id,
+            "task": task,
+        })
+        runtime = build_local_tool_runtimes(
+            run_id=run_id,
+            dataset_root=dataset_root,
+            runs_root=self.runs_root,
+        )["quantitative"]
+        requirement = determine_quantitative_execution_requirement(
+            request, runtime, feasibility_confirmed=True
+        )
+        payload = {
+            "request": request.model_dump(mode="json", exclude={"execution_resources"}),
+            "execution_requirement": requirement.model_dump(mode="json"),
+            "execution_resources": request.execution_resources.model_dump(mode="json"),
+        }
+        resources = request.execution_resources
+        if resources is None or not resources.allowed_scientific_metadata_fields:
+            raise PilotRunnerError("offline replay has no authorized scientific metadata field")
+        cue_field = resources.allowed_scientific_metadata_fields[0]
+
+        def finalize(experiment_type: str, parameters: dict[str, Any], index: int):
+            return finalize_tool_call_draft(
+                {
+                    "name": "run_experiment",
+                    "arguments": {
+                        "experiment_type": experiment_type,
+                        "parameters": parameters,
+                    },
+                },
+                agent_name="quantitative",
+                base_payload=payload,
+                tool_runtime=runtime,
+                iteration=1,
+                call_index=index,
+            )
+
+        statistical_call = finalize(
+            "statistical_check", {"cue_field": cue_field}, 0
+        )
+        canonical = ExperimentToolInput.model_validate(statistical_call.arguments)
+        statistical_result = runtime.execute(statistical_call)
+        if statistical_result.status != "success" or statistical_result.output is None:
+            raise PilotRunnerError("offline statistical_check real backend failed")
+        ExperimentToolOutput.model_validate(statistical_result.output)
+
+        training_call = finalize(
+            "task_model_training",
+            {"class_weight": "none", "holdout_fraction": 0.25},
+            1,
+        )
+        ExperimentToolInput.model_validate(training_call.arguments)
+        dependency_states: dict[str, str] = {}
+        for index, experiment_type in enumerate(
+            ("task_model_evaluation", "counterfactual_intervention"), start=2
+        ):
+            parameters = (
+                {}
+                if experiment_type == "task_model_evaluation"
+                else {
+                    "transformation": {"type": "brightness", "factor": 0.9},
+                    "target_cue": request.candidate.cue.name,
+                }
+            )
+            try:
+                finalize(experiment_type, parameters, index)
+            except ExperimentDependencyPending:
+                dependency_states[experiment_type] = "DEPENDENCY_NOT_YET_AVAILABLE"
+            else:
+                raise PilotRunnerError(
+                    f"offline replay accepted pending dependency: {experiment_type}"
+                )
+
+        result = {
+            "schema_version": "1.0",
+            "status": "passed",
+            "provider_call_count": 0,
+            "source_pilot_id": source_pilot_id,
+            "run_id": run_id,
+            "dataset_identity": {
+                "challenge_id": "pilot_001",
+                "public_dataset_hash": entries[0]["public_dataset_hash"],
+                "task_id": request.task.task_id,
+                "candidate_id": request.candidate.candidate_id,
+            },
+            "resolved_experiment_types": requirement.resolved_experiment_types,
+            "available_now_experiment_types": requirement.available_now_experiment_types,
+            "pending_dependency_experiment_types": requirement.pending_dependency_experiment_types,
+            "dependency_states": dependency_states,
+            "metadata_file": canonical.parameters.metadata_file,
+            "metadata_path_is_relative": not Path(canonical.parameters.metadata_file).is_absolute(),
+            "experiment_tool_input": "passed",
+            "tool_runtime": "passed",
+            "real_backend": statistical_result.output["metadata"].get("backend"),
+            "experiment_tool_output": "passed",
+            "backend_attempt_count": 1,
+            "successful_tool_result_count": 1,
+        }
+        atomic_write_json(output_path, result, error_type=PilotRunnerError)
         return result
 
     def _save_canary_quantitative_audit(self, run_id: str) -> Path:

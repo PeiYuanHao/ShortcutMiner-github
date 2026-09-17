@@ -5,7 +5,10 @@ from shortcutminer.experiment.executive_executor import (
     validate_routing_plan,
 )
 from shortcutminer.protocol.executive import ExecutiveRequest, RoutingPlan
-from shortcutminer.protocol.quantitative import QuantitativeRequest
+from shortcutminer.protocol.quantitative import (
+    QuantitativeExecutionResources,
+    QuantitativeRequest,
+)
 
 
 class QuantitativeContextError(RuntimeError):
@@ -19,6 +22,7 @@ def build_quantitative_request(
     task_id: str,
     message_id: str,
     limitations: list[str] | None = None,
+    execution_resource_options: dict | None = None,
 ) -> QuantitativeRequest:
     """Select one planned quantitative task without redefining it."""
     try:
@@ -62,6 +66,47 @@ def build_quantitative_request(
             ]
         )
     )
+    options = dict(execution_resource_options or {})
+    available_fields = list(
+        executive_request.routing_context.capabilities.available_metadata_fields
+    )
+    sample_id_column = options.pop("sample_id_column", None)
+    sample_path_column = options.pop("sample_path_column", None)
+    split_column = options.pop("split_column", None)
+    controlled_fields = {
+        task.inputs.label_column,
+        sample_id_column,
+        sample_path_column,
+        split_column,
+    } - {None}
+    explicitly_scoped = (
+        set(task.inputs.metadata_fields)
+        if task.inputs.metadata_fields
+        else set(available_fields)
+    )
+    scientific_fields = sorted(explicitly_scoped - controlled_fields)
+    configured_max_samples = options.pop("max_samples", 10_000)
+    max_samples = task.inputs.sample_limit or configured_max_samples
+    execution_resources = QuantitativeExecutionResources(
+        dataset_name=executive_request.routing_context.dataset.name,
+        metadata_file=executive_request.routing_context.dataset.metadata_file,
+        label_column=task.inputs.label_column,
+        available_metadata_fields=available_fields,
+        allowed_scientific_metadata_fields=scientific_fields,
+        sample_id_column=sample_id_column,
+        sample_path_column=sample_path_column,
+        split_column=split_column,
+        selected_split=task.inputs.split,
+        available_splits=(
+            executive_request.routing_context.capabilities.available_splits
+        ),
+        authorized_artifact_references=list(dict.fromkeys([
+            *executive_request.routing_context.artifact_references,
+            *task.inputs.artifact_references,
+        ])),
+        max_samples=max_samples,
+        **options,
+    )
     return QuantitativeRequest(
         protocol_version=executive_request.protocol_version,
         run_id=executive_request.run_id,
@@ -72,5 +117,6 @@ def build_quantitative_request(
         in_reply_to=task.message_id,
         candidate=candidates[0],
         task=task,
+        execution_resources=execution_resources,
         limitations=combined_limitations,
     )

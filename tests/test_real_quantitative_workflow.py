@@ -27,18 +27,10 @@ class RealQuantitativeClient(DemoAgentClient):
                     {
                         "name": "run_experiment",
                         "arguments": {
-                            "candidate_id": request["candidate"]["candidate_id"],
-                            "task_id": request["task"]["task_id"],
                             "experiment_type": "statistical_check",
                             "parameters": {
-                                "metadata_file": "metadata.csv",
                                 "cue_field": "site",
-                                "label_column": "label",
-                                "max_rows": 20,
-                                "max_categories": 10,
-                                "min_group_size": 1,
                                 "n_permutations": 10,
-                                "seed": 42,
                             },
                         },
                     }

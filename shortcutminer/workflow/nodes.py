@@ -297,6 +297,8 @@ def quantitative_node(
     runtime = _require_client(client, "Quantitative", QuantitativeNodeError)
     executive_request, plan = _executive_state(state, QuantitativeNodeError)
     config = _stage_config(state, "quantitative_config")
+    resource_options = dict(config.get("execution_resources", {}))
+    resource_options.setdefault("seed", state["identify_config"]["seed"])
     results = []
     for task in plan.tasks:
         if task.target != "quantitative":
@@ -307,6 +309,7 @@ def quantitative_node(
             task_id=task.task_id,
             message_id=f"{plan.run_id}:quantitative:{task.task_id}:request",
             limitations=config.get("limitations"),
+            execution_resource_options=resource_options,
         )
         try:
             requirement = QuantitativeExecutionRequirement.model_validate(
@@ -381,6 +384,12 @@ def feasibility_node(
             state, DownstreamPlanFeasibilityError
         )
         quantitative_config = _stage_config(state, "quantitative_config")
+        quantitative_resource_options = dict(
+            quantitative_config.get("execution_resources", {})
+        )
+        quantitative_resource_options.setdefault(
+            "seed", state["identify_config"]["seed"]
+        )
         qualitative_config = _stage_config(state, "qualitative_config")
         quantitative_requirements: dict[str, dict[str, Any]] = {}
         for task in plan.tasks:
@@ -393,6 +402,7 @@ def feasibility_node(
                         f"{plan.run_id}:quantitative:{task.task_id}:request"
                     ),
                     limitations=quantitative_config.get("limitations"),
+                    execution_resource_options=quantitative_resource_options,
                 )
                 requirement = determine_quantitative_execution_requirement(
                     request,

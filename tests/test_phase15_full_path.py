@@ -52,7 +52,7 @@ class Phase15Reasoning:
                 "dataset_reference": context["dataset"]["root"],
                 "label_column": "label", "split": None,
                 "metadata_fields": ["id", "label", "path"],
-                "artifact_references": [], "sample_limit": 4,
+                "artifact_references": [], "sample_limit": 20,
                 "requires_sample_access": True, "requires_external_services": False,
                 "runtime_constraints": ["no_external_services"],
                 "required_model_capabilities": ["retraining", "checkpoint", "intervention_inference"],
@@ -103,50 +103,30 @@ class Phase15Reasoning:
         request = payload["request"]
         results = payload["tool_runtime"]["results"]
         base_call = {"name": "run_experiment"}
-        common_eval = {
-            "metadata_file": "metadata.csv", "sample_id_column": "id",
-            "sample_path_column": "path", "label_column": "label",
-            "split_column": None, "split_values": [],
-            "evaluation_partition": "training_manifest_test",
-            "max_eval_samples": 20, "seed": 33, "bootstrap_iterations": 20,
-        }
         if len(results) == 0:
             experiment_type = "task_model_training"
             parameters = {
-                "metadata_file": "metadata.csv", "sample_id_column": "id",
-                "sample_path_column": "path", "label_column": "label",
-                "split_column": None, "train_split_values": [], "validation_split_values": [],
-                "test_split_values": [], "holdout_fraction": .25,
-                "model_id": "phase15-spatial-reference", "model_backend": "reference_image_linear",
-                "feature_version": "reference_image_features_v1", "max_train_samples": 100,
-                "max_eval_samples": 30, "max_model_iterations": 250, "seed": 33,
-                "class_weight": "none", "artifact_policy": "safe_json_npz",
-                "bootstrap_iterations": 20,
+                "holdout_fraction": .25,
+                "class_weight": "none",
             }
         else:
-            model_reference = next(
-                reference
-                for result in results
-                for reference in result.get("artifacts", [])
-                if reference.endswith("/model.json")
-            )
-            parameters = {**common_eval, "model_reference": model_reference}
             if len(results) == 1:
                 experiment_type = "task_model_evaluation"
+                parameters = {}
             elif len(results) == 2:
                 experiment_type = "ood_evaluation"
-                parameters.update({
+                parameters = {
                     "transformation": {"type": "spatial_replace", "region": "top_left", "fill": "mean"},
                     "target_cue": "top-left corner pattern", "comparison_mode": "paired",
-                    "preservation_status": "guaranteed_by_construction", "max_intervention_samples": 20,
-                })
+                    "preservation_status": "guaranteed_by_construction",
+                }
             elif len(results) == 3:
                 experiment_type = "counterfactual_intervention"
-                parameters.update({
+                parameters = {
                     "transformation": {"type": "spatial_replace", "region": "top_left", "fill": "mean"},
                     "target_cue": "top-left corner pattern",
-                    "preservation_status": "guaranteed_by_construction", "max_intervention_samples": 20,
-                })
+                    "preservation_status": "guaranteed_by_construction",
+                }
             else:
                 return {
                     "status": "completed",
@@ -161,7 +141,6 @@ class Phase15Reasoning:
         call = {
             **base_call,
             "arguments": {
-                "candidate_id": "C001", "task_id": "TASK-C001-QT",
                 "experiment_type": experiment_type, "parameters": parameters,
             },
         }
@@ -235,6 +214,16 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
                 "sample_access": True, "external_services": False,
                 "available_output_types": ["metrics", "observations"],
             },
+        },
+        quantitative_config={
+            "execution_resources": {
+                "seed": 33,
+                "sample_id_column": "id",
+                "sample_path_column": "path",
+                "max_rows": 100,
+                "max_samples": 30,
+                "bootstrap_iterations": 20,
+            }
         },
         qualitative_config={
             "preparation": {

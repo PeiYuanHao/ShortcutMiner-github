@@ -147,7 +147,13 @@ class ToolRegistry:
             output=serialized,
             error=error,
             artifacts=artifacts,
-            metadata={"timeout_seconds": timeout_seconds},
+            metadata={
+                "timeout_seconds": timeout_seconds,
+                **(
+                    {"failure_category": "backend_execution_failure"}
+                    if status == "failed" else {}
+                ),
+            },
             started_at=started_at,
             completed_at=_utc_now(),
             duration_ms=(monotonic() - started) * 1000,

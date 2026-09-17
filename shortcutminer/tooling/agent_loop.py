@@ -13,11 +13,22 @@ from shortcutminer.protocol.qualitative import QualitativeAgentDraft
 from shortcutminer.protocol.quantitative import (
     QuantitativeAgentDraft,
     QuantitativeExecutionRequirement,
+    QuantitativeExecutionResources,
 )
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.tooling.errors import ToolBudgetExceeded, ToolNotFound
+from shortcutminer.tooling.errors import ToolInputValidationError, ToolPermissionError
 from shortcutminer.tooling.protocol import ToolCall, ToolCallDraft, ToolResult
 from shortcutminer.tooling.runtime import ToolRuntime
+from shortcutminer.experiment.execution_contract import (
+    AuthoritativeResourceMissing,
+    CanonicalExperimentInputInvalid,
+    ToolCallDraftInvalid,
+    ToolPermissionFailure,
+    classify_experiment_availability,
+    finalize_run_experiment_draft,
+    provider_run_experiment_schema,
+)
 
 
 @dataclass(frozen=True)
@@ -116,10 +127,13 @@ def finalize_tool_call_draft(
 ) -> ToolCall:
     """Inject authoritative identity into one strict provider tool-call draft."""
 
-    parsed = (
-        draft if isinstance(draft, ToolCallDraft)
-        else ToolCallDraft.model_validate(draft)
-    )
+    try:
+        parsed = (
+            draft if isinstance(draft, ToolCallDraft)
+            else ToolCallDraft.model_validate(draft)
+        )
+    except Exception as exc:
+        raise ToolCallDraftInvalid("provider tool-call draft is invalid") from exc
     if tool_runtime.agent_name != agent_name:
         raise ValueError("Tool Runtime is bound to a different Agent")
     available_names = {spec.name for spec in tool_runtime.tool_specs()}
@@ -128,9 +142,46 @@ def finalize_tool_call_draft(
             f"ToolCallDraft names unavailable tool: {parsed.name}"
         )
     candidate_id, task_id = _authoritative_correlation(base_payload, tool_runtime)
+    arguments = parsed.arguments
+    if parsed.name == "run_experiment":
+        if candidate_id is None or task_id is None:
+            raise AuthoritativeResourceMissing(
+                "run_experiment requires authoritative candidate/task correlation"
+            )
+        try:
+            resources = QuantitativeExecutionResources.model_validate(
+                base_payload.get("execution_resources")
+            )
+        except Exception as exc:
+            raise AuthoritativeResourceMissing(
+                "quantitative execution resources are missing or invalid"
+            ) from exc
+        requirement = QuantitativeExecutionRequirement.model_validate(
+            base_payload.get("execution_requirement")
+        )
+        dataset_root = tool_runtime.context.dataset_root
+        if dataset_root is None:
+            raise AuthoritativeResourceMissing("Tool Runtime has no dataset root")
+        runs_root = tool_runtime.context.runs_root
+        run_root = (
+            runs_root / tool_runtime.run_id if runs_root is not None else None
+        )
+        canonical = finalize_run_experiment_draft(
+            arguments,
+            resources=resources,
+            requirement=requirement,
+            run_id=tool_runtime.run_id,
+            candidate_id=candidate_id,
+            task_id=task_id,
+            dataset_root=dataset_root,
+            run_root=run_root,
+            approved_artifacts=set(tool_runtime.context.approved_artifacts),
+            history=tool_runtime.history,
+        )
+        arguments = canonical.model_dump(mode="json")
     arguments_hash = hashlib.sha256(
         json.dumps(
-            parsed.arguments,
+            arguments,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=True,
@@ -172,7 +223,7 @@ def finalize_tool_call_draft(
         "run_id": tool_runtime.run_id,
         "candidate_id": candidate_id,
         "task_id": task_id,
-        "arguments": parsed.arguments,
+        "arguments": arguments,
     })
 
 
@@ -238,12 +289,36 @@ def invoke_agent_with_tools(
         iterations += 1
         if iterations > tool_runtime.budget.max_tool_calls + 2:
             raise ToolBudgetExceeded("Agent tool loop exceeded its iteration budget")
+        current_requirement = requirement
+        if requirement is not None:
+            available, pending, unsupported = classify_experiment_availability(
+                requirement.resolved_experiment_types,
+                history=tool_runtime.history,
+                approved_artifacts=set(tool_runtime.context.approved_artifacts),
+            )
+            current_requirement = requirement.model_copy(update={
+                "available_now_experiment_types": available,
+                "pending_dependency_experiment_types": pending,
+                "unsupported_experiment_types": unsupported,
+            })
+        tool_specs = []
+        for spec in tool_runtime.tool_specs():
+            value = spec.model_dump(mode="json")
+            if agent_name == "quantitative" and spec.name == "run_experiment":
+                value["input_schema"] = provider_run_experiment_schema()
+            tool_specs.append(value)
         invocation_payload = {
             **deepcopy(base_payload),
+            **(
+                {
+                    "execution_requirement": current_requirement.model_dump(
+                        mode="json"
+                    )
+                }
+                if current_requirement is not None else {}
+            ),
             "tool_runtime": {
-                "tools": [
-                    spec.model_dump(mode="json") for spec in tool_runtime.tool_specs()
-                ],
+                "tools": tool_specs,
                 "results": [
                     result.model_dump(mode="json")
                     for result in tool_runtime.history
@@ -289,9 +364,12 @@ def invoke_agent_with_tools(
             raise ValueError("Tool-call response must contain only a tool_calls list")
         if not response["tool_calls"]:
             raise ValueError("tool_calls must not be empty")
-        drafts = [
-            ToolCallDraft.model_validate(item) for item in response["tool_calls"]
-        ]
+        try:
+            drafts = [
+                ToolCallDraft.model_validate(item) for item in response["tool_calls"]
+            ]
+        except Exception as exc:
+            raise ToolCallDraftInvalid("provider tool-call draft is invalid") from exc
         provider_tool_draft_count += len(drafts)
         calls = [
             finalize_tool_call_draft(
@@ -313,4 +391,13 @@ def invoke_agent_with_tools(
                 correct_or_fail()
                 continue
         for call in calls:
-            tool_runtime.execute(call)
+            try:
+                tool_runtime.execute(call)
+            except ToolPermissionError as exc:
+                raise ToolPermissionFailure(
+                    "canonical tool call was rejected by runtime permissions"
+                ) from exc
+            except ToolInputValidationError as exc:
+                raise CanonicalExperimentInputInvalid(
+                    "canonical tool input was rejected by Tool Runtime"
+                ) from exc

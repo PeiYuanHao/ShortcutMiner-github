@@ -14,6 +14,9 @@ from shortcutminer.experiment.check_resolution import (
     QUANTITATIVE_CHECK_RESOLUTION_HASH,
     QUANTITATIVE_CHECK_RESOLUTION_VERSION,
 )
+from shortcutminer.experiment.execution_contract import (
+    EXPERIMENT_PARAMETER_OWNERSHIP_HASH,
+)
 from shortcutminer.runtime.openai_compatible import build_runtime_snapshot
 from shortcutminer.storage.json_artifacts import atomic_write_json
 
@@ -106,6 +109,7 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/qualitative_context.py",
         "shortcutminer/experiment/quantitative_executor.py",
         "shortcutminer/experiment/check_resolution.py",
+        "shortcutminer/experiment/execution_contract.py",
         "shortcutminer/tooling/protocol.py",
         "shortcutminer/tooling/agent_loop.py",
         "shortcutminer/workflow/nodes.py",
@@ -135,6 +139,12 @@ def build_pilot_snapshot(
         "tool_call_finalizer_hash": backend_hashes[
             "shortcutminer/tooling/agent_loop.py"
         ],
+        "experiment_execution_contract_hash": backend_hashes[
+            "shortcutminer/experiment/execution_contract.py"
+        ],
+        "experiment_parameter_ownership_hash": (
+            EXPERIMENT_PARAMETER_OWNERSHIP_HASH
+        ),
         "text_runtime": text.model_dump(mode="json"),
         "semantic_runtime": semantic.model_dump(mode="json"),
         "provider_combination_id": combination,
@@ -164,6 +174,10 @@ def build_pilot_snapshot(
         tool_call_finalizer_hash=backend_hashes[
             "shortcutminer/tooling/agent_loop.py"
         ],
+        experiment_execution_contract_hash=backend_hashes[
+            "shortcutminer/experiment/execution_contract.py"
+        ],
+        experiment_parameter_ownership_hash=EXPERIMENT_PARAMETER_OWNERSHIP_HASH,
         text_runtime=text,
         semantic_runtime=semantic,
         provider_combination_id=combination,

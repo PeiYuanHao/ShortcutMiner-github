@@ -36,6 +36,7 @@ class ExecutiveWorkflowConfig(TypedDict, total=False):
 
 class QuantitativeWorkflowConfig(TypedDict, total=False):
     limitations: NotRequired[list[str]]
+    execution_resources: NotRequired[dict[str, Any]]
     runs_root: NotRequired[str]
     workspace_dir: NotRequired[str]
 

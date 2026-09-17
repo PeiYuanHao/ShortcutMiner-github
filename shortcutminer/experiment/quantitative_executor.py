@@ -7,6 +7,10 @@ from pydantic import ValidationError
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.experiment.check_resolution import resolve_quantitative_checks
+from shortcutminer.experiment.execution_contract import (
+    ExperimentContractError,
+    classify_experiment_availability,
+)
 from shortcutminer.protocol.quantitative import (
     MetricValue,
     QuantitativeAgentDraft,
@@ -39,8 +43,14 @@ def build_quantitative_agent_payload(
     execution_requirement: QuantitativeExecutionRequirement,
 ) -> dict:
     return {
-        "request": request.model_dump(mode="json"),
+        "request": request.model_dump(
+            mode="json", exclude={"execution_resources"}
+        ),
         "execution_requirement": execution_requirement.model_dump(mode="json"),
+        "execution_resources": (
+            request.execution_resources.model_dump(mode="json")
+            if request.execution_resources is not None else None
+        ),
     }
 
 
@@ -78,11 +88,31 @@ def determine_quantitative_execution_requirement(
             must_attempt_run_experiment=False,
             reason="run_experiment_unavailable",
             resolved_experiment_types=list(resolved_types),
+            available_now_experiment_types=[],
+            pending_dependency_experiment_types=[],
+            unsupported_experiment_types=list(resolved_types),
+        )
+    available, pending, unsupported = classify_experiment_availability(
+        list(resolved_types),
+        history=tool_runtime.history,
+        approved_artifacts=set(tool_runtime.context.approved_artifacts),
+    )
+    if not available:
+        return QuantitativeExecutionRequirement(
+            must_attempt_run_experiment=False,
+            reason="run_experiment_unavailable",
+            resolved_experiment_types=list(resolved_types),
+            available_now_experiment_types=[],
+            pending_dependency_experiment_types=pending,
+            unsupported_experiment_types=unsupported,
         )
     return QuantitativeExecutionRequirement(
         must_attempt_run_experiment=True,
         reason="task_is_executable",
         resolved_experiment_types=list(resolved_types),
+        available_now_experiment_types=available,
+        pending_dependency_experiment_types=pending,
+        unsupported_experiment_types=unsupported,
     )
 
 
@@ -390,6 +420,17 @@ def execute_quantitative(
                         "execution_requirement": requirement.model_dump(mode="json"),
                         "execution_obligation_retry_count": exc.retry_count,
                     },
+                )
+            raise QuantitativeExecutionError(exc.category) from exc
+        except ExperimentContractError as exc:
+            if runs_root is not None:
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="execution_contract_failure.json",
+                    payload={"category": exc.category},
                 )
             raise QuantitativeExecutionError(exc.category) from exc
         except Exception as exc:

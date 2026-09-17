@@ -554,9 +554,8 @@ class ToolCallingDemoClient(DemoAgentClient):
                 call = {
                     "name": "run_experiment",
                     "arguments": {
-                        "candidate_id": request["candidate"]["candidate_id"],
-                        "task_id": request["task"]["task_id"],
                         "experiment_type": "statistical_check",
+                        "parameters": {"cue_field": "site"},
                     },
                 }
             elif agent_name == "qualitative":

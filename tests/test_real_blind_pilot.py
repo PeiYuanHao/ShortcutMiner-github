@@ -95,6 +95,7 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     )
     assert "shortcutminer/experiment/quantitative_executor.py" in first.backend_hashes
     assert "shortcutminer/experiment/check_resolution.py" in first.backend_hashes
+    assert "shortcutminer/experiment/execution_contract.py" in first.backend_hashes
     assert "shortcutminer/tooling/protocol.py" in first.backend_hashes
     assert "shortcutminer/workflow/nodes.py" in first.backend_hashes
     assert "shortcutminer/evaluation/evidence_ledger.py" in first.backend_hashes
@@ -105,6 +106,8 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     assert len(first.quantitative_check_resolver_implementation_hash) == 64
     assert len(first.tool_call_draft_protocol_hash) == 64
     assert len(first.tool_call_finalizer_hash) == 64
+    assert len(first.experiment_execution_contract_hash) == 64
+    assert len(first.experiment_parameter_ownership_hash) == 64
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized

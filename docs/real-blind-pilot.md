@@ -74,6 +74,18 @@ policies, candidate and visual budgets, global call limits, challenge configurat
 It never contains API keys, authorization headers, or image payloads. Any frozen-field or
 workspace change requires a new pilot ID.
 
+The Quantitative provider receives a strict scientific `RunExperimentDraft`, not the internal
+`ExperimentToolInput`. The control layer builds `QuantitativeExecutionResources` from the
+Executive routing context and runtime configuration, injects dataset-relative resources,
+identity, configured columns, seeds, budgets, and approved model artifacts, then validates the
+fully canonical input before Tool Runtime execution. The snapshot freezes both this execution
+contract implementation and the complete ten-experiment parameter-ownership matrix.
+
+Experiment availability is staged as `available_now`, `pending_dependency`, and `unsupported`.
+Task-model evaluation, OOD evaluation, and counterfactual intervention remain pending until a
+successful training step has produced an approved model artifact; pending dependencies are not
+reported as schema failures.
+
 Before a new full run, the runner reserves a conservative per-run envelope against global text
 and VLM call caps. It stops creating new runs when the remaining envelope is insufficient,
 preserves completed work, and marks the pilot incomplete. Provider and schema retries follow
