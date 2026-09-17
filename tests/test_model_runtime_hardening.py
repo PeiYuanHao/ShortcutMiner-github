@@ -391,10 +391,7 @@ def test_valid_qualitative_result_has_no_schema_issues():
 def test_tool_call_schema_failure_is_classified_separately(tmp_path: Path):
     invalid_tool_call = {
         "tool_calls": [{
-            "protocol_version": "1.0",
             "tool_call_id": "bad-tool-call",
-            "agent_name": "identify",
-            "run_id": "tool-call-schema-diagnostic",
             "arguments": {},
         }]
     }
@@ -414,7 +411,7 @@ def test_tool_call_schema_failure_is_classified_separately(tmp_path: Path):
         )
     record = client.invocations[0]
     assert record.response_kind == "tool_call"
-    assert record.schema_diagnostics.issues[0].field_path == "tool_name"
+    assert record.schema_diagnostics.issues[0].field_path == "name"
     assert record.schema_diagnostics.issues[0].error_type == "missing"
 
 
@@ -679,11 +676,7 @@ def test_per_agent_clients_merge_snapshots_and_run_telemetry(tmp_path: Path):
 def test_model_budget_and_tool_loop_budget_both_bound_iterations(tmp_path: Path):
     tool_call = {
         "tool_calls": [{
-            "protocol_version": "1.0",
-            "tool_call_id": "identify-capabilities-1",
-            "agent_name": "identify",
-            "run_id": "bounded-tool-loop",
-            "tool_name": "inspect_tool_capabilities",
+            "name": "inspect_tool_capabilities",
             "arguments": {},
         }]
     }

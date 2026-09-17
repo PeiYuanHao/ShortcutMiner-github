@@ -352,13 +352,7 @@ def test_j_tool_call_contract_and_k_other_agent_schemas_are_unchanged():
         {
             "tool_calls": [
                 {
-                    "protocol_version": "1.0",
-                    "tool_call_id": "qualitative-inspection-1",
-                    "tool_name": "inspect_sample_metadata",
-                    "agent_name": "qualitative",
-                    "run_id": "qualitative_test_run",
-                    "candidate_id": "C001",
-                    "task_id": "TASK-C001-QL",
+                    "name": "inspect_sample_metadata",
                     "arguments": {
                         "sample_id": "S1",
                         "sample_reference": "images/s1.png",

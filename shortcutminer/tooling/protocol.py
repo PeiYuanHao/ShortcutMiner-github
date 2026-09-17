@@ -55,6 +55,21 @@ class ToolSpec(StrictProtocolModel):
     output_schema: dict[str, Any]
 
 
+class ToolCallDraft(StrictProtocolModel):
+    """Provider-owned tool selection and arguments, without control identity."""
+
+    name: ToolName
+    arguments: dict[str, Any]
+
+    @model_validator(mode="after")
+    def validate_strict_json_arguments(self):
+        try:
+            json.dumps(self.arguments, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ToolCallDraft arguments must be strict JSON") from exc
+        return self
+
+
 class ToolCall(StrictProtocolModel):
     protocol_version: ProtocolVersion = "1.0"
     tool_call_id: ToolCallId

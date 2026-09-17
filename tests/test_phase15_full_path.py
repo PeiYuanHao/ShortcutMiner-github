@@ -102,11 +102,7 @@ class Phase15Reasoning:
     def _quantitative(self, payload):
         request = payload["request"]
         results = payload["tool_runtime"]["results"]
-        base_call = {
-            "protocol_version": "1.0", "agent_name": "quantitative",
-            "run_id": request["run_id"], "tool_name": "run_experiment",
-            "candidate_id": "C001", "task_id": "TASK-C001-QT",
-        }
+        base_call = {"name": "run_experiment"}
         common_eval = {
             "metadata_file": "metadata.csv", "sample_id_column": "id",
             "sample_path_column": "path", "label_column": "label",
@@ -163,7 +159,7 @@ class Phase15Reasoning:
                     "recommended_followup": ["Repeat with a paper-grade allowlisted task-model adapter."],
                 }
         call = {
-            **base_call, "tool_call_id": f"phase15-{experiment_type}",
+            **base_call,
             "arguments": {
                 "candidate_id": "C001", "task_id": "TASK-C001-QT",
                 "experiment_type": experiment_type, "parameters": parameters,

@@ -106,6 +106,7 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/qualitative_context.py",
         "shortcutminer/experiment/quantitative_executor.py",
         "shortcutminer/experiment/check_resolution.py",
+        "shortcutminer/tooling/protocol.py",
         "shortcutminer/tooling/agent_loop.py",
         "shortcutminer/workflow/nodes.py",
         "shortcutminer/workflow/graph.py",
@@ -127,6 +128,12 @@ def build_pilot_snapshot(
         "quantitative_check_resolution_hash": QUANTITATIVE_CHECK_RESOLUTION_HASH,
         "quantitative_check_resolver_implementation_hash": backend_hashes[
             "shortcutminer/experiment/check_resolution.py"
+        ],
+        "tool_call_draft_protocol_hash": backend_hashes[
+            "shortcutminer/tooling/protocol.py"
+        ],
+        "tool_call_finalizer_hash": backend_hashes[
+            "shortcutminer/tooling/agent_loop.py"
         ],
         "text_runtime": text.model_dump(mode="json"),
         "semantic_runtime": semantic.model_dump(mode="json"),
@@ -150,6 +157,12 @@ def build_pilot_snapshot(
         quantitative_check_resolution_hash=QUANTITATIVE_CHECK_RESOLUTION_HASH,
         quantitative_check_resolver_implementation_hash=backend_hashes[
             "shortcutminer/experiment/check_resolution.py"
+        ],
+        tool_call_draft_protocol_hash=backend_hashes[
+            "shortcutminer/tooling/protocol.py"
+        ],
+        tool_call_finalizer_hash=backend_hashes[
+            "shortcutminer/tooling/agent_loop.py"
         ],
         text_runtime=text,
         semantic_runtime=semantic,

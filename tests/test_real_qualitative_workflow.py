@@ -26,13 +26,7 @@ class RealEvidenceClient(DemoAgentClient):
             return {
                 "tool_calls": [
                     {
-                        "protocol_version": "1.0",
-                        "tool_call_id": "full-real-association",
-                        "agent_name": "quantitative",
-                        "run_id": request["run_id"],
-                        "tool_name": "run_experiment",
-                        "candidate_id": "C001",
-                        "task_id": request["task"]["task_id"],
+                        "name": "run_experiment",
                         "arguments": {
                             "candidate_id": "C001",
                             "task_id": request["task"]["task_id"],

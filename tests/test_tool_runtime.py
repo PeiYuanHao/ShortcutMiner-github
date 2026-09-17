@@ -528,24 +528,15 @@ class ToolCallingDemoClient(DemoAgentClient):
         runtime = payload.get("tool_runtime")
         if runtime is not None and not runtime["results"]:
             request = payload["request"]
-            common = {
-                "protocol_version": "1.0",
-                "tool_call_id": f"{agent_name}-tool-001",
-                "agent_name": agent_name,
-                "run_id": request["run_id"],
-            }
             if agent_name == "identify":
                 return {
                     "tool_calls": [
                         {
-                            **common,
-                            "tool_name": "inspect_dataset",
+                            "name": "inspect_dataset",
                             "arguments": {},
                         },
                         {
-                            **common,
-                            "tool_call_id": "identify-tool-002",
-                            "tool_name": "inspect_metadata",
+                            "name": "inspect_metadata",
                             "arguments": {
                                 "metadata_file": request["dataset"][
                                     "metadata_file"
@@ -556,16 +547,12 @@ class ToolCallingDemoClient(DemoAgentClient):
                 }
             elif agent_name == "executive":
                 call = {
-                    **common,
-                    "tool_name": "inspect_tool_capabilities",
+                    "name": "inspect_tool_capabilities",
                     "arguments": {},
                 }
             elif agent_name == "quantitative":
                 call = {
-                    **common,
-                    "tool_name": "run_experiment",
-                    "candidate_id": request["candidate"]["candidate_id"],
-                    "task_id": request["task"]["task_id"],
+                    "name": "run_experiment",
                     "arguments": {
                         "candidate_id": request["candidate"]["candidate_id"],
                         "task_id": request["task"]["task_id"],
@@ -574,15 +561,14 @@ class ToolCallingDemoClient(DemoAgentClient):
                 }
             elif agent_name == "qualitative":
                 call = {
-                    **common,
-                    "tool_name": "inspect_sample_metadata",
+                    "name": "inspect_sample_metadata",
                     "arguments": {
                         "sample_id": "S1",
                         "sample_reference": "images/one.png",
                     },
                 }
             else:
-                call = {**common, "tool_name": "read_run_trace", "arguments": {}}
+                call = {"name": "read_run_trace", "arguments": {}}
             return {"tool_calls": [call]}
 
         output = getattr(self, f"_{agent_name}")(payload)
@@ -639,6 +625,16 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
         "inspect_dataset",
         "inspect_metadata",
     ]
+    assert all(
+        item.tool_call_id.startswith("TC-")
+        for runtime in runtimes.values()
+        for item in runtime.history
+    )
+    assert runtimes["identify"].history[0].candidate_id is None
+    assert runtimes["executive"].history[0].task_id is None
+    assert runtimes["quantitative"].history[0].task_id == "TASK-C001-QT"
+    assert runtimes["qualitative"].history[0].task_id == "TASK-C001-QL"
+    assert runtimes["summarize"].history[0].candidate_id is None
 
     database = checkpoint_path(runs_root, state["run_id"])
     with open_sqlite_checkpointer(database) as saver:

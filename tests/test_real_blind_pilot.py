@@ -95,6 +95,7 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     )
     assert "shortcutminer/experiment/quantitative_executor.py" in first.backend_hashes
     assert "shortcutminer/experiment/check_resolution.py" in first.backend_hashes
+    assert "shortcutminer/tooling/protocol.py" in first.backend_hashes
     assert "shortcutminer/workflow/nodes.py" in first.backend_hashes
     assert "shortcutminer/evaluation/evidence_ledger.py" in first.backend_hashes
     assert first.quantitative_check_resolution_version == (
@@ -102,6 +103,8 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     )
     assert len(first.quantitative_check_resolution_hash) == 64
     assert len(first.quantitative_check_resolver_implementation_hash) == 64
+    assert len(first.tool_call_draft_protocol_hash) == 64
+    assert len(first.tool_call_finalizer_hash) == 64
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized
@@ -296,6 +299,19 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
     assert audit["quantitative_check_resolution_version"] == (
         "quantitative_check_resolution_v1"
     )
+    assert audit["agents"] == [
+        {
+            "agent_name": agent_name,
+            "provider_tool_draft_count": 1 if agent_name == "quantitative" else 0,
+            "canonical_tool_call_count": 1 if agent_name == "quantitative" else 0,
+            "tool_execution_count": 1 if agent_name == "quantitative" else 0,
+            "successful_tool_result_count": 1 if agent_name == "quantitative" else 0,
+            "failed_tool_result_count": 0,
+        }
+        for agent_name in (
+            "identify", "executive", "quantitative", "qualitative", "summarize"
+        )
+    ]
     assert audit["tasks"] == [{
         "task_id": "TASK-C002-QT",
         "requested_checks": ["association_test"],

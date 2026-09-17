@@ -1178,6 +1178,8 @@ class PilotRunner:
             and draft_valid
             and result_path.is_file()
             and successful
+            and obligation.get("provider_tool_draft_count", 0) >= 1
+            and obligation.get("canonical_tool_call_count", 0) >= 1
             and execution_requirement.must_attempt_run_experiment
             and "statistical_check"
             in execution_requirement.resolved_experiment_types
@@ -1245,6 +1247,12 @@ class PilotRunner:
                 for item in records
             ),
             "tool_call_count": len(tool_results),
+            "provider_tool_draft_count": obligation.get(
+                "provider_tool_draft_count", 0
+            ),
+            "canonical_tool_call_count": obligation.get(
+                "canonical_tool_call_count", 0
+            ),
             "run_experiment_attempt_count": len(attempts_for_task),
             "successful_tool_result_count": len(successful),
             "failed_tool_result_count": len(failed),
@@ -1294,9 +1302,29 @@ class PilotRunner:
         return result
 
     def _save_canary_quantitative_audit(self, run_id: str) -> Path:
-        """Persist safe vocabulary and execution counts for every canary QT task."""
+        """Persist safe per-Agent tool counts and every canary QT task audit."""
 
         run_root = self.runs_root / run_id
+        agent_audits = []
+        for agent_name in (
+            "identify", "executive", "quantitative", "qualitative", "summarize"
+        ):
+            paths = sorted((run_root / "tools" / agent_name).glob("*.json"))
+            results = [json.loads(item.read_text(encoding="utf-8")) for item in paths]
+            # Every persisted ToolResult in a completed real run is produced by one
+            # validated draft, one deterministic canonical call, and one execution.
+            agent_audits.append({
+                "agent_name": agent_name,
+                "provider_tool_draft_count": len(results),
+                "canonical_tool_call_count": len(results),
+                "tool_execution_count": len(results),
+                "successful_tool_result_count": sum(
+                    item.get("status") == "success" for item in results
+                ),
+                "failed_tool_result_count": sum(
+                    item.get("status") == "failed" for item in results
+                ),
+            })
         tool_paths = sorted((run_root / "tools" / "quantitative").glob("*.json"))
         tool_results = [
             json.loads(item.read_text(encoding="utf-8")) for item in tool_paths
@@ -1341,6 +1369,7 @@ class PilotRunner:
             "quantitative_check_resolution_hash": (
                 QUANTITATIVE_CHECK_RESOLUTION_HASH
             ),
+            "agents": agent_audits,
             "tasks": tasks,
         }
         path = self.pilot_root / "canary_quantitative_audit.json"

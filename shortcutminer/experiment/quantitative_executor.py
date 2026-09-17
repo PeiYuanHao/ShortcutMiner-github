@@ -425,6 +425,12 @@ def execute_quantitative(
                     "execution_obligation_retry_count": (
                         invocation.execution_obligation_retry_count
                     ),
+                    "provider_tool_draft_count": (
+                        invocation.provider_tool_draft_count
+                    ),
+                    "canonical_tool_call_count": (
+                        invocation.canonical_tool_call_count
+                    ),
                 },
             )
             save_stage_json(

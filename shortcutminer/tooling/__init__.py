@@ -11,6 +11,7 @@ from shortcutminer.tooling.errors import (
 from shortcutminer.tooling.protocol import (
     AgentName,
     ToolCall,
+    ToolCallDraft,
     ToolErrorInfo,
     ToolResult,
     ToolSpec,
@@ -22,6 +23,7 @@ __all__ = [
     "AgentName",
     "ToolBudget",
     "ToolCall",
+    "ToolCallDraft",
     "ToolErrorInfo",
     "ToolExecutionError",
     "ToolInputValidationError",

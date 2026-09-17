@@ -25,13 +25,7 @@ class RealQuantitativeClient(DemoAgentClient):
             return {
                 "tool_calls": [
                     {
-                        "protocol_version": "1.0",
-                        "tool_call_id": "real-association-call",
-                        "agent_name": "quantitative",
-                        "run_id": request["run_id"],
-                        "tool_name": "run_experiment",
-                        "candidate_id": request["candidate"]["candidate_id"],
-                        "task_id": request["task"]["task_id"],
+                        "name": "run_experiment",
                         "arguments": {
                             "candidate_id": request["candidate"]["candidate_id"],
                             "task_id": request["task"]["task_id"],

@@ -84,7 +84,7 @@ Each Agent workspace lives under `agents/<agent>/workspace/`. The workspace load
 
 ## Tool Runtime
 
-The optional Tool Runtime remains separate from AgentClient. When an Agent returns a typed `ToolCall`, its executor routes the request through the ShortcutMiner Tool Registry. The Registry validates the call identity, Agent permission, arguments, output, budget, and timeout. The resulting `ToolResult` is persisted and returned to the AgentClient for the next bounded iteration.
+The optional Tool Runtime remains separate from AgentClient. An Agent returns a strict provider-facing `ToolCallDraft` containing only the tool name and arguments. Its executor injects authoritative identity and a deterministic call ID to create the canonical `ToolCall`, then routes it through the ShortcutMiner Tool Registry. The Registry validates the call identity, Agent permission, arguments, output, budget, and timeout. The resulting `ToolResult` is persisted and returned to the AgentClient for the next bounded iteration.
 
 The runtime exposes dataset and metadata inspection, deterministic sample selection, controlled artifact/trace reads, sample metadata inspection, and a typed ExperimentExecutor entry point. It exposes no arbitrary shell, dynamic import, or unrestricted filesystem reader. The exact permission matrix is documented in [tool-runtime.md](tool-runtime.md).
 

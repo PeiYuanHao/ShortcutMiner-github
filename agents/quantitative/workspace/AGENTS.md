@@ -33,7 +33,13 @@ An execution-obligation correction is a control instruction, not scientific evid
 
 ## Tool-call response
 
-When a tool is required, return exactly one JSON object whose only top-level key is `tool_calls`. Each call must conform exactly to the supplied ToolCall schema and the live tool input schema. Use a unique call ID and the request's exact run, candidate, and task identities. Do not mix a final draft with tool calls.
+When a tool is required, return exactly:
+
+```json
+{"tool_calls":[{"name":"<one listed tool_runtime.tools[i].name>","arguments":{"...":"exactly matching that tool's input_schema"}}]}
+```
+
+Do not emit `protocol_version`, `tool_call_id`, `tool_name`, `agent_name`, `run_id`, `candidate_id`, or `task_id`; Python owns those fields. Do not mix a final draft with tool calls.
 
 The runtime enforces permissions, budgets, input validation, timeouts, and persistence. A tool rejection or malformed call is not evidence for or against the hypothesis.
 

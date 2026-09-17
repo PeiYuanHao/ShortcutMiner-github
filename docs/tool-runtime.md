@@ -5,7 +5,7 @@ schemas or LangGraph topology.
 
 ## Execution boundary
 
-`ToolCall` and `ToolResult` are strict Pydantic contracts. Executors optionally
+`ToolCallDraft`, `ToolCall`, and `ToolResult` are strict Pydantic contracts. Executors optionally
 receive a `ToolRuntime`; runtime objects remain closure dependencies and are never
 written into LangGraph State or checkpoints. When enabled, the Agent payload adds:
 
@@ -19,11 +19,25 @@ written into LangGraph State or checkpoints. When enabled, the Agent payload add
 }
 ```
 
-An Agent requests work by returning `{"tool_calls": [ToolCall]}`. ShortcutMiner
-validates identity, permission and arguments, executes through `ToolRegistry`,
-validates and serializes the output, persists a `ToolResult`, and invokes the Agent
-again. A normal Agent result ends the loop and continues through its existing
-schema validator. `max_tool_calls` and per-call timeout bound the loop. The hardened
+An Agent requests work by returning only a provider-facing draft:
+
+```json
+{"tool_calls":[{"name":"run_experiment","arguments":{}}]}
+```
+
+`ToolCallDraft` owns exactly `name` and `arguments`; extra fields are forbidden.
+The provider never supplies protocol version, call ID, Agent/run identity, or
+candidate/task correlation. ShortcutMiner deterministically finalizes each draft
+into the unchanged canonical `ToolCall`, using authoritative request/runtime state
+and a safe hash call ID. The complete flow is:
+
+`Agent -> ToolCallDraft -> deterministic finalizer -> ToolCall -> ToolRegistry -> ToolResult`
+
+The registry then validates permission and the live input schema, executes the
+call, validates and serializes the output, persists a `ToolResult`, and invokes the
+Agent again. No native provider function envelope or fuzzy repair is accepted. A
+normal Agent result ends the loop and continues through its existing schema
+validator. `max_tool_calls` and per-call timeout bound the loop. The hardened
 model runtime also applies total, per-Agent, transport-retry, schema-retry, and
 optional provider-reported token budgets, so both sides of the loop are bounded.
 

@@ -52,16 +52,10 @@ def _completed(call_id: str, *, direction: str = "inconclusive"):
     }
 
 
-def _call(request, call_id: str = "experiment-required-001"):
+def _call(request):
     return {
         "tool_calls": [{
-            "protocol_version": "1.0",
-            "tool_call_id": call_id,
-            "tool_name": "run_experiment",
-            "agent_name": "quantitative",
-            "run_id": request.run_id,
-            "candidate_id": request.candidate.candidate_id,
-            "task_id": request.task.task_id,
+            "name": "run_experiment",
             "arguments": {
                 "candidate_id": request.candidate.candidate_id,
                 "task_id": request.task.task_id,
@@ -78,7 +72,15 @@ class _ScriptedClient:
 
     def invoke_agent(self, agent_name, payload, *, system_prompt=None):
         self.payloads.append(payload)
-        return self.outputs.popleft()
+        output = self.outputs.popleft()
+        return output(payload) if callable(output) else output
+
+
+def _completed_from_payload(payload, *, direction="inconclusive"):
+    return _completed(
+        payload["tool_runtime"]["results"][0]["tool_call_id"],
+        direction=direction,
+    )
 
 
 def _runtime(request, executor):
@@ -124,7 +126,7 @@ def test_required_tool_call_executes_and_completed_draft_selects_result(tmp_path
     request = _request(tmp_path)
     backend = MockExperimentExecutor(metrics={"effect_size": 0.0})
     runtime = _runtime(request, backend)
-    client = _ScriptedClient(_call(request), _completed("experiment-required-001"))
+    client = _ScriptedClient(_call(request), _completed_from_payload)
 
     result = execute_quantitative(
         request,
@@ -182,7 +184,7 @@ def test_successful_scientifically_inconclusive_result_is_completed(tmp_path):
     request = _request(tmp_path)
     backend = MockExperimentExecutor(outcome="inconclusive", metrics={"sample_count": 4})
     runtime = _runtime(request, backend)
-    client = _ScriptedClient(_call(request), _completed("experiment-required-001"))
+    client = _ScriptedClient(_call(request), _completed_from_payload)
 
     result = execute_quantitative(
         request,
@@ -213,7 +215,7 @@ def test_successful_experiment_cannot_be_downgraded_to_blocked(tmp_path):
 
 class _SchemaRetryClient(_ScriptedClient):
     def __init__(self, request):
-        super().__init__(_blocked(), _call(request), _completed("experiment-required-001"))
+        super().__init__(_blocked(), _call(request), _completed_from_payload)
         self.schema_retry_count = 0
 
     def invoke_agent_validated(
@@ -263,8 +265,8 @@ def test_task_c002_fake_full_path_calls_tool_then_finalizes(tmp_path):
     backend = MockExperimentExecutor(metrics={"association": 0.25})
     runtime = _runtime(request, backend)
     client = _ScriptedClient(
-        _call(request, "task-c002-experiment"),
-        _completed("task-c002-experiment", direction="supports"),
+        _call(request),
+        lambda payload: _completed_from_payload(payload, direction="supports"),
     )
 
     result = execute_quantitative(
@@ -279,3 +281,8 @@ def test_task_c002_fake_full_path_calls_tool_then_finalizes(tmp_path):
     assert result.payload.status == "completed"
     assert result.payload.metrics == {"association": 0.25}
     assert len(backend.calls) == 1
+    assert runtime.history[0].agent_name == "quantitative"
+    assert runtime.history[0].run_id == request.run_id
+    assert runtime.history[0].candidate_id == "C002"
+    assert runtime.history[0].task_id == "TASK-C002-QT"
+    assert runtime.history[0].tool_call_id.startswith("TC-")
