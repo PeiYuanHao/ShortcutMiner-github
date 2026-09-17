@@ -38,6 +38,11 @@ from shortcutminer.experiment.qualitative_executor import (
     validate_qualitative_result,
 )
 from shortcutminer.experiment.qualitative_context import QualitativeEvidenceContext
+from shortcutminer.experiment.check_resolution import (
+    EXECUTIVE_CHECK_TO_EXPERIMENT_TYPES,
+    QUANTITATIVE_CHECK_RESOLUTION_HASH,
+    QUANTITATIVE_CHECK_RESOLUTION_VERSION,
+)
 from shortcutminer.experiment.quantitative_executor import (
     determine_quantitative_execution_requirement,
     execute_quantitative,
@@ -393,10 +398,9 @@ class PilotRunner:
                 "capabilities": {
                     "available_targets": ["quantitative", "qualitative"],
                     "available_metadata_fields": ["id", "label", "site", "device", "batch", "measure", "path"],
-                    "quantitative_checks": [
-                        "association_test", "task_model_training", "task_model_evaluation",
-                        "ood_evaluation", "counterfactual_intervention",
-                    ],
+                    "quantitative_checks": list(
+                        EXECUTIVE_CHECK_TO_EXPERIMENT_TYPES
+                    ),
                     "qualitative_checks": ["metadata_inspection", "sample_inspection"],
                     "model_capabilities": ["retraining", "checkpoint", "intervention_inference", "predictions", "logits"],
                     "sample_access": True, "external_services": False,
@@ -1174,6 +1178,9 @@ class PilotRunner:
             and draft_valid
             and result_path.is_file()
             and successful
+            and execution_requirement.must_attempt_run_experiment
+            and "statistical_check"
+            in execution_requirement.resolved_experiment_types
             and final_record is not None
             and final_record.status == "completed"
             and final_record.schema_valid is True
@@ -1222,6 +1229,14 @@ class PilotRunner:
                 "task_id": request.task.task_id,
                 "candidate_id": request.candidate.candidate_id,
             },
+            "requested_checks": request.task.requested_checks,
+            "execution_requirement": execution_requirement.model_dump(mode="json"),
+            "quantitative_check_resolution_version": (
+                QUANTITATIVE_CHECK_RESOLUTION_VERSION
+            ),
+            "quantitative_check_resolution_hash": (
+                QUANTITATIVE_CHECK_RESOLUTION_HASH
+            ),
             "status": "passed" if passed else "failed",
             "provider_call_count": len(records),
             "tool_loop_iteration_count": sum(
@@ -1278,6 +1293,60 @@ class PilotRunner:
         atomic_write_json(path, result, error_type=PilotRunnerError)
         return result
 
+    def _save_canary_quantitative_audit(self, run_id: str) -> Path:
+        """Persist safe vocabulary and execution counts for every canary QT task."""
+
+        run_root = self.runs_root / run_id
+        tool_paths = sorted((run_root / "tools" / "quantitative").glob("*.json"))
+        tool_results = [
+            json.loads(item.read_text(encoding="utf-8")) for item in tool_paths
+        ]
+        tasks = []
+        for input_path in sorted((run_root / "quantitative").glob("*/input.json")):
+            value = json.loads(input_path.read_text(encoding="utf-8"))
+            request = value["request"]
+            requirement = value["execution_requirement"]
+            task_id = request["task"]["task_id"]
+            attempts = [
+                item for item in tool_results
+                if item.get("tool_name") == "run_experiment"
+                and item.get("task_id") == task_id
+            ]
+            result_path = input_path.with_name("result.json")
+            result = (
+                json.loads(result_path.read_text(encoding="utf-8"))
+                if result_path.is_file() else {}
+            )
+            tasks.append({
+                "task_id": task_id,
+                "requested_checks": request["task"]["requested_checks"],
+                "resolved_experiment_types": requirement[
+                    "resolved_experiment_types"
+                ],
+                "must_attempt_run_experiment": requirement[
+                    "must_attempt_run_experiment"
+                ],
+                "run_experiment_attempt_count": len(attempts),
+                "successful_tool_result_count": sum(
+                    item.get("status") == "success" for item in attempts
+                ),
+                "canonical_status": result.get("payload", {}).get("status"),
+            })
+        payload = {
+            "schema_version": "1.0",
+            "run_id": run_id,
+            "quantitative_check_resolution_version": (
+                QUANTITATIVE_CHECK_RESOLUTION_VERSION
+            ),
+            "quantitative_check_resolution_hash": (
+                QUANTITATIVE_CHECK_RESOLUTION_HASH
+            ),
+            "tasks": tasks,
+        }
+        path = self.pilot_root / "canary_quantitative_audit.json"
+        atomic_write_json(path, payload, error_type=PilotRunnerError)
+        return path
+
     def canary(self) -> PilotRunRecord:
         self._require_complete_real_configuration()
         self.dry_run()
@@ -1321,6 +1390,7 @@ class PilotRunner:
             seed=self.config.runtime_seeds[0],
             bootstrap_seed=self.config.bootstrap_seeds[0], snapshot=snapshot,
         )
+        self._save_canary_quantitative_audit(record.run_id)
         atomic_write_json(path, record.model_dump(mode="json"), error_type=PilotRunnerError)
         return record
 

@@ -7,6 +7,10 @@ from typing import Any
 from pydantic import Field, TypeAdapter
 
 from shortcutminer.protocol.identify import SafeRelativePath, StrictProtocolModel
+from shortcutminer.experiment.check_resolution import (
+    QUANTITATIVE_EXPERIMENT_TYPES,
+    resolve_quantitative_checks,
+)
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.tool_artifacts import (
     save_tool_result,
@@ -16,20 +20,6 @@ from shortcutminer.tooling.base import ToolExecutionContext
 from shortcutminer.tooling.errors import ToolBudgetExceeded, ToolRuntimeError
 from shortcutminer.tooling.protocol import AgentName, ToolCall, ToolResult, ToolSpec
 from shortcutminer.tooling.registry import ToolRegistry
-
-
-QUANTITATIVE_EXPERIMENT_TYPES = frozenset({
-    "statistical_check",
-    "model_evaluation",
-    "intervention",
-    "ablation",
-    "subgroup_evaluation",
-    "metric_computation",
-    "task_model_training",
-    "task_model_evaluation",
-    "ood_evaluation",
-    "counterfactual_intervention",
-})
 
 
 class ToolBudget(StrictProtocolModel):
@@ -127,14 +117,11 @@ class ToolRuntime:
     ) -> None:
         """Bind Executive policy to the mutable tool boundary before Agent use."""
 
+        resolved_types = resolve_quantitative_checks(requested_checks)
         self.context = replace(
             self.context,
             runtime_constraints=frozenset(runtime_constraints),
-            allowed_experiment_types=frozenset(
-                check
-                for check in requested_checks
-                if check in QUANTITATIVE_EXPERIMENT_TYPES
-            ),
+            allowed_experiment_types=frozenset(resolved_types),
         )
 
     def can_attempt_run_experiment(
@@ -143,6 +130,8 @@ class ToolRuntime:
         requested_checks: list[str],
         required_model_capabilities: list[str],
         requires_sample_access: bool,
+        requires_external_services: bool,
+        runtime_constraints: list[str],
     ) -> bool:
         """Report deterministic runtime feasibility without executing a tool."""
 
@@ -150,7 +139,8 @@ class ToolRuntime:
             return False
         if not any(spec.name == "run_experiment" for spec in self.tool_specs()):
             return False
-        if not requested_checks or not set(requested_checks).issubset(
+        resolved_types = resolve_quantitative_checks(requested_checks)
+        if not resolved_types or not set(resolved_types).issubset(
             QUANTITATIVE_EXPERIMENT_TYPES
         ):
             return False
@@ -159,6 +149,13 @@ class ToolRuntime:
         ):
             return False
         if requires_sample_access and self.context.dataset_root is None:
+            return False
+        if (
+            "no_retraining" in runtime_constraints
+            and "task_model_training" in resolved_types
+        ):
+            return False
+        if requires_external_services and "no_external_services" in runtime_constraints:
             return False
         return True
 

@@ -24,7 +24,7 @@ Do not reroute tasks, invent candidates, change the hypothesis, issue a final sh
 1. Inspect `execution_requirement`.
 2. Inspect the current task's `tool_runtime.results` history.
 3. If `execution_requirement.must_attempt_run_experiment` is true and no current-task `run_experiment` ToolResult exists, return only a `tool_calls` object that invokes `run_experiment`.
-4. Construct arguments from the `QuantitativeRequest`, requested checks, candidate hypothesis, and the live `run_experiment` `input_schema` in `tool_runtime.tools`. That schema is the only execution interface; do not invent or rely on a memorized parameter schema.
+4. Use only `execution_requirement.resolved_experiment_types` as `run_experiment.experiment_type` values; do not copy a requested check unless the resolved value is identical. Construct all other arguments from the request, candidate hypothesis, and live tool `input_schema`.
 5. After a ToolResult exists, inspect its status and typed output, then return the final `QuantitativeAgentDraft`.
 
 When execution is mandatory, do not return a final draft merely because `tool_runtime.results` is empty. Empty history means the required experiment has not yet been attempted. It does not mean the experiment is unavailable.

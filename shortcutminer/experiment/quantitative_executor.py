@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
+from shortcutminer.experiment.check_resolution import resolve_quantitative_checks
 from shortcutminer.protocol.quantitative import (
     MetricValue,
     QuantitativeAgentDraft,
@@ -56,7 +57,9 @@ def determine_quantitative_execution_requirement(
         return QuantitativeExecutionRequirement(
             must_attempt_run_experiment=False,
             reason="feasibility_not_confirmed",
+            resolved_experiment_types=[],
         )
+    resolved_types = resolve_quantitative_checks(request.task.requested_checks)
     if (
         tool_runtime is None
         or not tool_runtime.can_attempt_run_experiment(
@@ -65,15 +68,21 @@ def determine_quantitative_execution_requirement(
                 request.task.inputs.required_model_capabilities
             ),
             requires_sample_access=request.task.inputs.requires_sample_access,
+            requires_external_services=(
+                request.task.inputs.requires_external_services
+            ),
+            runtime_constraints=request.task.inputs.runtime_constraints,
         )
     ):
         return QuantitativeExecutionRequirement(
             must_attempt_run_experiment=False,
             reason="run_experiment_unavailable",
+            resolved_experiment_types=list(resolved_types),
         )
     return QuantitativeExecutionRequirement(
         must_attempt_run_experiment=True,
         reason="task_is_executable",
+        resolved_experiment_types=list(resolved_types),
     )
 
 

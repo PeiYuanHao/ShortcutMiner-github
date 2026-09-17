@@ -136,6 +136,9 @@ class PilotSnapshot(StrictProtocolModel):
     workspace_hashes: list[FrozenWorkspace]
     protocol_hashes: dict[NonEmptyText, NonEmptyText]
     backend_hashes: dict[NonEmptyText, NonEmptyText]
+    quantitative_check_resolution_version: NonEmptyText | None = None
+    quantitative_check_resolution_hash: NonEmptyText | None = None
+    quantitative_check_resolver_implementation_hash: NonEmptyText | None = None
     text_runtime: ModelRuntimeSnapshot
     semantic_runtime: ModelRuntimeSnapshot
     provider_combination_id: NonEmptyText

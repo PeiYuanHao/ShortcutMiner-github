@@ -10,6 +10,10 @@ import subprocess
 from typing import Any
 
 from shortcutminer.evaluation.pilot.protocol import FrozenWorkspace, PilotConfig, PilotSnapshot
+from shortcutminer.experiment.check_resolution import (
+    QUANTITATIVE_CHECK_RESOLUTION_HASH,
+    QUANTITATIVE_CHECK_RESOLUTION_VERSION,
+)
 from shortcutminer.runtime.openai_compatible import build_runtime_snapshot
 from shortcutminer.storage.json_artifacts import atomic_write_json
 
@@ -101,6 +105,7 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/qualitative_executor.py",
         "shortcutminer/experiment/qualitative_context.py",
         "shortcutminer/experiment/quantitative_executor.py",
+        "shortcutminer/experiment/check_resolution.py",
         "shortcutminer/tooling/agent_loop.py",
         "shortcutminer/workflow/nodes.py",
         "shortcutminer/workflow/graph.py",
@@ -116,6 +121,13 @@ def build_pilot_snapshot(
         "workspace_hashes": [item.model_dump(mode="json") for item in workspaces],
         "protocol_hashes": protocol_hashes,
         "backend_hashes": backend_hashes,
+        "quantitative_check_resolution_version": (
+            QUANTITATIVE_CHECK_RESOLUTION_VERSION
+        ),
+        "quantitative_check_resolution_hash": QUANTITATIVE_CHECK_RESOLUTION_HASH,
+        "quantitative_check_resolver_implementation_hash": backend_hashes[
+            "shortcutminer/experiment/check_resolution.py"
+        ],
         "text_runtime": text.model_dump(mode="json"),
         "semantic_runtime": semantic.model_dump(mode="json"),
         "provider_combination_id": combination,
@@ -132,6 +144,13 @@ def build_pilot_snapshot(
         workspace_hashes=workspaces,
         protocol_hashes=protocol_hashes,
         backend_hashes=backend_hashes,
+        quantitative_check_resolution_version=(
+            QUANTITATIVE_CHECK_RESOLUTION_VERSION
+        ),
+        quantitative_check_resolution_hash=QUANTITATIVE_CHECK_RESOLUTION_HASH,
+        quantitative_check_resolver_implementation_hash=backend_hashes[
+            "shortcutminer/experiment/check_resolution.py"
+        ],
         text_runtime=text,
         semantic_runtime=semantic,
         provider_combination_id=combination,

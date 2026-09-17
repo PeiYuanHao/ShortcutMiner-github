@@ -22,6 +22,7 @@ def _requirement(required: bool = True) -> QuantitativeExecutionRequirement:
     return QuantitativeExecutionRequirement(
         must_attempt_run_experiment=required,
         reason="task_is_executable" if required else "feasibility_not_confirmed",
+        resolved_experiment_types=["statistical_check"] if required else [],
     )
 
 

@@ -65,12 +65,22 @@ class QuantitativeExecutionRequirement(StrictProtocolModel):
 
     must_attempt_run_experiment: bool
     reason: QuantitativeExecutionReason
+    resolved_experiment_types: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("resolved_experiment_types")
+    @classmethod
+    def validate_unique_resolved_types(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "resolved_experiment_types")
 
     @model_validator(mode="after")
     def validate_reason(self):
         if self.must_attempt_run_experiment != (self.reason == "task_is_executable"):
             raise ValueError(
                 "task_is_executable is the only reason that requires an experiment"
+            )
+        if self.must_attempt_run_experiment and not self.resolved_experiment_types:
+            raise ValueError(
+                "executable quantitative work requires resolved experiment types"
             )
         return self
 

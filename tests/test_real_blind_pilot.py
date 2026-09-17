@@ -94,8 +94,14 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
         in first.backend_hashes
     )
     assert "shortcutminer/experiment/quantitative_executor.py" in first.backend_hashes
+    assert "shortcutminer/experiment/check_resolution.py" in first.backend_hashes
     assert "shortcutminer/workflow/nodes.py" in first.backend_hashes
     assert "shortcutminer/evaluation/evidence_ledger.py" in first.backend_hashes
+    assert first.quantitative_check_resolution_version == (
+        "quantitative_check_resolution_v1"
+    )
+    assert len(first.quantitative_check_resolution_hash) == 64
+    assert len(first.quantitative_check_resolver_implementation_hash) == 64
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized
@@ -253,6 +259,52 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
     (runner.pilot_root / "canary.json").write_text(saved.model_dump_json(), encoding="utf-8")
     monkeypatch.setattr(runner, "_execute", lambda *args, **kwargs: pytest.fail("completed canary was repeated"))
     assert runner.canary() == saved
+
+
+def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    run_id = "phase16-test-canary"
+    scope = runner.runs_root / run_id / "quantitative" / "TASK-C002-QT"
+    scope.mkdir(parents=True)
+    (scope / "input.json").write_text(json.dumps({
+        "request": {
+            "task": {
+                "task_id": "TASK-C002-QT",
+                "requested_checks": ["association_test"],
+            },
+        },
+        "execution_requirement": {
+            "must_attempt_run_experiment": True,
+            "reason": "task_is_executable",
+            "resolved_experiment_types": ["statistical_check"],
+        },
+    }), encoding="utf-8")
+    (scope / "result.json").write_text(json.dumps({
+        "payload": {"status": "completed"},
+    }), encoding="utf-8")
+    tools = runner.runs_root / run_id / "tools" / "quantitative"
+    tools.mkdir(parents=True)
+    (tools / "experiment-001.json").write_text(json.dumps({
+        "tool_name": "run_experiment",
+        "task_id": "TASK-C002-QT",
+        "status": "success",
+    }), encoding="utf-8")
+
+    path = runner._save_canary_quantitative_audit(run_id)
+    audit = json.loads(path.read_text(encoding="utf-8"))
+
+    assert audit["quantitative_check_resolution_version"] == (
+        "quantitative_check_resolution_v1"
+    )
+    assert audit["tasks"] == [{
+        "task_id": "TASK-C002-QT",
+        "requested_checks": ["association_test"],
+        "resolved_experiment_types": ["statistical_check"],
+        "must_attempt_run_experiment": True,
+        "run_experiment_attempt_count": 1,
+        "successful_tool_result_count": 1,
+        "canonical_status": "completed",
+    }]
 
 
 def test_qualitative_diagnostic_recovers_completed_result_and_writes_gate(
