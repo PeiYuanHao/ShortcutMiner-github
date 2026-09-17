@@ -1,0 +1,57 @@
+schema_version: "1.0"
+pilot_id: phase16-real-provider-pilot-v13
+artifact_root: /runs/pilots
+repository_root: .
+frozen_git_commit: 942fd784bca29a8f322f1207555c4d0e4549dd1d
+text_runtime:
+  provider: openai_compatible
+  model: deepseek-v4-flash
+  base_url: https://api.deepseek.com
+  api_key_env: SHORTCUTMINER_TEXT_API_KEY
+  temperature: 0.0
+  max_tokens: 8192
+  reasoning:
+    mode: disabled
+  capabilities:
+    supports_text: true
+    supports_image_input: false
+    supports_json_object: true
+    supports_model_seed: false
+    supports_reasoning_config: true
+  model_call_budget:
+    max_total_calls: 200
+    max_calls_per_agent: 40
+semantic_runtime:
+  provider: openai_compatible
+  model: qwen3.7-plus
+  base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  api_key_env: SHORTCUTMINER_VLM_API_KEY
+  temperature: 0.0
+  max_tokens: 2048
+  capabilities:
+    supports_text: true
+    supports_image_input: true
+    supports_json_object: true
+    supports_model_seed: false
+    supports_reasoning_config: false
+  model_call_budget:
+    max_total_calls: 50
+    max_calls_per_agent: 50
+repeats: 2
+candidate_limit: 3
+validation_depth: deep
+visual_sample_budget: 8
+semantic_sample_budget: 6
+runtime_seeds: [16001, 16002]
+bootstrap_seeds: [26001, 26002]
+budget:
+  max_total_text_model_calls: 180
+  max_total_vlm_calls: 40
+  max_total_vlm_images: 160
+  max_total_tokens: null
+  max_tool_calls_per_run: 20
+  max_text_calls_per_run: 15
+  max_vlm_calls_per_run: 3
+inter_run_delay_seconds: 0.0
+continue_on_failure: true
+development_pilot: true
