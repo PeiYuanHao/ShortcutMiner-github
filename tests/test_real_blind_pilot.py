@@ -108,6 +108,11 @@ def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: 
     assert len(first.tool_call_finalizer_hash) == 64
     assert len(first.experiment_execution_contract_hash) == 64
     assert len(first.experiment_parameter_ownership_hash) == 64
+    assert first.quantitative_experiment_plan_version == (
+        "quantitative_experiment_plan_v1"
+    )
+    assert len(first.quantitative_experiment_plan_protocol_hash) == 64
+    assert len(first.quantitative_experiment_plan_compiler_hash) == 64
     serialized = first.model_dump_json()
     assert "Bearer" not in serialized
     assert "TEXT_TEST_KEY" in serialized
@@ -277,6 +282,7 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
             "task": {
                 "task_id": "TASK-C002-QT",
                 "requested_checks": ["association_test"],
+                "inputs": {"metadata_fields": ["device"]},
             },
         },
         "execution_requirement": {
@@ -287,6 +293,19 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
     }), encoding="utf-8")
     (scope / "result.json").write_text(json.dumps({
         "payload": {"status": "completed"},
+    }), encoding="utf-8")
+    (scope / "experiment_plan.json").write_text(json.dumps({
+        "protocol_version": "quantitative_experiment_plan_v1",
+        "steps": [
+            {"step_id": "QSTEP-safe", "execution_state": "completed"},
+            {"step_id": "QSTEP-pending", "execution_state": "pending_dependency"},
+        ],
+    }), encoding="utf-8")
+    (scope / "plan_execution.json").write_text(json.dumps({
+        "mandatory_executed_step_ids": ["QSTEP-safe"],
+        "backend_attempt_count": 1,
+        "successful_tool_result_count": 1,
+        "quantitative_agent_call_count": 1,
     }), encoding="utf-8")
     tools = runner.runs_root / run_id / "tools" / "quantitative"
     tools.mkdir(parents=True)
@@ -302,11 +321,12 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
     assert audit["quantitative_check_resolution_version"] == (
         "quantitative_check_resolution_v1"
     )
+    assert audit["quantitative_experiment_plan_version"] == (
+        "quantitative_experiment_plan_v1"
+    )
     assert audit["agents"] == [
         {
             "agent_name": agent_name,
-            "provider_tool_draft_count": 1 if agent_name == "quantitative" else 0,
-            "canonical_tool_call_count": 1 if agent_name == "quantitative" else 0,
             "tool_execution_count": 1 if agent_name == "quantitative" else 0,
             "successful_tool_result_count": 1 if agent_name == "quantitative" else 0,
             "failed_tool_result_count": 0,
@@ -318,10 +338,16 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
     assert audit["tasks"] == [{
         "task_id": "TASK-C002-QT",
         "requested_checks": ["association_test"],
+        "task_metadata_fields": ["device"],
         "resolved_experiment_types": ["statistical_check"],
         "must_attempt_run_experiment": True,
-        "run_experiment_attempt_count": 1,
+        "compiled_step_count": 2,
+        "ready_step_count": 0,
+        "pending_step_count": 1,
+        "mandatory_executed_step_ids": ["QSTEP-safe"],
+        "backend_attempt_count": 1,
         "successful_tool_result_count": 1,
+        "quantitative_agent_calls": 1,
         "canonical_status": "completed",
     }]
 

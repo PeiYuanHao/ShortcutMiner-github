@@ -100,51 +100,29 @@ class Phase15Reasoning:
         return self.demo._summarize(payload)
 
     def _quantitative(self, payload):
-        request = payload["request"]
         results = payload["tool_runtime"]["results"]
-        base_call = {"name": "run_experiment"}
-        if len(results) == 0:
-            experiment_type = "task_model_training"
-            parameters = {
-                "holdout_fraction": .25,
-                "class_weight": "none",
+        if len(results) == 1:
+            evaluation = next(
+                step for step in payload["experiment_plan_summary"]["steps"]
+                if step["experiment_type"] == "task_model_evaluation"
+                and step["execution_state"] == "ready"
+            )
+            return {
+                "tool_calls": [{
+                    "name": "run_experiment",
+                    "arguments": {"plan_step_id": evaluation["step_id"]},
+                }]
             }
-        else:
-            if len(results) == 1:
-                experiment_type = "task_model_evaluation"
-                parameters = {}
-            elif len(results) == 2:
-                experiment_type = "ood_evaluation"
-                parameters = {
-                    "transformation": {"type": "spatial_replace", "region": "top_left", "fill": "mean"},
-                    "target_cue": "top-left corner pattern", "comparison_mode": "paired",
-                    "preservation_status": "guaranteed_by_construction",
-                }
-            elif len(results) == 3:
-                experiment_type = "counterfactual_intervention"
-                parameters = {
-                    "transformation": {"type": "spatial_replace", "region": "top_left", "fill": "mean"},
-                    "target_cue": "top-left corner pattern",
-                    "preservation_status": "guaranteed_by_construction",
-                }
-            else:
-                return {
-                    "status": "completed",
-                    "analysis_type": "task_model OOD paired counterfactual intervention",
-                    "evidence_level": "Q4",
-                    "evidence_direction": "mixed",
-                    "evidence_summary": "The same reference model was measured under a candidate-driven paired intervention; validity limitations remain explicit.",
-                    "evidence_tool_call_ids": [results[-1]["tool_call_id"]],
-                    "additional_limitations": [],
-                    "recommended_followup": ["Repeat with a paper-grade allowlisted task-model adapter."],
-                }
-        call = {
-            **base_call,
-            "arguments": {
-                "experiment_type": experiment_type, "parameters": parameters,
-            },
+        return {
+            "status": "completed",
+            "analysis_type": "task_model_training_and_evaluation",
+            "evidence_level": "Q3",
+            "evidence_direction": "mixed",
+            "evidence_summary": "The frozen reference model was trained and evaluated; transformation-dependent work remains explicitly unmaterialized.",
+            "evidence_tool_call_ids": [item["tool_call_id"] for item in results],
+            "additional_limitations": ["OOD and counterfactual steps require an explicit deterministic transformation specification."],
+            "recommended_followup": ["Define a bounded transformation policy before intervention execution."],
         }
-        return {"tool_calls": [call]}
 
 
 class Phase15Transport:
@@ -259,9 +237,9 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
     )
     state = execution.workflow_state
     assert state["identify_context"]["visual_discovery"]["semantic"]["runtime_kind"] == "real_provider"
-    assert len(runtimes["quantitative"].history) == 4
+    assert len(runtimes["quantitative"].history) == 2
     assert [item.output["metadata"]["experiment_type"] for item in runtimes["quantitative"].history] == [
-        "task_model_training", "task_model_evaluation", "ood_evaluation", "counterfactual_intervention"
+        "task_model_training", "task_model_evaluation"
     ]
     assert state["qualitative_result"]["results"][0]["payload"]["observations"]
     ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
@@ -288,7 +266,8 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
         runs_root=runs_root,
     )
     assert evaluated.downstream_impact.available
-    assert evaluated.downstream_impact.intervention_delta is not None
+    assert evaluated.downstream_impact.metric_before is not None
+    assert evaluated.downstream_impact.intervention_delta is None
     artifact_mtimes = {
         path: path.stat().st_mtime_ns
         for path in (runs_root / run_id).rglob("*")
@@ -301,7 +280,7 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
         semantic_inspector=OpenAICompatibleSemanticVisualInspector(client),
     )
     assert resumed.status == "COMPLETED"
-    assert len(runtimes["quantitative"].history) == 4
+    assert len(runtimes["quantitative"].history) == 2
     assert {path: path.stat().st_mtime_ns for path in artifact_mtimes} == artifact_mtimes
     assert "phase15-fake-secret" not in "\n".join(
         path.read_text(encoding="utf-8")

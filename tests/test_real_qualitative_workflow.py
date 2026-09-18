@@ -121,6 +121,10 @@ def test_full_workflow_has_real_quantitative_and_qualitative_evidence(tmp_path: 
             "group_columns": ["label"],
         }
     )
+    state["identify_config"]["visual_discovery"] = {
+        "sample_id_column": "id",
+        "sample_path_column": "path",
+    }
     registry = build_default_tool_registry(experiment_executor=RealExperimentExecutor())
     runtimes = {
         agent: ToolRuntime(

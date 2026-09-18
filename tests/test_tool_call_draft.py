@@ -104,7 +104,7 @@ def test_provider_draft_finalizes_authoritative_identity_and_executes(tmp_path):
     assert result.status == "success"
 
 
-def test_call_id_is_deterministic_and_changes_with_index_or_arguments(tmp_path):
+def test_call_id_uses_canonical_control_owned_arguments(tmp_path):
     runtime = _runtime(tmp_path)
     first = _finalize(runtime)
     same = _finalize(runtime)
@@ -119,7 +119,8 @@ def test_call_id_is_deterministic_and_changes_with_index_or_arguments(tmp_path):
 
     assert first.tool_call_id == same.tool_call_id
     assert first.tool_call_id != other_index.tool_call_id
-    assert first.tool_call_id != other_arguments.tool_call_id
+    assert first.tool_call_id == other_arguments.tool_call_id
+    assert other_arguments.arguments["parameters"]["n_permutations"] == 0
 
 
 def test_draft_rejects_unknown_name_and_canonical_provider_fields(tmp_path):

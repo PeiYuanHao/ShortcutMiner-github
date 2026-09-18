@@ -208,7 +208,7 @@ def test_fake_http_full_production_path_reaches_blind_evaluator(tmp_path: Path):
     )
     assert evaluated.run_id == run_id
     assert (runs_root / run_id / "evaluation" / "blind_result.json").is_file()
-    assert len(client.invocations) >= 7
+    assert len(client.invocations) >= 6
     persisted = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (runs_root / run_id).rglob("*")

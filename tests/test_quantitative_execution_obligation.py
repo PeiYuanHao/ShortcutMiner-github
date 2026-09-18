@@ -2,7 +2,10 @@ from collections import deque
 
 import pytest
 
-from shortcutminer.experiment.quantitative_executor import execute_quantitative
+from shortcutminer.experiment.quantitative_executor import (
+    QuantitativeExecutionError,
+    execute_quantitative,
+)
 from shortcutminer.experiment.quantitative_executor import QuantitativeDraftInvariantError
 from shortcutminer.experiment.tool_executor import (
     ExperimentExecutionOutput,
@@ -129,7 +132,7 @@ def test_required_tool_call_executes_and_completed_draft_selects_result(tmp_path
     request = _request(tmp_path)
     backend = MockExperimentExecutor(metrics={"effect_size": 0.0})
     runtime = _runtime(request, backend)
-    client = _ScriptedClient(_call(request), _completed_from_payload)
+    client = _ScriptedClient(_completed_from_payload)
 
     result = execute_quantitative(
         request,
@@ -144,6 +147,14 @@ def test_required_tool_call_executes_and_completed_draft_selects_result(tmp_path
     assert result.payload.status == "completed"
     assert result.payload.evidence_direction == "inconclusive"
     assert result.payload.metrics == {"effect_size": 0.0}
+    first_payload = client.payloads[0]
+    assert first_payload["tool_runtime"]["results"]
+    run_spec = next(
+        item for item in first_payload["tool_runtime"]["tools"]
+        if item["name"] == "run_experiment"
+    )
+    assert set(run_spec["input_schema"]["properties"]) == {"plan_step_id"}
+    assert "execution_resources" not in first_payload
 
 
 class _FailingExecutor:
@@ -151,22 +162,21 @@ class _FailingExecutor:
         raise RuntimeError("bounded backend failure")
 
 
-def test_failed_required_experiment_allows_blocked_q0(tmp_path):
+def test_failed_mandatory_backend_stops_before_provider(tmp_path):
     request = _request(tmp_path)
     runtime = _runtime(request, _FailingExecutor())
-    client = _ScriptedClient(_call(request), _blocked())
+    client = _ScriptedClient(_blocked())
 
-    result = execute_quantitative(
-        request,
-        client,
-        tool_runtime=runtime,
-        execution_requirement=_requirement(),
-    )
+    with pytest.raises(QuantitativeExecutionError, match="mandatory_quantitative_backend"):
+        execute_quantitative(
+            request,
+            client,
+            tool_runtime=runtime,
+            execution_requirement=_requirement(),
+        )
 
     assert runtime.history[0].status == "failed"
-    assert result.payload.status == "blocked"
-    assert result.payload.evidence_level == "Q0"
-    assert result.payload.metrics == {}
+    assert client.payloads == []
 
 
 def test_non_required_task_may_block_without_tool(tmp_path):
@@ -187,7 +197,7 @@ def test_successful_scientifically_inconclusive_result_is_completed(tmp_path):
     request = _request(tmp_path)
     backend = MockExperimentExecutor(outcome="inconclusive", metrics={"sample_count": 4})
     runtime = _runtime(request, backend)
-    client = _ScriptedClient(_call(request), _completed_from_payload)
+    client = _ScriptedClient(_completed_from_payload)
 
     result = execute_quantitative(
         request,
@@ -205,7 +215,7 @@ def test_successful_scientifically_inconclusive_result_is_completed(tmp_path):
 def test_successful_experiment_cannot_be_downgraded_to_blocked(tmp_path):
     request = _request(tmp_path)
     runtime = _runtime(request, MockExperimentExecutor(outcome="inconclusive"))
-    client = _ScriptedClient(_call(request), _blocked())
+    client = _ScriptedClient(_blocked())
 
     with pytest.raises(QuantitativeDraftInvariantError, match="successful"):
         execute_quantitative(
@@ -268,7 +278,6 @@ def test_task_c002_fake_full_path_calls_tool_then_finalizes(tmp_path):
     backend = MockExperimentExecutor(metrics={"association": 0.25})
     runtime = _runtime(request, backend)
     client = _ScriptedClient(
-        _call(request),
         lambda payload: _completed_from_payload(payload, direction="supports"),
     )
 

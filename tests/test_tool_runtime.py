@@ -612,12 +612,14 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
         result["quantitative_result"]["results"][0]
     )
     summary = SummaryReport.model_validate(result["final_result"])
-    experiment_result = runtimes["quantitative"].history[0]
+    experiment_results = runtimes["quantitative"].history
     assert identify.candidates[0].candidate_id == "C001"
     assert quantitative.payload.task_id == "TASK-C001-QT"
     assert quantitative.payload.candidate_id == "C001"
-    assert quantitative.payload.artifact_references == experiment_result.artifacts
-    assert experiment_result.status == "success"
+    assert quantitative.payload.artifact_references == [
+        artifact for item in experiment_results for artifact in item.artifacts
+    ]
+    assert all(item.status == "success" for item in experiment_results)
     assert summary.payload.findings[0].candidate_id == "C001"
     assert all(runtime.history for runtime in runtimes.values())
     assert [result.tool_name for result in runtimes["identify"].history] == [
@@ -642,6 +644,6 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
     restored_quantitative = QuantitativeResult.model_validate(
         restored["quantitative_result"]["results"][0]
     )
-    assert restored_quantitative.payload.artifact_references == (
-        experiment_result.artifacts
-    )
+    assert restored_quantitative.payload.artifact_references == [
+        artifact for item in experiment_results for artifact in item.artifacts
+    ]

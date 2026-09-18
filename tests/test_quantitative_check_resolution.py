@@ -24,6 +24,11 @@ from test_quantitative_finalizer import _request
 
 EXPECTED_PLANNING_VOCABULARY = {
     "association_test": ("statistical_check",),
+    "subgroup_evaluation": ("subgroup_evaluation",),
+    "model_evaluation": ("model_evaluation",),
+    "intervention": ("intervention",),
+    "ablation": ("ablation",),
+    "metric_computation": ("metric_computation",),
     "task_model_training": ("task_model_training",),
     "task_model_evaluation": ("task_model_evaluation",),
     "ood_evaluation": ("ood_evaluation",),
