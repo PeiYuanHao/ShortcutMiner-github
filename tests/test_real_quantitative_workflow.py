@@ -99,4 +99,4 @@ def test_full_workflow_uses_real_quantitative_backend_and_resume_reuses_result(
     )
     assert resumed.status == "COMPLETED"
     assert artifact.stat().st_mtime_ns == original_mtime
-    assert len(runtime.history) == 1
+    assert runtime.history == []

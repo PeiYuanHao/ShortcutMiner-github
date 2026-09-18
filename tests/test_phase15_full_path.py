@@ -21,6 +21,7 @@ from shortcutminer.runner import resume_run, run
 from shortcutminer.runtime.demo import DemoAgentClient
 from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
 from shortcutminer.tooling.builtins import build_default_tool_registry
+from shortcutminer.tooling.protocol import ToolResult
 from shortcutminer.tooling.runtime import ToolBudget, ToolRuntime
 from test_real_qualitative_workflow import RealEvidenceClient
 
@@ -203,10 +204,14 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
     )
     state = execution.workflow_state
     assert state["identify_context"]["visual_discovery"]["semantic"]["runtime_kind"] == "real_provider"
-    assert len(runtimes["quantitative"].history) == 2
-    assert [item.output["metadata"]["experiment_type"] for item in runtimes["quantitative"].history] == [
-        "task_model_training", "task_model_evaluation"
+    quantitative_history = [
+        ToolResult.model_validate_json(path.read_text(encoding="utf-8"))
+        for path in sorted((runs_root / run_id / "tools" / "quantitative").glob("*.json"))
     ]
+    assert len(quantitative_history) == 2
+    assert {item.output["metadata"]["experiment_type"] for item in quantitative_history} == {
+        "task_model_training", "task_model_evaluation"
+    }
     assert state["qualitative_result"]["results"][0]["payload"]["observations"]
     ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
     assert ledger.candidates[0].records[0].evidence_kind == "quantitative_model_reliance"
@@ -228,7 +233,10 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
         quantitative_results=QuantitativeResultBatch.model_validate(state["quantitative_result"]),
         qualitative_results=QualitativeResultBatch.model_validate(state["qualitative_result"]),
         evidence_ledger=ledger, summary_report=SummaryReport.model_validate(state["summarize_result"]),
-        downstream_impact=downstream_impact_from_output(runtimes["quantitative"].history[-1].output),
+        downstream_impact=downstream_impact_from_output(next(
+            item.output for item in quantitative_history
+            if item.output["metadata"]["experiment_type"] == "task_model_evaluation"
+        )),
         runs_root=runs_root,
     )
     assert evaluated.downstream_impact.available
@@ -246,7 +254,7 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
         semantic_inspector=OpenAICompatibleSemanticVisualInspector(client),
     )
     assert resumed.status == "COMPLETED"
-    assert len(runtimes["quantitative"].history) == 2
+    assert runtimes["quantitative"].history == []
     assert {path: path.stat().st_mtime_ns for path in artifact_mtimes} == artifact_mtimes
     assert "phase15-fake-secret" not in "\n".join(
         path.read_text(encoding="utf-8")

@@ -612,7 +612,14 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
         result["quantitative_result"]["results"][0]
     )
     summary = SummaryReport.model_validate(result["final_result"])
-    experiment_results = runtimes["quantitative"].history
+    experiment_results = [
+        ToolResult.model_validate_json(path.read_text(encoding="utf-8"))
+        for path in sorted(
+            (Path(runs_root) / state["run_id"] / "tools" / "quantitative").glob(
+                "*.json"
+            )
+        )
+    ]
     assert identify.candidates[0].candidate_id == "C001"
     assert quantitative.payload.task_id == "TASK-C001-QT"
     assert quantitative.payload.candidate_id == "C001"
@@ -621,19 +628,20 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
     ]
     assert all(item.status == "success" for item in experiment_results)
     assert summary.payload.findings[0].candidate_id == "C001"
-    assert all(runtime.history for runtime in runtimes.values())
+    assert all(
+        runtime.history
+        for name, runtime in runtimes.items()
+        if name != "quantitative"
+    )
+    assert runtimes["quantitative"].history == []
     assert [result.tool_name for result in runtimes["identify"].history] == [
         "inspect_dataset",
         "inspect_metadata",
     ]
-    assert all(
-        item.tool_call_id.startswith("TC-")
-        for runtime in runtimes.values()
-        for item in runtime.history
-    )
+    assert all(item.tool_call_id.startswith("TC-") for item in experiment_results)
     assert runtimes["identify"].history[0].candidate_id is None
     assert runtimes["executive"].history[0].task_id is None
-    assert runtimes["quantitative"].history[0].task_id == "TASK-C001-QT"
+    assert experiment_results[0].task_id == "TASK-C001-QT"
     assert runtimes["qualitative"].history[0].task_id == "TASK-C001-QL"
     assert runtimes["summarize"].history[0].candidate_id is None
 

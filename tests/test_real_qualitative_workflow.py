@@ -167,4 +167,4 @@ def test_full_workflow_has_real_quantitative_and_qualitative_evidence(tmp_path: 
     assert resumed.status == "COMPLETED"
     assert (inspection.stat().st_mtime_ns, sheet.stat().st_mtime_ns) == mtimes
     assert ledger.stat().st_mtime_ns == ledger_mtime
-    assert len(runtimes["quantitative"].history) == 1
+    assert runtimes["quantitative"].history == []

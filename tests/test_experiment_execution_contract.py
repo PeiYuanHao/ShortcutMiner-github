@@ -199,7 +199,10 @@ def test_dependency_plan_distinguishes_pending_from_schema_invalid(tmp_path: Pat
     available, pending, unsupported = classify_experiment_availability(
         payload["execution_requirement"]["resolved_experiment_types"],
         history=runtime.history,
-        approved_artifacts=set(),
+        explicit_artifacts=set(),
+        run_id=runtime.run_id,
+        candidate_id="C001",
+        task_id="TASK-C001-QT",
     )
     assert "task_model_training" in available
     assert pending == [
