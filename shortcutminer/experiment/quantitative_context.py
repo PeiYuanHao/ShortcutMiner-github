@@ -79,12 +79,10 @@ def build_quantitative_request(
         sample_path_column,
         split_column,
     } - {None}
-    explicitly_scoped = (
-        set(task.inputs.metadata_fields)
-        if task.inputs.metadata_fields
-        else set(available_fields)
-    )
-    scientific_fields = sorted(explicitly_scoped - controlled_fields)
+    scientific_fields = [
+        field for field in task.inputs.metadata_fields
+        if field not in controlled_fields
+    ]
     configured_max_samples = options.pop("max_samples", 10_000)
     max_samples = task.inputs.sample_limit or configured_max_samples
     execution_resources = QuantitativeExecutionResources(

@@ -15,6 +15,10 @@ from shortcutminer.protocol.quantitative import (
     QuantitativeExecutionRequirement,
     QuantitativeExecutionResources,
 )
+from shortcutminer.protocol.quantitative_plan import (
+    QuantitativeExperimentPlan,
+    RunExperimentPlanStepDraft,
+)
 from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.tooling.errors import ToolBudgetExceeded, ToolNotFound
 from shortcutminer.tooling.errors import ToolInputValidationError, ToolPermissionError
@@ -25,9 +29,14 @@ from shortcutminer.experiment.execution_contract import (
     CanonicalExperimentInputInvalid,
     ToolCallDraftInvalid,
     ToolPermissionFailure,
-    classify_experiment_availability,
     finalize_run_experiment_draft,
-    provider_run_experiment_schema,
+)
+from shortcutminer.experiment.quantitative_plan import (
+    PlanStepAlreadyCompleted,
+    PlanStepDependencyPending,
+    UnknownPlanStep,
+    compile_quantitative_experiment_plan,
+    plan_summary,
 )
 
 
@@ -38,6 +47,7 @@ class AgentToolInvocation:
     execution_obligation_retry_count: int = 0
     provider_tool_draft_count: int = 0
     canonical_tool_call_count: int = 0
+    provider_call_count: int = 0
 
 
 class RequiredExperimentNotAttempted(RuntimeError):
@@ -124,6 +134,7 @@ def finalize_tool_call_draft(
     tool_runtime: ToolRuntime,
     iteration: int,
     call_index: int,
+    experiment_plan: QuantitativeExperimentPlan | None = None,
 ) -> ToolCall:
     """Inject authoritative identity into one strict provider tool-call draft."""
 
@@ -148,36 +159,53 @@ def finalize_tool_call_draft(
             raise AuthoritativeResourceMissing(
                 "run_experiment requires authoritative candidate/task correlation"
             )
-        try:
-            resources = QuantitativeExecutionResources.model_validate(
-                base_payload.get("execution_resources")
+        if experiment_plan is not None:
+            selection = RunExperimentPlanStepDraft.model_validate(arguments)
+            matches = [
+                step for step in experiment_plan.steps
+                if step.step_id == selection.plan_step_id
+            ]
+            if not matches:
+                raise UnknownPlanStep("provider selected an unknown plan step")
+            step = matches[0]
+            if step.execution_state == "completed":
+                raise PlanStepAlreadyCompleted("provider selected a completed plan step")
+            if step.execution_state != "ready" or step.canonical_input is None:
+                raise PlanStepDependencyPending("provider selected a non-ready plan step")
+            canonical = step.canonical_input
+        else:
+            # Retained only for offline compatibility tests. Real Quantitative
+            # invocation always supplies a compiled experiment plan.
+            try:
+                resources = QuantitativeExecutionResources.model_validate(
+                    base_payload.get("execution_resources")
+                )
+            except Exception as exc:
+                raise AuthoritativeResourceMissing(
+                    "quantitative execution resources are missing or invalid"
+                ) from exc
+            requirement = QuantitativeExecutionRequirement.model_validate(
+                base_payload.get("execution_requirement")
             )
-        except Exception as exc:
-            raise AuthoritativeResourceMissing(
-                "quantitative execution resources are missing or invalid"
-            ) from exc
-        requirement = QuantitativeExecutionRequirement.model_validate(
-            base_payload.get("execution_requirement")
-        )
-        dataset_root = tool_runtime.context.dataset_root
-        if dataset_root is None:
-            raise AuthoritativeResourceMissing("Tool Runtime has no dataset root")
-        runs_root = tool_runtime.context.runs_root
-        run_root = (
-            runs_root / tool_runtime.run_id if runs_root is not None else None
-        )
-        canonical = finalize_run_experiment_draft(
-            arguments,
-            resources=resources,
-            requirement=requirement,
-            run_id=tool_runtime.run_id,
-            candidate_id=candidate_id,
-            task_id=task_id,
-            dataset_root=dataset_root,
-            run_root=run_root,
-            approved_artifacts=set(tool_runtime.context.approved_artifacts),
-            history=tool_runtime.history,
-        )
+            dataset_root = tool_runtime.context.dataset_root
+            if dataset_root is None:
+                raise AuthoritativeResourceMissing("Tool Runtime has no dataset root")
+            runs_root = tool_runtime.context.runs_root
+            run_root = (
+                runs_root / tool_runtime.run_id if runs_root is not None else None
+            )
+            canonical = finalize_run_experiment_draft(
+                arguments,
+                resources=resources,
+                requirement=requirement,
+                run_id=tool_runtime.run_id,
+                candidate_id=candidate_id,
+                task_id=task_id,
+                dataset_root=dataset_root,
+                run_root=run_root,
+                approved_artifacts=set(tool_runtime.context.approved_artifacts),
+                history=tool_runtime.history,
+            )
         arguments = canonical.model_dump(mode="json")
     arguments_hash = hashlib.sha256(
         json.dumps(
@@ -234,6 +262,8 @@ def invoke_agent_with_tools(
     *,
     system_prompt: str | None,
     tool_runtime: ToolRuntime | None,
+    experiment_plan: QuantitativeExperimentPlan | None = None,
+    quantitative_request=None,
 ) -> AgentToolInvocation:
     """Invoke once normally, or service bounded ToolCall batches until final output."""
     requirement = None
@@ -257,6 +287,7 @@ def invoke_agent_with_tools(
         raise ValueError("Tool Runtime is bound to a different Agent")
 
     base_payload = deepcopy(payload)
+    current_plan = experiment_plan
     iterations = 0
     execution_obligation_retry_count = 0
     provider_tool_draft_count = 0
@@ -290,25 +321,18 @@ def invoke_agent_with_tools(
         if iterations > tool_runtime.budget.max_tool_calls + 2:
             raise ToolBudgetExceeded("Agent tool loop exceeded its iteration budget")
         current_requirement = requirement
-        if requirement is not None:
-            available, pending, unsupported = classify_experiment_availability(
-                requirement.resolved_experiment_types,
-                history=tool_runtime.history,
-                approved_artifacts=set(tool_runtime.context.approved_artifacts),
-            )
-            current_requirement = requirement.model_copy(update={
-                "available_now_experiment_types": available,
-                "pending_dependency_experiment_types": pending,
-                "unsupported_experiment_types": unsupported,
-            })
         tool_specs = []
         for spec in tool_runtime.tool_specs():
             value = spec.model_dump(mode="json")
             if agent_name == "quantitative" and spec.name == "run_experiment":
-                value["input_schema"] = provider_run_experiment_schema()
+                value["input_schema"] = RunExperimentPlanStepDraft.model_json_schema()
             tool_specs.append(value)
         invocation_payload = {
             **deepcopy(base_payload),
+            **(
+                {"experiment_plan_summary": plan_summary(current_plan)}
+                if current_plan is not None else {}
+            ),
             **(
                 {
                     "execution_requirement": current_requirement.model_dump(
@@ -357,6 +381,7 @@ def invoke_agent_with_tools(
                 execution_obligation_retry_count=execution_obligation_retry_count,
                 provider_tool_draft_count=provider_tool_draft_count,
                 canonical_tool_call_count=canonical_tool_call_count,
+                provider_call_count=iterations,
             )
         if set(response) != {"tool_calls"} or not isinstance(
             response["tool_calls"], list
@@ -379,6 +404,7 @@ def invoke_agent_with_tools(
                 tool_runtime=tool_runtime,
                 iteration=iterations,
                 call_index=call_index,
+                experiment_plan=current_plan,
             )
             for call_index, draft in enumerate(drafts)
         ]
@@ -390,9 +416,16 @@ def invoke_agent_with_tools(
             ):
                 correct_or_fail()
                 continue
-        for call in calls:
+        completed_step_ids: set[str] = set()
+        for call, draft in zip(calls, drafts, strict=True):
             try:
-                tool_runtime.execute(call)
+                result = tool_runtime.execute(call)
+                if current_plan is not None and call.tool_name == "run_experiment":
+                    selected = RunExperimentPlanStepDraft.model_validate(
+                        draft.arguments
+                    )
+                    if result.status == "success":
+                        completed_step_ids.add(selected.plan_step_id)
             except ToolPermissionError as exc:
                 raise ToolPermissionFailure(
                     "canonical tool call was rejected by runtime permissions"
@@ -401,3 +434,23 @@ def invoke_agent_with_tools(
                 raise CanonicalExperimentInputInvalid(
                     "canonical tool input was rejected by Tool Runtime"
                 ) from exc
+        if (
+            current_plan is not None
+            and quantitative_request is not None
+            and requirement is not None
+        ):
+            previously_completed = {
+                step.step_id for step in current_plan.steps
+                if step.execution_state == "completed"
+            }
+            refreshed = compile_quantitative_experiment_plan(
+                quantitative_request, requirement, tool_runtime
+            )
+            all_completed = previously_completed | completed_step_ids
+            current_plan = refreshed.model_copy(update={
+                "steps": [
+                    step.model_copy(update={"execution_state": "completed"})
+                    if step.step_id in all_completed else step
+                    for step in refreshed.steps
+                ]
+            })

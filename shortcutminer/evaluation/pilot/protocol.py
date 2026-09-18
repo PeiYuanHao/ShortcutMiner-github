@@ -143,6 +143,9 @@ class PilotSnapshot(StrictProtocolModel):
     tool_call_finalizer_hash: NonEmptyText | None = None
     experiment_execution_contract_hash: NonEmptyText | None = None
     experiment_parameter_ownership_hash: NonEmptyText | None = None
+    quantitative_experiment_plan_version: NonEmptyText | None = None
+    quantitative_experiment_plan_protocol_hash: NonEmptyText | None = None
+    quantitative_experiment_plan_compiler_hash: NonEmptyText | None = None
     text_runtime: ModelRuntimeSnapshot
     semantic_runtime: ModelRuntimeSnapshot
     provider_combination_id: NonEmptyText

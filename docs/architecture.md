@@ -134,7 +134,12 @@ support with no supporting record or a substantive verdict when all work failed.
 
 `run_experiment` delegates to the `ExperimentExecutor` Protocol. `MockExperimentExecutor` remains the isolated test backend. `RealExperimentExecutor` uses a static registry of CPU implementations for association, subgroup analysis, lightweight out-of-sample probes, metadata permutation, metadata-feature ablation, allowlisted prediction metrics, task-model training/evaluation, OOD evaluation, and paired counterfactual intervention.
 
-Agent and backend responsibilities remain separate: Executive defines a scoped AnalysisTask; Quantitative requests an approved experiment type with exact resolved fields; deterministic code validates parameters and computes evidence; Quantitative interprets the returned measurements; Summarize combines evidence. The backend never emits a final shortcut judgment or evidence level.
+Agent and backend responsibilities remain separate: Executive defines a scoped AnalysisTask and
+requested checks; a deterministic plan compiler materializes authorized canonical steps; the
+control layer executes mandatory ready evidence before the first Quantitative model call;
+Quantitative interprets measurements and may select another ready precompiled step only by ID;
+Summarize combines evidence. The compiler is a control component, not another Agent. The backend
+never emits a final shortcut judgment or evidence level.
 
 Real experiment artifacts are stored under `experiments/<task_id>/` and keyed by experiment type plus a deterministic parameter-and-input fingerprint. Inputs remain dataset-relative or explicitly approved run-relative references. The bounded, network-free, CPU-only task-model path provides an allowlisted reference image classifier with safe JSON+NPZ persistence. OOD and counterfactual experiments reuse the exact trained model identity and apply only typed deterministic image transformations. They do not retrain on OOD data or infer a causal verdict from metric magnitude.
 

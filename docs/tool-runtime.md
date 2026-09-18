@@ -81,10 +81,12 @@ The optional `SemanticVisualInspector` is a separately injected control-layer ca
 
 ## Real quantitative experiments
 
-`run_experiment.parameters` is a union of strict, experiment-specific schemas;
-unknown fields are forbidden. In particular, code, command, and script parameters
-are not accepted. Quantitative explicitly supplies resolved metadata fields—candidate
-display names are never fuzzily mapped to columns.
+The real-provider `run_experiment` input is the strict object
+`{"plan_step_id":"QSTEP-..."}`; unknown fields are forbidden. The provider cannot submit raw
+experiment parameters, paths, column names, code, commands, or scripts. A deterministic compiler
+has already built each canonical experiment input from the Executive task's exact scientific
+scope and control-owned execution resources. Optional calls can only select a ready precompiled
+step. Internal legacy draft schemas remain available solely for compatibility and isolated tests.
 
 The static backend registry supports:
 

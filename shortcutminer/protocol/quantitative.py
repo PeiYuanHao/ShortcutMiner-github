@@ -133,11 +133,14 @@ class QuantitativeExecutionResources(StrictProtocolModel):
     max_categories: int = Field(default=100, ge=2, le=1_000)
     min_group_size: int = Field(default=2, ge=1, le=100_000)
     max_permutations: int = Field(default=100, ge=0, le=1_000)
+    statistical_n_permutations: int = Field(default=0, ge=0, le=1_000)
     confidence_level: float = Field(default=0.95, ge=0.8, lt=1.0)
     bootstrap_iterations: int = Field(default=200, ge=0, le=1_000)
     max_probe_features: int = Field(default=20, ge=1, le=100)
     max_probe_iterations: int = Field(default=500, ge=10, le=5_000)
     max_model_iterations: int = Field(default=300, ge=10, le=5_000)
+    training_class_weight: Literal["none", "balanced"] = "none"
+    training_holdout_fraction: float = Field(default=0.25, gt=0.0, lt=0.5)
     max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
     model_backend: Literal["reference_image_linear"] = "reference_image_linear"
     feature_version: Literal["reference_image_features_v1"] = "reference_image_features_v1"

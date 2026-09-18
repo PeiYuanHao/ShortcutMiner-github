@@ -17,6 +17,9 @@ from shortcutminer.experiment.check_resolution import (
 from shortcutminer.experiment.execution_contract import (
     EXPERIMENT_PARAMETER_OWNERSHIP_HASH,
 )
+from shortcutminer.protocol.quantitative_plan import (
+    QUANTITATIVE_EXPERIMENT_PLAN_VERSION,
+)
 from shortcutminer.runtime.openai_compatible import build_runtime_snapshot
 from shortcutminer.storage.json_artifacts import atomic_write_json
 
@@ -110,6 +113,8 @@ def build_pilot_snapshot(
         "shortcutminer/experiment/quantitative_executor.py",
         "shortcutminer/experiment/check_resolution.py",
         "shortcutminer/experiment/execution_contract.py",
+        "shortcutminer/experiment/quantitative_plan.py",
+        "shortcutminer/protocol/quantitative_plan.py",
         "shortcutminer/tooling/protocol.py",
         "shortcutminer/tooling/agent_loop.py",
         "shortcutminer/workflow/nodes.py",
@@ -145,6 +150,15 @@ def build_pilot_snapshot(
         "experiment_parameter_ownership_hash": (
             EXPERIMENT_PARAMETER_OWNERSHIP_HASH
         ),
+        "quantitative_experiment_plan_version": (
+            QUANTITATIVE_EXPERIMENT_PLAN_VERSION
+        ),
+        "quantitative_experiment_plan_protocol_hash": backend_hashes[
+            "shortcutminer/protocol/quantitative_plan.py"
+        ],
+        "quantitative_experiment_plan_compiler_hash": backend_hashes[
+            "shortcutminer/experiment/quantitative_plan.py"
+        ],
         "text_runtime": text.model_dump(mode="json"),
         "semantic_runtime": semantic.model_dump(mode="json"),
         "provider_combination_id": combination,
@@ -178,6 +192,13 @@ def build_pilot_snapshot(
             "shortcutminer/experiment/execution_contract.py"
         ],
         experiment_parameter_ownership_hash=EXPERIMENT_PARAMETER_OWNERSHIP_HASH,
+        quantitative_experiment_plan_version=QUANTITATIVE_EXPERIMENT_PLAN_VERSION,
+        quantitative_experiment_plan_protocol_hash=backend_hashes[
+            "shortcutminer/protocol/quantitative_plan.py"
+        ],
+        quantitative_experiment_plan_compiler_hash=backend_hashes[
+            "shortcutminer/experiment/quantitative_plan.py"
+        ],
         text_runtime=text,
         semantic_runtime=semantic,
         provider_combination_id=combination,

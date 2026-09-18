@@ -18,6 +18,11 @@ EXECUTIVE_CHECK_TO_EXPERIMENT_TYPES = MappingProxyType({
     "task_model_evaluation": ("task_model_evaluation",),
     "ood_evaluation": ("ood_evaluation",),
     "counterfactual_intervention": ("counterfactual_intervention",),
+    "subgroup_evaluation": ("subgroup_evaluation",),
+    "model_evaluation": ("model_evaluation",),
+    "intervention": ("intervention",),
+    "ablation": ("ablation",),
+    "metric_computation": ("metric_computation",),
 })
 
 QUANTITATIVE_EXPERIMENT_TYPES = frozenset(get_args(ExperimentType))

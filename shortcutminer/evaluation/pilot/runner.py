@@ -49,7 +49,13 @@ from shortcutminer.experiment.quantitative_executor import (
     validate_quantitative_result,
 )
 from shortcutminer.experiment.quantitative_context import build_quantitative_request
-from shortcutminer.experiment.execution_contract import ExperimentDependencyPending
+from shortcutminer.experiment.quantitative_plan import (
+    compile_quantitative_experiment_plan,
+    primary_mandatory_steps,
+)
+from shortcutminer.protocol.quantitative_plan import (
+    QUANTITATIVE_EXPERIMENT_PLAN_VERSION,
+)
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.orchestrator import build_initial_workflow_state
 from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeResultBatch
@@ -1235,17 +1241,33 @@ class PilotRunner:
             json.loads(contract_failure_path.read_text(encoding="utf-8"))
             if contract_failure_path.is_file() else {}
         )
+        plan_path = draft_path.with_name("experiment_plan.json")
+        plan_execution_path = draft_path.with_name("plan_execution.json")
+        plan = (
+            json.loads(plan_path.read_text(encoding="utf-8"))
+            if plan_path.is_file() else {}
+        )
+        plan_execution = (
+            json.loads(plan_execution_path.read_text(encoding="utf-8"))
+            if plan_execution_path.is_file() else {}
+        )
+        mandatory_step_ids = plan_execution.get(
+            "mandatory_executed_step_ids", []
+        )
         passed = bool(
             error is None
             and canonical_result is not None
             and draft_valid
             and result_path.is_file()
-            and successful
-            and obligation.get("provider_tool_draft_count", 0) >= 1
-            and obligation.get("canonical_tool_call_count", 0) >= 1
+            and plan.get("plan_version")
+            == QUANTITATIVE_EXPERIMENT_PLAN_VERSION
+            and mandatory_step_ids
+            and plan_execution.get("backend_attempt_count", 0) >= 1
+            and plan_execution.get("successful_tool_result_count", 0) >= 1
             and execution_requirement.must_attempt_run_experiment
             and "statistical_check"
             in execution_requirement.resolved_experiment_types
+            and len(records) == 1
             and final_record is not None
             and final_record.status == "completed"
             and final_record.schema_valid is True
@@ -1303,6 +1325,19 @@ class PilotRunner:
                 QUANTITATIVE_CHECK_RESOLUTION_HASH
             ),
             "status": "passed" if passed else "failed",
+            "quantitative_experiment_plan_version": (
+                QUANTITATIVE_EXPERIMENT_PLAN_VERSION
+            ),
+            "plan_compile_passed": bool(plan),
+            "compiled_step_count": len(plan.get("steps", [])),
+            "mandatory_step_count": len(mandatory_step_ids),
+            "mandatory_executed_step_ids": mandatory_step_ids,
+            "backend_attempt_count": plan_execution.get(
+                "backend_attempt_count", len(attempts_for_task)
+            ),
+            "successful_tool_result_count": plan_execution.get(
+                "successful_tool_result_count", len(successful)
+            ),
             "provider_call_count": len(records),
             "tool_loop_iteration_count": sum(
                 item.status == "completed"
@@ -1317,7 +1352,6 @@ class PilotRunner:
                 "canonical_tool_call_count", 0
             ),
             "run_experiment_attempt_count": len(attempts_for_task),
-            "successful_tool_result_count": len(successful),
             "failed_tool_result_count": len(failed),
             "tool_names": [item.tool_name for item in tool_results],
             "valid_json": bool(
@@ -1457,64 +1491,48 @@ class PilotRunner:
         payload = {
             "request": request.model_dump(mode="json", exclude={"execution_resources"}),
             "execution_requirement": requirement.model_dump(mode="json"),
-            "execution_resources": request.execution_resources.model_dump(mode="json"),
         }
         resources = request.execution_resources
         if resources is None or not resources.allowed_scientific_metadata_fields:
             raise PilotRunnerError("offline replay has no authorized scientific metadata field")
-        cue_field = resources.allowed_scientific_metadata_fields[0]
-
-        def finalize(experiment_type: str, parameters: dict[str, Any], index: int):
-            return finalize_tool_call_draft(
+        plan = compile_quantitative_experiment_plan(request, requirement, runtime)
+        mandatory = primary_mandatory_steps(plan, request.task.requested_checks)
+        if not mandatory:
+            raise PilotRunnerError("offline replay compiled no mandatory ready step")
+        results = []
+        for index, step in enumerate(mandatory):
+            call = finalize_tool_call_draft(
                 {
                     "name": "run_experiment",
-                    "arguments": {
-                        "experiment_type": experiment_type,
-                        "parameters": parameters,
-                    },
+                    "arguments": {"plan_step_id": step.step_id},
                 },
                 agent_name="quantitative",
                 base_payload=payload,
                 tool_runtime=runtime,
-                iteration=1,
+                iteration=0,
                 call_index=index,
+                experiment_plan=plan,
             )
-
-        statistical_call = finalize(
-            "statistical_check", {"cue_field": cue_field}, 0
-        )
-        canonical = ExperimentToolInput.model_validate(statistical_call.arguments)
-        statistical_result = runtime.execute(statistical_call)
-        if statistical_result.status != "success" or statistical_result.output is None:
-            raise PilotRunnerError("offline statistical_check real backend failed")
-        ExperimentToolOutput.model_validate(statistical_result.output)
-
-        training_call = finalize(
-            "task_model_training",
-            {"class_weight": "none", "holdout_fraction": 0.25},
-            1,
-        )
-        ExperimentToolInput.model_validate(training_call.arguments)
-        dependency_states: dict[str, str] = {}
-        for index, experiment_type in enumerate(
-            ("task_model_evaluation", "counterfactual_intervention"), start=2
-        ):
-            parameters = (
-                {}
-                if experiment_type == "task_model_evaluation"
-                else {
-                    "transformation": {"type": "brightness", "factor": 0.9},
-                    "target_cue": request.candidate.cue.name,
-                }
+            ExperimentToolInput.model_validate(call.arguments)
+            tool_result = runtime.execute(call)
+            if tool_result.status != "success" or tool_result.output is None:
+                raise PilotRunnerError("offline mandatory real backend step failed")
+            ExperimentToolOutput.model_validate(tool_result.output)
+            results.append(tool_result)
+        canonical = mandatory[0].canonical_input
+        if canonical is None:
+            raise PilotRunnerError("offline mandatory step lacks canonical input")
+        dependency_states = {
+            step.experiment_type: (
+                "DEPENDENCY_NOT_YET_AVAILABLE"
+                if step.execution_state == "pending_dependency"
+                else step.execution_state.upper()
             )
-            try:
-                finalize(experiment_type, parameters, index)
-            except ExperimentDependencyPending:
-                dependency_states[experiment_type] = "DEPENDENCY_NOT_YET_AVAILABLE"
-            else:
-                raise PilotRunnerError(
-                    f"offline replay accepted pending dependency: {experiment_type}"
-                )
+            for step in plan.steps
+            if step.execution_state in {
+                "pending_dependency", "needs_scientific_spec"
+            }
+        }
 
         result = {
             "schema_version": "1.0",
@@ -1532,20 +1550,35 @@ class PilotRunner:
             "available_now_experiment_types": requirement.available_now_experiment_types,
             "pending_dependency_experiment_types": requirement.pending_dependency_experiment_types,
             "dependency_states": dependency_states,
+            "task_metadata_fields": request.task.inputs.metadata_fields,
+            "allowed_scientific_metadata_fields": (
+                resources.allowed_scientific_metadata_fields
+            ),
+            "compiled_steps": [
+                {
+                    "step_id": step.step_id,
+                    "planning_check": step.planning_check,
+                    "experiment_type": step.experiment_type,
+                    "execution_state": step.execution_state,
+                    "scientific_scope": step.scientific_scope,
+                }
+                for step in plan.steps
+            ],
+            "mandatory_executed_step_ids": [step.step_id for step in mandatory],
             "metadata_file": canonical.parameters.metadata_file,
             "metadata_path_is_relative": not Path(canonical.parameters.metadata_file).is_absolute(),
             "experiment_tool_input": "passed",
             "tool_runtime": "passed",
-            "real_backend": statistical_result.output["metadata"].get("backend"),
+            "real_backend": results[0].output["metadata"].get("backend"),
             "experiment_tool_output": "passed",
-            "backend_attempt_count": 1,
-            "successful_tool_result_count": 1,
+            "backend_attempt_count": len(results),
+            "successful_tool_result_count": len(results),
         }
         atomic_write_json(output_path, result, error_type=PilotRunnerError)
         return result
 
     def _save_canary_quantitative_audit(self, run_id: str) -> Path:
-        """Persist safe per-Agent tool counts and every canary QT task audit."""
+        """Persist safe plan, backend, and model-call facts for every QT task."""
 
         run_root = self.runs_root / run_id
         agent_audits = []
@@ -1554,12 +1587,8 @@ class PilotRunner:
         ):
             paths = sorted((run_root / "tools" / agent_name).glob("*.json"))
             results = [json.loads(item.read_text(encoding="utf-8")) for item in paths]
-            # Every persisted ToolResult in a completed real run is produced by one
-            # validated draft, one deterministic canonical call, and one execution.
             agent_audits.append({
                 "agent_name": agent_name,
-                "provider_tool_draft_count": len(results),
-                "canonical_tool_call_count": len(results),
                 "tool_execution_count": len(results),
                 "successful_tool_result_count": sum(
                     item.get("status") == "success" for item in results
@@ -1588,18 +1617,49 @@ class PilotRunner:
                 json.loads(result_path.read_text(encoding="utf-8"))
                 if result_path.is_file() else {}
             )
+            plan_path = input_path.with_name("experiment_plan.json")
+            plan = (
+                json.loads(plan_path.read_text(encoding="utf-8"))
+                if plan_path.is_file() else {}
+            )
+            plan_execution_path = input_path.with_name("plan_execution.json")
+            plan_execution = (
+                json.loads(plan_execution_path.read_text(encoding="utf-8"))
+                if plan_execution_path.is_file() else {}
+            )
+            steps = plan.get("steps", [])
             tasks.append({
                 "task_id": task_id,
                 "requested_checks": request["task"]["requested_checks"],
+                "task_metadata_fields": request["task"].get("inputs", {}).get(
+                    "metadata_fields", []
+                ),
                 "resolved_experiment_types": requirement[
                     "resolved_experiment_types"
                 ],
                 "must_attempt_run_experiment": requirement[
                     "must_attempt_run_experiment"
                 ],
-                "run_experiment_attempt_count": len(attempts),
-                "successful_tool_result_count": sum(
-                    item.get("status") == "success" for item in attempts
+                "compiled_step_count": len(steps),
+                "ready_step_count": sum(
+                    item.get("execution_state") == "ready" for item in steps
+                ),
+                "pending_step_count": sum(
+                    item.get("execution_state") == "pending_dependency"
+                    for item in steps
+                ),
+                "mandatory_executed_step_ids": plan_execution.get(
+                    "mandatory_executed_step_ids", []
+                ),
+                "backend_attempt_count": plan_execution.get(
+                    "backend_attempt_count", len(attempts)
+                ),
+                "successful_tool_result_count": plan_execution.get(
+                    "successful_tool_result_count",
+                    sum(item.get("status") == "success" for item in attempts),
+                ),
+                "quantitative_agent_calls": plan_execution.get(
+                    "quantitative_agent_call_count", 0
                 ),
                 "canonical_status": result.get("payload", {}).get("status"),
             })
@@ -1611,6 +1671,9 @@ class PilotRunner:
             ),
             "quantitative_check_resolution_hash": (
                 QUANTITATIVE_CHECK_RESOLUTION_HASH
+            ),
+            "quantitative_experiment_plan_version": (
+                QUANTITATIVE_EXPERIMENT_PLAN_VERSION
             ),
             "agents": agent_audits,
             "tasks": tasks,

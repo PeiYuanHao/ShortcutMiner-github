@@ -38,8 +38,9 @@ EXPERIMENT_PARAMETER_OWNERSHIP: dict[str, dict[str, tuple[str, ...]]] = {
         CONTROL_OWNED: (
             "metadata_file", "label_column", "max_rows", "max_categories",
             "min_group_size", "seed", "confidence_level", "bootstrap_iterations",
+            "n_permutations",
         ),
-        MODEL_OWNED: ("cue_field", "variable_mode", "n_permutations"),
+        MODEL_OWNED: ("cue_field", "variable_mode"),
         AUTHORIZED_RESOURCE_SELECTION: (),
     },
     "subgroup_evaluation": {
@@ -100,8 +101,9 @@ EXPERIMENT_PARAMETER_OWNERSHIP: dict[str, dict[str, tuple[str, ...]]] = {
             "test_split_values", "model_id", "model_backend", "feature_version",
             "max_train_samples", "max_eval_samples", "max_model_iterations", "seed",
             "artifact_policy", "confidence_level", "bootstrap_iterations",
+            "class_weight", "holdout_fraction",
         ),
-        MODEL_OWNED: ("class_weight", "holdout_fraction"),
+        MODEL_OWNED: (),
         AUTHORIZED_RESOURCE_SELECTION: (),
     },
     "task_model_evaluation": {
@@ -515,7 +517,10 @@ def finalize_run_experiment_draft(
             "max_rows": resources.max_rows,
             "max_categories": resources.max_categories,
             "min_group_size": resources.min_group_size,
-            "n_permutations": min(choice.n_permutations, resources.max_permutations),
+            "n_permutations": min(
+                resources.statistical_n_permutations,
+                resources.max_permutations,
+            ),
         }
     elif isinstance(choice, SubgroupEvaluationDraft):
         _authorize_fields([choice.group_field], resources)
@@ -624,14 +629,14 @@ def finalize_run_experiment_draft(
             "train_split_values": [],
             "validation_split_values": [],
             "test_split_values": [],
-            "holdout_fraction": choice.holdout_fraction,
+            "holdout_fraction": resources.training_holdout_fraction,
             "model_id": _model_id(run_id, task_id),
             "model_backend": resources.model_backend,
             "feature_version": resources.feature_version,
             "max_train_samples": max(4, resources.max_samples),
             "max_eval_samples": resources.max_samples,
             "max_model_iterations": resources.max_model_iterations,
-            "class_weight": choice.class_weight,
+            "class_weight": resources.training_class_weight,
             "artifact_policy": resources.artifact_policy,
         }
     else:

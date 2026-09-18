@@ -11,6 +11,13 @@ from shortcutminer.experiment.execution_contract import (
     ExperimentContractError,
     classify_experiment_availability,
 )
+from shortcutminer.experiment.quantitative_plan import (
+    QuantitativePlanError,
+    QuantitativePlanUnmaterializable,
+    compile_quantitative_experiment_plan,
+    plan_summary,
+    primary_mandatory_steps,
+)
 from shortcutminer.protocol.quantitative import (
     MetricValue,
     QuantitativeAgentDraft,
@@ -23,6 +30,7 @@ from shortcutminer.storage.events import append_event
 from shortcutminer.storage.stage_artifacts import save_stage_json
 from shortcutminer.tooling.agent_loop import (
     RequiredExperimentNotAttempted,
+    finalize_tool_call_draft,
     invoke_agent_with_tools,
 )
 from shortcutminer.tooling.builtins import ExperimentToolOutput
@@ -41,15 +49,30 @@ class QuantitativeDraftInvariantError(QuantitativeExecutionError):
 def build_quantitative_agent_payload(
     request: QuantitativeRequest,
     execution_requirement: QuantitativeExecutionRequirement,
+    experiment_plan=None,
 ) -> dict:
+    resources = request.execution_resources
     return {
         "request": request.model_dump(
             mode="json", exclude={"execution_resources"}
         ),
         "execution_requirement": execution_requirement.model_dump(mode="json"),
-        "execution_resources": (
-            request.execution_resources.model_dump(mode="json")
-            if request.execution_resources is not None else None
+        "execution_resources_summary": (
+            {
+                "dataset_name": resources.dataset_name,
+                "metadata_file": resources.metadata_file,
+                "label_column": resources.label_column,
+                "allowed_scientific_metadata_fields": (
+                    resources.allowed_scientific_metadata_fields
+                ),
+                "selected_split": resources.selected_split,
+                "available_splits": resources.available_splits,
+            }
+            if resources is not None else None
+        ),
+        **(
+            {"experiment_plan_summary": plan_summary(experiment_plan)}
+            if experiment_plan is not None else {}
         ),
     }
 
@@ -381,13 +404,96 @@ def execute_quantitative(
             tool_runtime,
             feasibility_confirmed=False,
         )
-        payload = build_quantitative_agent_payload(request, requirement)
         prompt = load_agent_workspace_prompt("quantitative", workspace_dir)
         if tool_runtime is not None:
             tool_runtime.bind_analysis_task(
                 runtime_constraints=request.task.inputs.runtime_constraints,
                 requested_checks=request.task.requested_checks,
             )
+        experiment_plan = None
+        mandatory_step_ids: list[str] = []
+        mandatory_results: list[ToolResult] = []
+        if requirement.must_attempt_run_experiment:
+            if tool_runtime is None:
+                raise QuantitativePlanUnmaterializable(
+                    "mandatory_quantitative_execution_requires_tool_runtime"
+                )
+            experiment_plan = compile_quantitative_experiment_plan(
+                request, requirement, tool_runtime
+            )
+            mandatory = primary_mandatory_steps(
+                experiment_plan, request.task.requested_checks
+            )
+            if not mandatory:
+                raise QuantitativePlanUnmaterializable(
+                    "no_required_ready_quantitative_plan_step"
+                )
+            base_payload = {
+                "request": request.model_dump(
+                    mode="json", exclude={"execution_resources"}
+                ),
+                "execution_requirement": requirement.model_dump(mode="json"),
+            }
+            for index, step in enumerate(mandatory):
+                call = finalize_tool_call_draft(
+                    {
+                        "name": "run_experiment",
+                        "arguments": {"plan_step_id": step.step_id},
+                    },
+                    agent_name="quantitative",
+                    base_payload=base_payload,
+                    tool_runtime=tool_runtime,
+                    iteration=0,
+                    call_index=index,
+                    experiment_plan=experiment_plan,
+                )
+                result = tool_runtime.execute(call)
+                mandatory_step_ids.append(step.step_id)
+                mandatory_results.append(result)
+            if runs_root is not None:
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="experiment_plan.json",
+                    payload=experiment_plan,
+                )
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="plan_execution.json",
+                    payload={
+                        "mandatory_executed_step_ids": mandatory_step_ids,
+                        "backend_attempt_count": len(mandatory_results),
+                        "successful_tool_result_count": sum(
+                            result.status == "success"
+                            for result in mandatory_results
+                        ),
+                        "quantitative_agent_call_count": 0,
+                    },
+                )
+            if not mandatory_results or not all(
+                result.status == "success" for result in mandatory_results
+            ):
+                raise QuantitativePlanUnmaterializable(
+                    "mandatory_quantitative_backend_execution_failed"
+                )
+            refreshed = compile_quantitative_experiment_plan(
+                request, requirement, tool_runtime
+            )
+            experiment_plan = refreshed.model_copy(update={
+                "steps": [
+                    step.model_copy(update={"execution_state": "completed"})
+                    if step.step_id in set(mandatory_step_ids) else step
+                    for step in refreshed.steps
+                ]
+            })
+        payload = build_quantitative_agent_payload(
+            request, requirement, experiment_plan
+        )
         if runs_root is not None:
             save_stage_json(
                 runs_root,
@@ -397,6 +503,17 @@ def execute_quantitative(
                 filename="input.json",
                 payload=payload,
             )
+            if experiment_plan is not None:
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="experiment_plan.json",
+                    payload=experiment_plan,
+                )
+                # The initial plan-execution audit was already persisted before
+                # the provider boundary; keep the refreshed completed-state plan.
         invocation = None
         try:
             invocation = invoke_agent_with_tools(
@@ -405,6 +522,8 @@ def execute_quantitative(
                 payload,
                 system_prompt=prompt,
                 tool_runtime=tool_runtime,
+                experiment_plan=experiment_plan,
+                quantitative_request=request,
             )
             raw_output = invocation.output
         except RequiredExperimentNotAttempted as exc:
@@ -422,7 +541,7 @@ def execute_quantitative(
                     },
                 )
             raise QuantitativeExecutionError(exc.category) from exc
-        except ExperimentContractError as exc:
+        except (ExperimentContractError, QuantitativePlanError) as exc:
             if runs_root is not None:
                 save_stage_json(
                     runs_root,
@@ -454,6 +573,25 @@ def execute_quantitative(
             invocation.tool_results,
         )
         if runs_root is not None:
+            if experiment_plan is not None:
+                save_stage_json(
+                    runs_root,
+                    run_id=request.run_id,
+                    stage="quantitative",
+                    scope=request.task.task_id,
+                    filename="plan_execution.json",
+                    payload={
+                        "mandatory_executed_step_ids": mandatory_step_ids,
+                        "backend_attempt_count": len(mandatory_results),
+                        "successful_tool_result_count": sum(
+                            result.status == "success"
+                            for result in mandatory_results
+                        ),
+                        "quantitative_agent_call_count": (
+                            invocation.provider_call_count
+                        ),
+                    },
+                )
             save_stage_json(
                 runs_root,
                 run_id=request.run_id,
@@ -511,6 +649,15 @@ def execute_quantitative(
     except Exception as exc:
         if runs_root is not None:
             try:
+                if isinstance(exc, QuantitativePlanError):
+                    save_stage_json(
+                        runs_root,
+                        run_id=request.run_id,
+                        stage="quantitative",
+                        scope=request.task.task_id,
+                        filename="execution_contract_failure.json",
+                        payload={"category": exc.category},
+                    )
                 append_event(
                     runs_root,
                     request.run_id,

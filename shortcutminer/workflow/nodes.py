@@ -18,6 +18,9 @@ from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.qualitative_context import build_qualitative_request
 from shortcutminer.experiment.qualitative_executor import execute_qualitative
 from shortcutminer.experiment.quantitative_context import build_quantitative_request
+from shortcutminer.experiment.quantitative_plan import (
+    compile_quantitative_experiment_plan,
+)
 from shortcutminer.experiment.quantitative_executor import (
     determine_quantitative_execution_requirement,
     execute_quantitative,
@@ -298,6 +301,10 @@ def quantitative_node(
     executive_request, plan = _executive_state(state, QuantitativeNodeError)
     config = _stage_config(state, "quantitative_config")
     resource_options = dict(config.get("execution_resources", {}))
+    visual_options = state["identify_config"].get("visual_discovery", {})
+    for key in ("sample_id_column", "sample_path_column", "split_column"):
+        if visual_options.get(key) is not None:
+            resource_options.setdefault(key, visual_options[key])
     resource_options.setdefault("seed", state["identify_config"]["seed"])
     results = []
     for task in plan.tasks:
@@ -387,11 +394,16 @@ def feasibility_node(
         quantitative_resource_options = dict(
             quantitative_config.get("execution_resources", {})
         )
+        visual_options = state["identify_config"].get("visual_discovery", {})
+        for key in ("sample_id_column", "sample_path_column", "split_column"):
+            if visual_options.get(key) is not None:
+                quantitative_resource_options.setdefault(key, visual_options[key])
         quantitative_resource_options.setdefault(
             "seed", state["identify_config"]["seed"]
         )
         qualitative_config = _stage_config(state, "qualitative_config")
         quantitative_requirements: dict[str, dict[str, Any]] = {}
+        quantitative_plans: dict[str, dict[str, Any]] = {}
         for task in plan.tasks:
             if task.target == "quantitative":
                 request = build_quantitative_request(
@@ -412,6 +424,16 @@ def feasibility_node(
                 quantitative_requirements[task.task_id] = requirement.model_dump(
                     mode="json"
                 )
+                if requirement.must_attempt_run_experiment:
+                    if quantitative_tool_runtime is None:
+                        raise DownstreamPlanFeasibilityError(
+                            "Executable quantitative plan requires Tool Runtime"
+                        )
+                    quantitative_plans[task.task_id] = (
+                        compile_quantitative_experiment_plan(
+                            request, requirement, quantitative_tool_runtime
+                        ).model_dump(mode="json")
+                    )
             elif task.target == "qualitative":
                 preparation = _qualitative_preparation(
                     state, task, qualitative_config
@@ -438,6 +460,7 @@ def feasibility_node(
         ) from exc
     return {
         "quantitative_execution_requirements": quantitative_requirements,
+        "quantitative_experiment_plans": quantitative_plans,
         "stage_status": {"feasibility": "completed"},
     }
 

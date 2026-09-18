@@ -124,7 +124,10 @@ See [Tool Runtime](docs/tool-runtime.md) for the exact permission matrix and fil
 
 - **Identify** can inspect the approved dataset, metadata, distributions, and samples to support candidate discovery.
 - **Executive** can inspect available capabilities and approved run information, but cannot run experiments.
-- **Quantitative** is the only Agent permitted to call `run_experiment`; it cannot execute arbitrary shell or Python code.
+- **Quantitative** is the only Agent permitted to request an optional `run_experiment`, and can do
+  so only by selecting a ready deterministic `plan_step_id`; it cannot construct raw experiment
+  parameters or execute arbitrary shell or Python code. Mandatory ready evidence is executed by
+  the control layer before Quantitative interprets it.
 - **Qualitative** alone can call `inspect_sample` for allowlisted, bounded local
   descriptors of already selected samples; it can also inspect approved metadata
   and artifacts without mutating upstream data.
