@@ -45,9 +45,14 @@ lengths, or hashes.
 2. `python -m shortcutminer pilot preflight --config <pilot.yaml>` requires both configured
    real providers. The text endpoint returns strict JSON. The VLM receives `sample_a.png` and
    `sample_b.png` and must distinguish a central circle from a central square.
-3. `pilot legacy-task-negative-replay` proves the persisted malformed association task is
-   rejected, while `pilot regenerate-task-offline` rebuilds a new task from the historical public
-   CandidateReport and executes its mandatory backend step with zero provider calls.
+3. `pilot legacy-task-negative-replay` selects the persisted `TASK-C002-QT` explicitly and proves
+   that its malformed association task is rejected. `pilot historical-candidate-binding-replay`
+   reads only the historical public CandidateReport and proves that the ambiguous
+   `site_device_batch` cue remains unresolved with no fuzzy fallback or generated task.
+   `pilot current-contract-task-offline` uses a separate synthetic public engineering fixture to
+   exercise exact binding, deterministic Executive finalization, semantic validation,
+   Quantitative plan compilation, `RealExperimentExecutor`, and quantitative finalization with
+   zero provider calls.
 4. `python -m shortcutminer pilot canary --config <pilot.yaml>` runs one full real-provider
    workflow. The canary is excluded from scientific metrics.
 5. `python -m shortcutminer pilot run --config <pilot.yaml>` runs the frozen matrix

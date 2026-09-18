@@ -61,7 +61,8 @@ def _parser() -> argparse.ArgumentParser:
         ("qualitative-diagnostic", "Run one gated real Qualitative compatibility diagnostic"),
         ("quantitative-diagnostic", "Run one gated real Quantitative compatibility diagnostic"),
         ("legacy-task-negative-replay", "Verify the persisted malformed task is rejected without providers"),
-        ("regenerate-task-offline", "Regenerate and execute a task from a public CandidateReport without providers"),
+        ("historical-candidate-binding-replay", "Verify ambiguous historical public candidates remain unresolved"),
+        ("current-contract-task-offline", "Execute the current exact-binding contract through the real local backend"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -71,7 +72,7 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
         if name in {
             "qualitative-diagnostic", "quantitative-diagnostic",
-            "legacy-task-negative-replay", "regenerate-task-offline",
+            "legacy-task-negative-replay", "historical-candidate-binding-replay",
         }:
             command.add_argument(
                 "--source-pilot-id", required=True,
@@ -173,10 +174,12 @@ def main(argv: list[str] | None = None) -> int:
                 value = pilot_runner.legacy_task_negative_replay(
                     source_pilot_id=args.source_pilot_id,
                 )
-            elif args.pilot_command == "regenerate-task-offline":
-                value = pilot_runner.regenerate_task_offline(
+            elif args.pilot_command == "historical-candidate-binding-replay":
+                value = pilot_runner.historical_candidate_binding_replay(
                     source_pilot_id=args.source_pilot_id,
                 )
+            elif args.pilot_command == "current-contract-task-offline":
+                value = pilot_runner.current_contract_task_offline()
             elif args.pilot_command == "canary":
                 value = pilot_runner.canary().model_dump(mode="json")
             elif args.pilot_command == "run":

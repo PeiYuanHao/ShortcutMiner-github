@@ -55,6 +55,7 @@ from shortcutminer.experiment.executive_executor import (
 from shortcutminer.experiment.quantitative_executor import (
     determine_quantitative_execution_requirement,
     execute_quantitative,
+    finalize_quantitative_result,
     validate_quantitative_result,
 )
 from shortcutminer.experiment.quantitative_context import build_quantitative_request
@@ -71,10 +72,20 @@ from shortcutminer.protocol.batches import QualitativeResultBatch, QuantitativeR
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.protocol.executive import (
     ExecutiveAgentDraft,
+    ExecutiveAuditOptions,
+    ExecutiveCapabilities,
     ExecutiveRequest,
+    ExecutiveRoutingContext,
     RoutingPlan,
 )
-from shortcutminer.protocol.identify import CandidateReport
+from shortcutminer.protocol.identify import (
+    Candidate,
+    CandidateReport,
+    Cue,
+    DatasetInspectionSummary,
+    DatasetSpec,
+    TaskSpec,
+)
 from shortcutminer.protocol.model_runtime import ModelInvocationRecord
 from shortcutminer.protocol.qualitative import (
     QualitativeAgentDraft,
@@ -1429,20 +1440,32 @@ class PilotRunner:
         legacy_paths = sorted(
             (source_root / "quantitative").glob("*/input.json")
         )
-        malformed = []
+        requests: list[QuantitativeRequest] = []
         for path in legacy_paths:
             value = json.loads(path.read_text(encoding="utf-8"))
             request = QuantitativeRequest.model_validate(value["request"])
-            if (
-                "association_test" in request.task.requested_checks
-                and not request.task.inputs.metadata_fields
-            ):
-                malformed.append(request)
-        if len(malformed) != 1:
+            requests.append(request)
+        selected = [
+            request for request in requests
+            if request.task.task_id == "TASK-C002-QT"
+        ]
+        if len(selected) != 1:
             raise PilotRunnerError(
-                "legacy negative replay requires exactly one persisted "
-                "association task with empty metadata_fields"
+                "legacy negative replay requires exactly one persisted TASK-C002-QT"
             )
+        legacy = selected[0]
+        if (
+            "association_test" not in legacy.task.requested_checks
+            or legacy.task.inputs.metadata_fields
+        ):
+            raise PilotRunnerError(
+                "TASK-C002-QT no longer has the expected malformed association shape"
+            )
+        malformed = [
+            request for request in requests
+            if "association_test" in request.task.requested_checks
+            and not request.task.inputs.metadata_fields
+        ]
         executive_value = json.loads(
             (source_root / "executive" / "input.json").read_text(encoding="utf-8")
         )
@@ -1453,39 +1476,54 @@ class PilotRunner:
             item.candidate_id: item
             for item in build_candidate_contexts(executive_request)
         }
-        legacy = malformed[0]
-        try:
-            validate_analysis_task_semantics(
-                legacy.task,
-                contexts[legacy.task.candidate_id],
-                executive_request.routing_context.capabilities,
-            )
-        except AnalysisTaskSemanticError as exc:
-            result = {
-                "schema_version": "1.0",
-                "status": "passed",
-                "provider_call_count": 0,
-                "source_pilot_id": source_pilot_id,
-                "task_id": legacy.task.task_id,
-                "requested_checks": legacy.task.requested_checks,
-                "metadata_fields": legacy.task.inputs.metadata_fields,
-                "semantic_gate": "rejected",
-                "rejection_category": str(exc),
-            }
-            atomic_write_json(output_path, result, error_type=PilotRunnerError)
-            return result
-        raise PilotRunnerError("legacy malformed task unexpectedly passed semantic validation")
+        rejected: dict[str, str] = {}
+        for request in malformed:
+            candidate_context = contexts.get(request.task.candidate_id)
+            if candidate_context is None:
+                raise PilotRunnerError(
+                    "legacy malformed task has no matching public candidate context"
+                )
+            try:
+                validate_analysis_task_semantics(
+                    request.task,
+                    candidate_context,
+                    executive_request.routing_context.capabilities,
+                )
+            except AnalysisTaskSemanticError as exc:
+                rejected[request.task.task_id] = str(exc)
+            else:
+                raise PilotRunnerError(
+                    f"legacy malformed task unexpectedly passed semantic validation: "
+                    f"{request.task.task_id}"
+                )
+        if legacy.task.task_id not in rejected:
+            raise PilotRunnerError("TASK-C002-QT was not rejected by the semantic gate")
+        result = {
+            "schema_version": "1.0",
+            "status": "passed",
+            "provider_call_count": 0,
+            "source_pilot_id": source_pilot_id,
+            "selected_task_id": legacy.task.task_id,
+            "requested_checks": legacy.task.requested_checks,
+            "metadata_fields": legacy.task.inputs.metadata_fields,
+            "semantic_gate": "rejected",
+            "rejection_category": rejected[legacy.task.task_id],
+            "historical_malformed_task_count": len(malformed),
+            "rejected_malformed_task_ids": sorted(rejected),
+        }
+        atomic_write_json(output_path, result, error_type=PilotRunnerError)
+        return result
 
-    def regenerate_task_offline(
+    def historical_candidate_binding_replay(
         self,
         *,
         source_pilot_id: str,
     ) -> dict[str, Any]:
-        """Regenerate a new task from a public CandidateReport and run it locally."""
+        """Prove that ambiguous legacy public candidates remain unresolved."""
 
         self.dry_run()
         source = self._source_pilot_root(source_pilot_id)
-        output_path = self.pilot_root / "regenerated_task_offline.json"
+        output_path = self.pilot_root / "historical_candidate_binding_replay.json"
         if output_path.is_file():
             return json.loads(output_path.read_text(encoding="utf-8"))
         source_run_id = f"{source_pilot_id}-canary"
@@ -1515,86 +1553,186 @@ class PilotRunner:
         )
         request = request.model_copy(update={"routing_context": context})
         contexts = build_candidate_contexts(request)
-        eligible = [
-            item for item in contexts
-            if item.binding_kind == "metadata_field"
-            and "association_test" in item.allowed_quantitative_checks
-        ]
-        if not eligible:
-            raise PilotRunnerError(
-                "historical public CandidateReport has no exact metadata binding "
-                "eligible for association_test"
-            )
-        selected_id = eligible[0].candidate_id
-        needs_observations = (
-            "observations" in request.routing_context.audit_options.requested_outputs
-        )
-        decisions = []
-        for candidate, executable in zip(
-            request.candidate_report.candidates, contexts, strict=True
-        ):
-            if candidate.candidate_id != selected_id:
-                decisions.append({
-                    "candidate_id": candidate.candidate_id,
-                    "route": "unresolved",
-                    "routing_reason": "Offline replay selects one bounded exact binding.",
-                    "quantitative": None,
-                    "qualitative": None,
-                    "missing_requirements": ["Outside the bounded replay selection."],
-                    "limitations": [],
-                })
-                continue
-            qualitative = None
-            route = "quantitative"
-            if needs_observations and "sample_inspection" in executable.allowed_qualitative_checks:
-                route = "both"
-                qualitative = {
-                    "objective": "Inspect public samples for the bounded candidate.",
-                    "requested_checks": ["sample_inspection"],
-                }
-            decisions.append({
+        bindings = [
+            {
                 "candidate_id": candidate.candidate_id,
-                "route": route,
-                "routing_reason": "The exact public metadata binding permits association testing.",
+                "cue_family": candidate.cue.family,
+                "cue_name": candidate.cue.name,
+                "binding_status": executable.binding_status,
+                "binding_kind": executable.binding_kind,
+            }
+            for candidate, executable in zip(
+                request.candidate_report.candidates,
+                contexts,
+                strict=True,
+            )
+        ]
+        expected_legacy = [
+            (candidate, executable)
+            for candidate, executable in zip(
+                request.candidate_report.candidates, contexts, strict=True
+            )
+            if candidate.cue.family == "metadata"
+            and candidate.cue.name == "site_device_batch"
+        ]
+        if not expected_legacy:
+            raise PilotRunnerError(
+                "historical public CandidateReport has no site_device_batch metadata candidate"
+            )
+        fuzzy_fallback_count = sum(
+            executable.binding_status != "unresolved"
+            or executable.binding_kind != "unresolved"
+            or bool(executable.bound_metadata_fields)
+            for _, executable in expected_legacy
+        )
+        if fuzzy_fallback_count:
+            raise PilotRunnerError(
+                "historical site_device_batch candidate was fuzzily bound"
+            )
+        result = {
+            "schema_version": "1.0",
+            "status": "passed",
+            "provider_call_count": 0,
+            "source_pilot_id": source_pilot_id,
+            "candidate_report_loaded": True,
+            "hidden_truth_accessed": False,
+            "candidate_bindings": bindings,
+            "site_device_batch_result": "unresolved",
+            "fuzzy_fallback_count": 0,
+            "generated_task_count": 0,
+        }
+        atomic_write_json(output_path, result, error_type=PilotRunnerError)
+        return result
+
+    def current_contract_task_offline(self) -> dict[str, Any]:
+        """Run a current exact-binding engineering fixture with zero providers."""
+
+        self.dry_run()
+        output_path = self.pilot_root / "current_contract_task_offline.json"
+        if output_path.is_file():
+            return json.loads(output_path.read_text(encoding="utf-8"))
+        run_id = f"{self.config.pilot_id}-current-contract-offline"
+        fixture_root = self.pilot_root / "offline" / "current_contract_fixture" / "public" / "dataset"
+        fixture_root.mkdir(parents=True, exist_ok=True)
+        scientific_field = "scientific_cue"
+        fieldnames = ["id", "label", scientific_field, "path"]
+        metadata_path = fixture_root / "metadata.csv"
+        with metadata_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            for index in range(8):
+                writer.writerow({
+                    "id": f"sample-{index:03d}",
+                    "label": index % 2,
+                    scientific_field: "group-a" if index % 2 == 0 else "group-b",
+                    "path": f"images/sample-{index:03d}.png",
+                })
+        limitation = (
+            "Synthetic public engineering contract fixture; not a scientific conclusion."
+        )
+        candidate = Candidate(
+            candidate_id="C001",
+            cue=Cue(family="metadata", name=scientific_field),
+            description="Exact metadata binding engineering fixture.",
+            observation="The public fixture exposes one exact scientific metadata field.",
+            hypothesis="The fixture field may be associated with the fixture label.",
+            evidence_sources=["metadata"],
+            priority="high",
+            status="unverified",
+        )
+        report = CandidateReport(
+            protocol_version="1.0",
+            run_id=run_id,
+            message_id=f"{run_id}:identify:report",
+            source="identify",
+            target="executive",
+            message_type="candidate_report",
+            in_reply_to=f"{run_id}:identify:request",
+            artifact_references=[],
+            dataset_summary=DatasetInspectionSummary(
+                dataset="current_contract_fixture",
+                samples_inspected=0,
+                metadata_used=True,
+            ),
+            candidates=[candidate],
+            limitations=[limitation],
+        )
+        request = ExecutiveRequest(
+            protocol_version="1.0",
+            run_id=run_id,
+            message_id=f"{run_id}:executive:request",
+            source="orchestrator",
+            target="executive",
+            message_type="executive_request",
+            in_reply_to=report.message_id,
+            candidate_report=report,
+            routing_context=ExecutiveRoutingContext(
+                protocol_version="1.0",
+                run_id=run_id,
+                dataset=DatasetSpec(
+                    name="current_contract_fixture",
+                    root=str(fixture_root),
+                    metadata_file="metadata.csv",
+                ),
+                task=TaskSpec(type="classification", label_column="label"),
+                audit_options=ExecutiveAuditOptions(
+                    validation_depth="standard",
+                    max_tasks=1,
+                    max_samples_per_task=8,
+                    allowed_targets=["quantitative"],
+                    requested_outputs=["metrics"],
+                    runtime_constraints=["no_external_services"],
+                ),
+                capabilities=ExecutiveCapabilities(
+                    available_targets=["quantitative"],
+                    available_metadata_fields=fieldnames,
+                    addressing_fields=["id", "label", "path"],
+                    quantitative_checks=["association_test"],
+                    qualitative_checks=[],
+                    model_capabilities=[],
+                    sample_access=True,
+                    external_services=False,
+                    available_output_types=["metrics"],
+                ),
+                artifact_references=[],
+                limitations=[limitation],
+            ),
+        )
+        contexts = build_candidate_contexts(request)
+        draft = ExecutiveAgentDraft.model_validate({
+            "decisions": [{
+                "candidate_id": candidate.candidate_id,
+                "route": "quantitative",
+                "routing_reason": "The exact fixture binding permits association testing.",
                 "quantitative": {
-                    "objective": "Measure association for the exact candidate-bound metadata field.",
+                    "objective": "Verify the current exact-binding execution contract.",
                     "requested_checks": ["association_test"],
                 },
-                "qualitative": qualitative,
+                "qualitative": None,
                 "missing_requirements": [],
-                "limitations": [],
-            })
-        draft = ExecutiveAgentDraft.model_validate({
-            "decisions": decisions,
-            "limitations": [],
+                "limitations": [limitation],
+            }],
+            "limitations": [limitation],
         })
         plan = finalize_executive_draft(request, contexts, draft)
         validate_routing_plan(plan, request, candidate_contexts=contexts)
-        task = next(
-            item for item in plan.tasks
-            if item.candidate_id == selected_id and item.target == "quantitative"
-        )
-        if not task.inputs.metadata_fields:
-            raise PilotRunnerError("regenerated association task has no bound metadata field")
-        budget = initial_state.get("identify_config", {}).get("budget", {})
+        task = plan.tasks[0]
         quantitative_request = build_quantitative_request(
             executive_request=request,
             routing_plan=plan,
             task_id=task.task_id,
             message_id=f"{request.run_id}:quantitative:{task.task_id}:offline-request",
             execution_resource_options={
-                "seed": initial_state["identify_config"]["seed"],
-                "sample_id_column": visual.get("sample_id_column"),
-                "sample_path_column": visual.get("sample_path_column"),
-                "split_column": visual.get("split_column"),
-                "max_rows": budget.get("max_metadata_rows", 100_000),
-                "max_samples": visual.get("max_samples", 10_000),
+                "seed": self.config.runtime_seeds[0],
+                "sample_id_column": "id",
+                "sample_path_column": "path",
+                "max_rows": 8,
+                "max_samples": 8,
             },
         )
-        dataset_root = Path(task.inputs.dataset_reference).resolve(strict=True)
         runtime = build_local_tool_runtimes(
             run_id=request.run_id,
-            dataset_root=dataset_root,
+            dataset_root=fixture_root,
             runs_root=self.runs_root,
         )["quantitative"]
         requirement = determine_quantitative_execution_requirement(
@@ -1626,28 +1764,45 @@ class PilotRunner:
             ExperimentToolInput.model_validate(call.arguments)
             result = runtime.execute(call)
             if result.status != "success" or result.output is None:
-                raise PilotRunnerError("regenerated mandatory real backend step failed")
+                raise PilotRunnerError("current contract mandatory real backend step failed")
             ExperimentToolOutput.model_validate(result.output)
             results.append(result)
         if not mandatory or not results:
-            raise PilotRunnerError("regenerated task compiled no executable mandatory step")
-        replay = {
+            raise PilotRunnerError("current contract compiled no executable mandatory step")
+        if any(
+            result.output["metadata"].get("backend") != "real_cpu_v1"
+            for result in results
+        ):
+            raise PilotRunnerError("current contract did not use RealExperimentExecutor")
+        quantitative_draft = QuantitativeAgentDraft(
+            status="completed",
+            analysis_type="offline_engineering_contract_verification",
+            evidence_level="Q1",
+            evidence_direction="inconclusive",
+            evidence_summary="The real local backend completed the engineering fixture.",
+            evidence_tool_call_ids=[result.tool_call_id for result in results],
+            additional_limitations=[limitation],
+            recommended_followup=[],
+        )
+        quantitative_result = finalize_quantitative_result(
+            quantitative_draft,
+            quantitative_request,
+            tool_results=tuple(results),
+        )
+        validate_quantitative_result(
+            quantitative_result,
+            quantitative_request,
+            tool_results=tuple(results),
+        )
+        result = {
             "schema_version": "1.0",
             "status": "passed",
             "provider_call_count": 0,
-            "source_pilot_id": source_pilot_id,
-            "candidate_bindings": [
-                {
-                    "candidate_id": candidate.candidate_id,
-                    "cue_family": candidate.cue.family,
-                    "cue_name": candidate.cue.name,
-                    "binding_status": executable.binding_status,
-                    "binding_kind": executable.binding_kind,
-                }
-                for candidate, executable in zip(
-                    request.candidate_report.candidates, contexts, strict=True
-                )
-            ],
+            "fixture_kind": "current_contract_public_engineering_fixture",
+            "hidden_truth_accessed": False,
+            "binding_status": contexts[0].binding_status,
+            "binding_kind": contexts[0].binding_kind,
+            "bound_metadata_fields": contexts[0].bound_metadata_fields,
             "task": {
                 "task_id": task.task_id,
                 "candidate_id": task.candidate_id,
@@ -1664,184 +1819,9 @@ class PilotRunner:
             "successful_tool_result_count": sum(
                 result.status == "success" for result in results
             ),
-        }
-        atomic_write_json(output_path, replay, error_type=PilotRunnerError)
-        return replay
-
-    def offline_quantitative_replay(
-        self,
-        *,
-        source_pilot_id: str,
-    ) -> dict[str, Any]:
-        """Replay persisted pilot_001/TASK-C002 through the real local backend only."""
-
-        self.dry_run()
-        source = self._source_pilot_root(source_pilot_id)
-        output_path = self.pilot_root / "offline_quantitative_replay.json"
-        if output_path.is_file():
-            return json.loads(output_path.read_text(encoding="utf-8"))
-
-        source_run_id = f"{source_pilot_id}-canary"
-        source_input = (
-            source / "runs" / source_run_id / "quantitative"
-            / "TASK-C002-QT" / "input.json"
-        )
-        legacy = QuantitativeRequest.model_validate_json(
-            json.dumps(json.loads(source_input.read_text(encoding="utf-8"))["request"])
-        )
-        source_run_root = source / "runs" / source_run_id
-        executive_value = json.loads(
-            (source_run_root / "executive" / "input.json").read_text(encoding="utf-8")
-        )
-        executive_request = ExecutiveRequest.model_validate(executive_value["request"])
-        routing_path = source_run_root / "executive" / "result.json"
-        if not routing_path.is_file():
-            routing_path = routing_path.with_name("routing.json")
-        routing_plan = RoutingPlan.model_validate_json(
-            routing_path.read_text(encoding="utf-8")
-        )
-        initial_state = json.loads(
-            (source_run_root / "input.json").read_text(encoding="utf-8")
-        )["initial_state"]
-        visual = initial_state.get("identify_config", {}).get("visual_discovery", {})
-        budget = initial_state.get("identify_config", {}).get("budget", {})
-        source_request = build_quantitative_request(
-            executive_request=executive_request,
-            routing_plan=routing_plan,
-            task_id="TASK-C002-QT",
-            message_id=legacy.message_id,
-            limitations=legacy.limitations,
-            execution_resource_options={
-                "seed": initial_state["identify_config"]["seed"],
-                "sample_id_column": visual.get("sample_id_column"),
-                "sample_path_column": visual.get("sample_path_column"),
-                "split_column": visual.get("split_column"),
-                "max_rows": budget.get("max_metadata_rows", 100_000),
-                "max_samples": visual.get("max_samples", 10_000),
-            },
-        )
-        if (
-            source_request.task.inputs.dataset != "pilot_001"
-            or source_request.task.task_id != "TASK-C002-QT"
-            or source_request.candidate.candidate_id != "C002"
-        ):
-            raise PilotRunnerError("offline replay source identity is not pilot_001/TASK-C002-QT/C002")
-        manifest = json.loads((source / "suite_public.json").read_text(encoding="utf-8"))
-        entries = [
-            item for item in manifest["challenges"]
-            if item["challenge_id"] == "pilot_001"
-        ]
-        if len(entries) != 1:
-            raise PilotRunnerError("offline replay source suite is ambiguous")
-        dataset_root = Path(source_request.task.inputs.dataset_reference).resolve(strict=True)
-        expected_root = (source / entries[0]["dataset_reference"]).resolve(strict=True)
-        if dataset_root != expected_root:
-            raise PilotRunnerError("offline replay dataset differs from the public suite")
-
-        run_id = f"{self.config.pilot_id}-task-c002-offline-replay"
-        task = source_request.task.model_copy(update={
-            "run_id": run_id,
-            "message_id": f"{run_id}:executive:TASK-C002-QT:task",
-        })
-        request = source_request.model_copy(update={
-            "run_id": run_id,
-            "message_id": f"{run_id}:quantitative:TASK-C002-QT:request",
-            "in_reply_to": task.message_id,
-            "task": task,
-        })
-        runtime = build_local_tool_runtimes(
-            run_id=run_id,
-            dataset_root=dataset_root,
-            runs_root=self.runs_root,
-        )["quantitative"]
-        requirement = determine_quantitative_execution_requirement(
-            request, runtime, feasibility_confirmed=True
-        )
-        payload = {
-            "request": request.model_dump(mode="json", exclude={"execution_resources"}),
-            "execution_requirement": requirement.model_dump(mode="json"),
-        }
-        resources = request.execution_resources
-        if resources is None or not resources.allowed_scientific_metadata_fields:
-            raise PilotRunnerError("offline replay has no authorized scientific metadata field")
-        plan = compile_quantitative_experiment_plan(request, requirement, runtime)
-        mandatory = primary_mandatory_steps(plan, request.task.requested_checks)
-        if not mandatory:
-            raise PilotRunnerError("offline replay compiled no mandatory ready step")
-        results = []
-        for index, step in enumerate(mandatory):
-            call = finalize_tool_call_draft(
-                {
-                    "name": "run_experiment",
-                    "arguments": {"plan_step_id": step.step_id},
-                },
-                agent_name="quantitative",
-                base_payload=payload,
-                tool_runtime=runtime,
-                iteration=0,
-                call_index=index,
-                experiment_plan=plan,
-            )
-            ExperimentToolInput.model_validate(call.arguments)
-            tool_result = runtime.execute(call)
-            if tool_result.status != "success" or tool_result.output is None:
-                raise PilotRunnerError("offline mandatory real backend step failed")
-            ExperimentToolOutput.model_validate(tool_result.output)
-            results.append(tool_result)
-        canonical = mandatory[0].canonical_input
-        if canonical is None:
-            raise PilotRunnerError("offline mandatory step lacks canonical input")
-        dependency_states = {
-            step.experiment_type: (
-                "DEPENDENCY_NOT_YET_AVAILABLE"
-                if step.execution_state == "pending_dependency"
-                else step.execution_state.upper()
-            )
-            for step in plan.steps
-            if step.execution_state in {
-                "pending_dependency", "needs_scientific_spec"
-            }
-        }
-
-        result = {
-            "schema_version": "1.0",
-            "status": "passed",
-            "provider_call_count": 0,
-            "source_pilot_id": source_pilot_id,
-            "run_id": run_id,
-            "dataset_identity": {
-                "challenge_id": "pilot_001",
-                "public_dataset_hash": entries[0]["public_dataset_hash"],
-                "task_id": request.task.task_id,
-                "candidate_id": request.candidate.candidate_id,
-            },
-            "resolved_experiment_types": requirement.resolved_experiment_types,
-            "available_now_experiment_types": requirement.available_now_experiment_types,
-            "pending_dependency_experiment_types": requirement.pending_dependency_experiment_types,
-            "dependency_states": dependency_states,
-            "task_metadata_fields": request.task.inputs.metadata_fields,
-            "allowed_scientific_metadata_fields": (
-                resources.allowed_scientific_metadata_fields
-            ),
-            "compiled_steps": [
-                {
-                    "step_id": step.step_id,
-                    "planning_check": step.planning_check,
-                    "experiment_type": step.experiment_type,
-                    "execution_state": step.execution_state,
-                    "scientific_scope": step.scientific_scope,
-                }
-                for step in plan.steps
-            ],
-            "mandatory_executed_step_ids": [step.step_id for step in mandatory],
-            "metadata_file": canonical.parameters.metadata_file,
-            "metadata_path_is_relative": not Path(canonical.parameters.metadata_file).is_absolute(),
-            "experiment_tool_input": "passed",
-            "tool_runtime": "passed",
-            "real_backend": results[0].output["metadata"].get("backend"),
-            "experiment_tool_output": "passed",
-            "backend_attempt_count": len(results),
-            "successful_tool_result_count": len(results),
+            "real_backend": "real_cpu_v1",
+            "quantitative_finalization": "passed",
+            "quantitative_result_status": quantitative_result.payload.status,
         }
         atomic_write_json(output_path, result, error_type=PilotRunnerError)
         return result
@@ -1991,23 +1971,35 @@ class PilotRunner:
         self._require_complete_real_configuration()
         self.dry_run()
         legacy = self._require_gate("legacy_task_negative_replay.json")
-        regenerated = self._require_gate("regenerated_task_offline.json")
+        historical = self._require_gate("historical_candidate_binding_replay.json")
+        current = self._require_gate("current_contract_task_offline.json")
         if legacy.get("status") != "passed" or legacy.get("semantic_gate") != "rejected":
             raise PilotRunnerError("legacy malformed-task negative replay did not pass")
         if (
-            regenerated.get("status") != "passed"
-            or regenerated.get("provider_call_count") != 0
-            or regenerated.get("ready_step_count", 0) < 1
-            or regenerated.get("mandatory_backend_attempt_count", 0) < 1
-            or regenerated.get("successful_tool_result_count", 0) < 1
-            or not regenerated.get("task", {}).get("metadata_fields")
-            or "association_test" not in regenerated.get("task", {}).get(
+            historical.get("status") != "passed"
+            or historical.get("provider_call_count") != 0
+            or historical.get("site_device_batch_result") != "unresolved"
+            or historical.get("fuzzy_fallback_count") != 0
+            or historical.get("generated_task_count") != 0
+        ):
+            raise PilotRunnerError("historical candidate binding replay did not pass")
+        if legacy.get("source_pilot_id") != historical.get("source_pilot_id"):
+            raise PilotRunnerError("historical replay gates use different source pilots")
+        if (
+            current.get("status") != "passed"
+            or current.get("provider_call_count") != 0
+            or current.get("binding_status") != "resolved"
+            or current.get("ready_step_count", 0) < 1
+            or current.get("mandatory_backend_attempt_count", 0) < 1
+            or current.get("successful_tool_result_count", 0) < 1
+            or current.get("real_backend") != "real_cpu_v1"
+            or current.get("quantitative_finalization") != "passed"
+            or not current.get("task", {}).get("metadata_fields")
+            or "association_test" not in current.get("task", {}).get(
                 "requested_checks", []
             )
         ):
-            raise PilotRunnerError("regenerated zero-provider task gate did not pass")
-        if legacy.get("source_pilot_id") != regenerated.get("source_pilot_id"):
-            raise PilotRunnerError("offline replay gates use different source pilots")
+            raise PilotRunnerError("current-contract zero-provider task gate did not pass")
         snapshot = self._snapshot()
         generated = build_suite(self.config, self.pilot_root)[0]
         path = self.pilot_root / "canary.json"
