@@ -67,10 +67,21 @@ def _step_id(
     return f"QSTEP-{digest}"
 
 
-def _model_reference_available(history: list[ToolResult]) -> bool:
-    return any(
+def _model_reference_available(
+    history: list[ToolResult],
+    *,
+    explicit_artifacts: set[str],
+    run_id: str,
+    candidate_id: str,
+    task_id: str,
+) -> bool:
+    return any(reference.endswith("/model.json") for reference in explicit_artifacts) or any(
         result.status == "success"
         and result.tool_name == "run_experiment"
+        and result.run_id == run_id
+        and result.agent_name == "quantitative"
+        and result.candidate_id == candidate_id
+        and result.task_id == task_id
         and any(reference.endswith("/model.json") for reference in result.artifacts)
         for result in history
     )
@@ -111,6 +122,7 @@ def _canonical(
             dataset_root=dataset_root,
             run_root=(runs_root / request.run_id if runs_root is not None else None),
             approved_artifacts=set(runtime.context.approved_artifacts),
+            explicit_artifacts=set(runtime.explicit_task_artifacts),
             history=dependency_history,
         )
     except ExperimentDependencyPending:
@@ -275,7 +287,13 @@ def compile_quantitative_experiment_plan(
                 )
                 training_ids.append(step_id)
             elif experiment_type == "task_model_evaluation":
-                if not training_ids and not _model_reference_available(runtime.history):
+                if not training_ids and not _model_reference_available(
+                    runtime.history,
+                    explicit_artifacts=set(runtime.explicit_task_artifacts),
+                    run_id=request.run_id,
+                    candidate_id=request.candidate.candidate_id,
+                    task_id=request.task.task_id,
+                ):
                     raise QuantitativePlanUnmaterializable(
                         "task_model_evaluation_requires_training_step_or_model_artifact"
                     )

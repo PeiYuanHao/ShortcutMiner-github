@@ -204,6 +204,7 @@ def finalize_tool_call_draft(
                 dataset_root=dataset_root,
                 run_root=run_root,
                 approved_artifacts=set(tool_runtime.context.approved_artifacts),
+                explicit_artifacts=set(tool_runtime.explicit_task_artifacts),
                 history=tool_runtime.history,
             )
         arguments = canonical.model_dump(mode="json")

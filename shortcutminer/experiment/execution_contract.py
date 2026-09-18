@@ -322,26 +322,67 @@ DEPENDENCIES: dict[str, tuple[str, ...]] = {
 }
 
 
-def _successful_types(history: list[ToolResult]) -> set[str]:
+def _task_results(
+    history: list[ToolResult],
+    *,
+    run_id: str,
+    candidate_id: str,
+    task_id: str,
+) -> list[ToolResult]:
+    return [
+        item for item in history
+        if item.run_id == run_id
+        and item.agent_name == "quantitative"
+        and item.candidate_id == candidate_id
+        and item.task_id == task_id
+    ]
+
+
+def _successful_types(
+    history: list[ToolResult],
+    *,
+    run_id: str,
+    candidate_id: str,
+    task_id: str,
+) -> set[str]:
     return {
         str(item.output.get("metadata", {}).get("experiment_type"))
-        for item in history
+        for item in _task_results(
+            history,
+            run_id=run_id,
+            candidate_id=candidate_id,
+            task_id=task_id,
+        )
         if item.tool_name == "run_experiment"
         and item.status == "success"
         and item.output is not None
     }
 
 
-def _model_references(history: list[ToolResult], approved: set[str]) -> list[str]:
+def _model_references(
+    *,
+    history: list[ToolResult],
+    explicit_artifacts: set[str],
+    run_id: str,
+    candidate_id: str,
+    task_id: str,
+) -> list[str]:
     values = {
         reference
-        for item in history
+        for item in _task_results(
+            history,
+            run_id=run_id,
+            candidate_id=candidate_id,
+            task_id=task_id,
+        )
         if item.status == "success" and item.tool_name == "run_experiment"
         for reference in item.artifacts
         if reference.endswith("/model.json")
     }
     values.update(
-        reference for reference in approved if reference.endswith("/model.json")
+        reference
+        for reference in explicit_artifacts
+        if reference.endswith("/model.json")
     )
     return sorted(values)
 
@@ -350,10 +391,24 @@ def classify_experiment_availability(
     resolved: list[str],
     *,
     history: list[ToolResult],
-    approved_artifacts: set[str],
+    explicit_artifacts: set[str],
+    run_id: str,
+    candidate_id: str,
+    task_id: str,
 ) -> tuple[list[str], list[str], list[str]]:
-    completed = _successful_types(history)
-    model_available = bool(_model_references(history, approved_artifacts))
+    completed = _successful_types(
+        history,
+        run_id=run_id,
+        candidate_id=candidate_id,
+        task_id=task_id,
+    )
+    model_available = bool(_model_references(
+        history=history,
+        explicit_artifacts=explicit_artifacts,
+        run_id=run_id,
+        candidate_id=candidate_id,
+        task_id=task_id,
+    ))
     available: list[str] = []
     pending: list[str] = []
     unsupported: list[str] = []
@@ -476,6 +531,7 @@ def finalize_run_experiment_draft(
     dataset_root: Path,
     run_root: Path | None,
     approved_artifacts: set[str],
+    explicit_artifacts: set[str],
     history: list[ToolResult],
 ) -> ExperimentToolInput:
     try:
@@ -487,7 +543,10 @@ def finalize_run_experiment_draft(
     available, pending, _unsupported = classify_experiment_availability(
         requirement.resolved_experiment_types,
         history=history,
-        approved_artifacts=approved_artifacts,
+        explicit_artifacts=explicit_artifacts,
+        run_id=run_id,
+        candidate_id=candidate_id,
+        task_id=task_id,
     )
     if draft.experiment_type in pending:
         raise ExperimentDependencyPending(
@@ -640,7 +699,13 @@ def finalize_run_experiment_draft(
             "artifact_policy": resources.artifact_policy,
         }
     else:
-        model_references = _model_references(history, approved_artifacts)
+        model_references = _model_references(
+            history=history,
+            explicit_artifacts=explicit_artifacts,
+            run_id=run_id,
+            candidate_id=candidate_id,
+            task_id=task_id,
+        )
         if not model_references:
             raise ExperimentDependencyPending("model artifact dependency is not yet available")
         if len(model_references) != 1:

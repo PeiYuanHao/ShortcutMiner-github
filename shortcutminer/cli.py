@@ -257,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
                             "artifact_references", []
                         ),
                     },
+                    restore_persisted_task_results=True,
                 )
             result = resume_run(
                 args.run_id,

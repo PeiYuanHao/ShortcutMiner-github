@@ -51,7 +51,10 @@ from shortcutminer.storage.dataset_profiles import (
     save_dataset_profile,
 )
 from shortcutminer.protocol.qualitative import QualitativePreparationOptions
-from shortcutminer.protocol.quantitative import QuantitativeExecutionRequirement
+from shortcutminer.protocol.quantitative import (
+    QuantitativeExecutionRequirement,
+    QuantitativeRequest,
+)
 from shortcutminer.protocol.summarize import SummarizeRequest
 from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.evaluation.evidence_ledger import EvidenceLedgerBuilder
@@ -302,6 +305,26 @@ def _executive_state(
         raise error_type(f"Invalid Executive branch state: {exc}") from exc
 
 
+def _quantitative_task_runtime(
+    base_runtime: ToolRuntime | None,
+    request: QuantitativeRequest,
+) -> ToolRuntime | None:
+    """Fork mutable experiment authority for exactly one AnalysisTask."""
+
+    if base_runtime is None:
+        return None
+    explicit = set(request.task.inputs.artifact_references)
+    if request.execution_resources is not None:
+        explicit.update(request.execution_resources.authorized_artifact_references)
+    return base_runtime.fork_for_task(
+        candidate_id=request.candidate.candidate_id,
+        task_id=request.task.task_id,
+        runtime_constraints=request.task.inputs.runtime_constraints,
+        requested_checks=request.task.requested_checks,
+        explicitly_authorized_artifacts=explicit,
+    )
+
+
 def quantitative_node(
     state: ShortcutMinerState,
     *,
@@ -338,13 +361,14 @@ def quantitative_node(
             raise QuantitativeNodeError(
                 f"Missing validated execution requirement for {task.task_id}: {exc}"
             ) from exc
+        task_tool_runtime = _quantitative_task_runtime(tool_runtime, request)
         results.append(
             execute_quantitative(
                 request,
                 runtime,
                 runs_root=_runs_root(state, config),
                 workspace_dir=config.get("workspace_dir"),
-                tool_runtime=tool_runtime,
+                tool_runtime=task_tool_runtime,
                 execution_requirement=requirement,
             )
         )
@@ -428,22 +452,25 @@ def feasibility_node(
                     limitations=quantitative_config.get("limitations"),
                     execution_resource_options=quantitative_resource_options,
                 )
+                task_tool_runtime = _quantitative_task_runtime(
+                    quantitative_tool_runtime, request
+                )
                 requirement = determine_quantitative_execution_requirement(
                     request,
-                    quantitative_tool_runtime,
+                    task_tool_runtime,
                     feasibility_confirmed=True,
                 )
                 quantitative_requirements[task.task_id] = requirement.model_dump(
                     mode="json"
                 )
                 if requirement.must_attempt_run_experiment:
-                    if quantitative_tool_runtime is None:
+                    if task_tool_runtime is None:
                         raise DownstreamPlanFeasibilityError(
                             "Executable quantitative plan requires Tool Runtime"
                         )
                     quantitative_plans[task.task_id] = (
                         compile_quantitative_experiment_plan(
-                            request, requirement, quantitative_tool_runtime
+                            request, requirement, task_tool_runtime
                         ).model_dump(mode="json")
                     )
             elif task.target == "qualitative":

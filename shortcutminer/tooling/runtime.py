@@ -1,12 +1,18 @@
 """Per-invocation budget, persistence, and event tracing for tools."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
+import json
 from pathlib import Path
 from typing import Any
 
 from pydantic import Field, TypeAdapter
 
-from shortcutminer.protocol.identify import SafeRelativePath, StrictProtocolModel
+from shortcutminer.protocol.executive import TaskId
+from shortcutminer.protocol.identify import (
+    CandidateId,
+    SafeRelativePath,
+    StrictProtocolModel,
+)
 from shortcutminer.experiment.check_resolution import (
     QUANTITATIVE_EXPERIMENT_TYPES,
     resolve_quantitative_checks,
@@ -28,6 +34,15 @@ class ToolBudget(StrictProtocolModel):
     max_selected_samples: int = Field(default=100, ge=1, le=100_000)
 
 
+@dataclass(frozen=True)
+class TaskExecutionScope:
+    """Authoritative correlation and explicit inputs for one AnalysisTask."""
+
+    candidate_id: str
+    task_id: str
+    explicit_artifacts: frozenset[str]
+
+
 class ToolRuntime:
     """Execute one Agent's permitted tools without storing runtime objects in State."""
 
@@ -46,6 +61,8 @@ class ToolRuntime:
         model_capabilities: set[str] | frozenset[str] = frozenset(),
         allowed_experiment_types: set[str] | frozenset[str] = frozenset(),
         budget: ToolBudget | None = None,
+        task_scope: TaskExecutionScope | None = None,
+        restore_persisted_task_results: bool = False,
     ) -> None:
         self.registry = registry
         self.budget = budget or ToolBudget()
@@ -66,6 +83,8 @@ class ToolRuntime:
         )
         self.history: list[ToolResult] = []
         self._call_ids: set[str] = set()
+        self.task_scope = task_scope
+        self.restore_persisted_task_results = restore_persisted_task_results
 
     @property
     def agent_name(self) -> AgentName:
@@ -77,6 +96,119 @@ class ToolRuntime:
 
     def tool_specs(self) -> list[ToolSpec]:
         return self.registry.specs_for(self.agent_name)
+
+    @property
+    def explicit_task_artifacts(self) -> frozenset[str]:
+        if self.task_scope is None:
+            return frozenset(self.context.approved_artifacts)
+        return self.task_scope.explicit_artifacts
+
+    def fork_for_task(
+        self,
+        *,
+        candidate_id: str,
+        task_id: str,
+        runtime_constraints: list[str],
+        requested_checks: list[str],
+        explicitly_authorized_artifacts: list[str] | set[str] | frozenset[str],
+    ) -> "ToolRuntime":
+        """Create an isolated mutable runtime while sharing static infrastructure."""
+
+        if self.agent_name != "quantitative":
+            raise ToolRuntimeError("Only Quantitative runtimes may be task-scoped")
+        validated_candidate = TypeAdapter(CandidateId).validate_python(candidate_id)
+        validated_task = TypeAdapter(TaskId).validate_python(task_id)
+        task_candidate = validated_task.removeprefix("TASK-").rsplit("-", 1)[0]
+        if task_candidate != validated_candidate:
+            raise ToolRuntimeError("Task scope candidate/task correlation is invalid")
+        explicit = frozenset(
+            TypeAdapter(SafeRelativePath).validate_python(reference)
+            for reference in explicitly_authorized_artifacts
+        )
+        child = ToolRuntime(
+            self.registry,
+            run_id=self.run_id,
+            agent_name=self.agent_name,
+            dataset_root=self.context.dataset_root,
+            runs_root=self.context.runs_root,
+            workspace_root=self.context.workspace_root,
+            approved_artifacts=explicit,
+            approved_samples=self.context.approved_samples,
+            runtime_constraints=runtime_constraints,
+            model_capabilities=self.context.model_capabilities,
+            allowed_experiment_types=resolve_quantitative_checks(requested_checks),
+            budget=self.budget,
+            task_scope=TaskExecutionScope(
+                candidate_id=validated_candidate,
+                task_id=validated_task,
+                explicit_artifacts=explicit,
+            ),
+            restore_persisted_task_results=self.restore_persisted_task_results,
+        )
+        if child.restore_persisted_task_results:
+            child.restore_task_history()
+        return child
+
+    def assert_task_scope(self, *, candidate_id: str, task_id: str) -> None:
+        """Reject ambient or mismatched mutable state at a provider boundary."""
+
+        if self.task_scope is None:
+            return
+        if (
+            self.task_scope.candidate_id != candidate_id
+            or self.task_scope.task_id != task_id
+        ):
+            raise ToolRuntimeError("Tool Runtime is bound to another AnalysisTask")
+        if any(
+            result.run_id != self.run_id
+            or result.agent_name != self.agent_name
+            or result.candidate_id != candidate_id
+            or result.task_id != task_id
+            for result in self.history
+        ):
+            raise ToolRuntimeError("Tool Runtime contains cross-task history")
+
+    def restore_task_history(self) -> None:
+        """Restore only persisted ToolResults correlated to this exact task."""
+
+        if self.task_scope is None:
+            raise ToolRuntimeError("Persisted history restoration requires task scope")
+        if self.context.runs_root is None:
+            return
+        tool_root = (
+            self.context.runs_root / self.run_id / "tools" / self.agent_name
+        )
+        if not tool_root.is_dir():
+            return
+        restored: list[ToolResult] = []
+        for path in sorted(tool_root.glob("*.json")):
+            try:
+                result = ToolResult.model_validate_json(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError) as exc:
+                raise ToolRuntimeError(
+                    "Persisted ToolResult cannot be restored safely"
+                ) from exc
+            if (
+                result.run_id == self.run_id
+                and result.agent_name == self.agent_name
+                and result.candidate_id == self.task_scope.candidate_id
+                and result.task_id == self.task_scope.task_id
+            ):
+                restored.append(result)
+        self.history = restored
+        self._call_ids = {result.tool_call_id for result in restored}
+        generated = {
+            artifact
+            for result in restored
+            if result.status == "success"
+            for artifact in result.artifacts
+        }
+        self.context = replace(
+            self.context,
+            approved_artifacts=frozenset(
+                {*self.task_scope.explicit_artifacts, *generated}
+            ),
+        )
 
     def approve_samples(self, references: list[str]) -> None:
         """Add control-layer-selected dataset references to the runtime boundary."""
@@ -161,6 +293,11 @@ class ToolRuntime:
 
     def execute(self, call: ToolCall | dict[str, Any]) -> ToolResult:
         parsed = call if isinstance(call, ToolCall) else ToolCall.model_validate(call)
+        if self.task_scope is not None:
+            self.assert_task_scope(
+                candidate_id=parsed.candidate_id or "",
+                task_id=parsed.task_id or "",
+            )
         if parsed.tool_call_id in self._call_ids:
             raise ToolBudgetExceeded(
                 f"Duplicate tool_call_id: {parsed.tool_call_id}"

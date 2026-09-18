@@ -118,7 +118,10 @@ def determine_quantitative_execution_requirement(
     available, pending, unsupported = classify_experiment_availability(
         list(resolved_types),
         history=tool_runtime.history,
-        approved_artifacts=set(tool_runtime.context.approved_artifacts),
+        explicit_artifacts=set(tool_runtime.explicit_task_artifacts),
+        run_id=request.run_id,
+        candidate_id=request.candidate.candidate_id,
+        task_id=request.task.task_id,
     )
     if not available:
         return QuantitativeExecutionRequirement(
@@ -514,6 +517,33 @@ def execute_quantitative(
                 )
                 # The initial plan-execution audit was already persisted before
                 # the provider boundary; keep the refreshed completed-state plan.
+        if tool_runtime is not None:
+            tool_runtime.assert_task_scope(
+                candidate_id=request.candidate.candidate_id,
+                task_id=request.task.task_id,
+            )
+            if any(
+                result.run_id != request.run_id
+                or result.agent_name != "quantitative"
+                or result.candidate_id != request.candidate.candidate_id
+                or result.task_id != request.task.task_id
+                for result in tool_runtime.history
+            ):
+                raise QuantitativeExecutionError(
+                    "provider_tool_results_not_task_local"
+                )
+        if requirement.must_attempt_run_experiment and not any(
+            result.status == "success"
+            and result.tool_name == "run_experiment"
+            and result.run_id == request.run_id
+            and result.agent_name == "quantitative"
+            and result.candidate_id == request.candidate.candidate_id
+            and result.task_id == request.task.task_id
+            for result in (tool_runtime.history if tool_runtime is not None else [])
+        ):
+            raise QuantitativeExecutionError(
+                "successful_current_task_run_experiment_required_before_provider"
+            )
         invocation = None
         try:
             invocation = invoke_agent_with_tools(

@@ -50,6 +50,7 @@ def build_local_tool_runtimes(
     dataset_root: str | Path,
     runs_root: str | Path,
     approved_artifacts: set[str] | None = None,
+    restore_persisted_task_results: bool = False,
 ) -> dict[AgentName, ToolRuntime]:
     """Create least-privilege local runtimes with the real CPU backend."""
     registry = build_default_tool_registry(
@@ -67,6 +68,7 @@ def build_local_tool_runtimes(
                 "predictions", "logits", "checkpoint", "retraining",
                 "intervention_inference",
             },
+            restore_persisted_task_results=restore_persisted_task_results,
         )
         for agent in (
             "identify",
