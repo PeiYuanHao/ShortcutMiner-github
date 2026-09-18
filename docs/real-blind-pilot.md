@@ -45,12 +45,15 @@ lengths, or hashes.
 2. `python -m shortcutminer pilot preflight --config <pilot.yaml>` requires both configured
    real providers. The text endpoint returns strict JSON. The VLM receives `sample_a.png` and
    `sample_b.png` and must distinguish a central circle from a central square.
-3. `python -m shortcutminer pilot canary --config <pilot.yaml>` runs one full real-provider
+3. `pilot legacy-task-negative-replay` proves the persisted malformed association task is
+   rejected, while `pilot regenerate-task-offline` rebuilds a new task from the historical public
+   CandidateReport and executes its mandatory backend step with zero provider calls.
+4. `python -m shortcutminer pilot canary --config <pilot.yaml>` runs one full real-provider
    workflow. The canary is excluded from scientific metrics.
-4. `python -m shortcutminer pilot run --config <pilot.yaml>` runs the frozen matrix
+5. `python -m shortcutminer pilot run --config <pilot.yaml>` runs the frozen matrix
    sequentially. `pilot resume` skips every already-attempted matrix cell, so completed paid
    calls are never repeated to improve a result.
-5. `python -m shortcutminer pilot report --config <pilot.yaml>` regenerates `report.md` from
+6. `python -m shortcutminer pilot report --config <pilot.yaml>` regenerates `report.md` from
    saved immutable results.
 
 ## Challenge suite and firewall
@@ -74,7 +77,9 @@ policies, candidate and visual budgets, global call limits, challenge configurat
 It never contains API keys, authorization headers, or image payloads. Any frozen-field or
 workspace change requires a new pilot ID.
 
-Executive defines the scientific checks and the exact authorized metadata scope. A deterministic
+Executive selects scientific checks from a candidate-specific executable set. Exact metadata
+scope is owned by `CandidateBindingResolver`, and the deterministic Executive finalizer constructs
+the canonical task. A deterministic
 `QuantitativeExperimentPlan` compiler converts that scope and the frozen execution resources into
 canonical `ExperimentToolInput` steps. When execution is mandatory, the control layer executes
 the first ready required check group through Tool Runtime and the real backend before the first

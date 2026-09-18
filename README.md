@@ -74,7 +74,7 @@ See [Architecture](docs/architecture.md) for component boundaries and persistenc
 | Agent | Responsibility | Formal output |
 |---|---|---|
 | Identify | Discover evidence-grounded shortcut candidates | `CandidateReport` |
-| Executive | Validate candidates and produce an executable routing plan | `RoutingPlan` |
+| Executive | Choose candidate-specific validation intent and checks | `ExecutiveAgentDraft`; Python finalizes `RoutingPlan` |
 | Quantitative | Interpret controlled experiment and statistical evidence | `QuantitativeResult` |
 | Qualitative | Inspect approved samples, metadata, and artifacts | `QualitativeResult` |
 | Summarize | Synthesize upstream evidence and limitations | `SummaryReport` |

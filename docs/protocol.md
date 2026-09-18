@@ -463,10 +463,16 @@ Executive converts a validated Identify `CandidateReport` into a routing plan:
 CandidateReport + authoritative routing context
         |
         v
-Executive Agent
+CandidateBindingResolver + CheckRequirementRegistry
         |
         v
-RoutingPlan
+ExecutableCandidateContext[]
+        |
+        v
+Executive Agent -> ExecutiveAgentDraft
+        |
+        v
+deterministic Executive finalizer -> RoutingPlan
   |- RoutingDecision[]
   `- AnalysisTask[]
         |
@@ -474,11 +480,12 @@ RoutingPlan
 deterministic Orchestrator (future skeleton integration)
 ```
 
-The current Executive executor plans only. It does not dispatch tasks, wait for downstream results, run heartbeat coordination, or claim task completion. Those lifecycle operations belong to deterministic infrastructure and remain outside this stage until the main execution skeleton is connected.
+The Executive provider returns only `ExecutiveAgentDraft`. It owns route, objective, requested checks, routing reason, and limitations. Python owns identity, candidate copies, task IDs, dataset references, metadata bindings, capability requirements, sample limits, constraints, outputs, dependencies, and construction of the canonical `RoutingPlan` and `AnalysisTask` objects.
 
 ### 11.2 ExecutiveRequest
 
-The invocation payload contains exactly one `request` object. Its complete envelope is:
+The invocation payload contains the authoritative `request` plus one
+`executable_candidate_contexts` entry per candidate. The request envelope is:
 
 ```json
 {
@@ -547,7 +554,25 @@ Capabilities are permissions and availability facts, not suggestions. Executive 
 
 The context builder copies dataset and task identity from the Identify request, verifies that capability metadata fields occurred in the bounded Identify profile, and carries forward Identify limitations. It does not rescan the dataset.
 
-### 11.4 RoutingPlan
+### 11.4 Candidate binding and executable context
+
+Metadata candidates bind only when `cue.name` exactly equals an available metadata field and is
+not the label, sample ID, sample path, or split field. No fuzzy, semantic, hidden-truth, or
+hypothesis-text mapping is permitted. Non-metadata candidates remain `non_metadata`; ambiguous
+metadata candidates remain `unresolved`.
+
+The authoritative check-requirement registry derives each candidate's allowed quantitative and
+qualitative checks, required model capabilities, sample-access requirement, structured-spec
+requirement, and output type. Executive may select only from those per-candidate lists.
+
+### 11.5 ExecutiveAgentDraft
+
+The provider returns one strict decision per candidate. A decision contains only `candidate_id`,
+`route`, `routing_reason`, optional quantitative/qualitative objective and requested checks,
+`missing_requirements`, and `limitations`. Unknown fields are forbidden. `unresolved` produces no
+task; `both` requires both branches.
+
+### 11.6 RoutingPlan
 
 Executive returns exactly one object:
 
@@ -571,7 +596,7 @@ The target is `orchestrator` because the Agent decides what should run while det
 
 The plan message ID must be distinct from both upstream message IDs. Every routing-context limitation must appear verbatim in plan limitations. Plan artifact references must be a subset of the authoritative context references.
 
-### 11.5 RoutingDecision
+### 11.7 RoutingDecision
 
 There is exactly one decision for every input candidate, in input order:
 
@@ -599,7 +624,7 @@ There is exactly one decision for every input candidate, in input order:
 
 An executable decision cannot retain missing requirements. An unresolved decision must state at least one missing requirement or limitation. No candidate may be dropped merely because it cannot be executed.
 
-### 11.6 AnalysisTask
+### 11.8 AnalysisTask
 
 Every planned task is itself a dispatchable protocol message:
 
@@ -637,11 +662,11 @@ Every planned task is itself a dispatchable protocol message:
 }
 ```
 
-Task IDs are deterministic and unique. QT tasks target `quantitative`; QL tasks target `qualitative`. The hypothesis and priority are copied exactly from the candidate. Dataset reference and label column are copied from routing context. Every other input and requested operation must remain within declared capabilities and budgets.
+Task IDs are deterministic and unique. QT tasks target `quantitative`; QL tasks target `qualitative`. The hypothesis and priority are copied exactly from the candidate. Dataset reference and label column are copied from routing context. Scientific metadata fields come only from `CandidateBinding`; model capabilities, sample access, limits, constraints, and expected outputs are derived deterministically from the shared registry and routing context.
 
 Tasks produced for `both` are independent by default. Dependencies are allowed only when genuine, must refer to tasks in the same plan, and must be acyclic. A planned task is not a dispatched, running, or completed task.
 
-### 11.7 Cross-object invariants
+### 11.9 Cross-object invariants
 
 The Executive boundary enforces:
 
@@ -664,11 +689,14 @@ no_retraining excludes the retraining model capability
 external-service use requires capability and is excluded by no_external_services
 all artifact references <= authoritative references
 all task dependencies exist and form an acyclic graph
+every requested check is candidate-specific executable
+metadata-requiring checks have the registry-required number of bound fields
+model and sample requirements exactly equal registry derivation
 ```
 
 Unknown fields and type coercion are rejected recursively, just as in Identify.
 
-### 11.8 Failure and persistence
+### 11.10 Failure and persistence
 
 Invalid identity, correlation, candidate preservation, capability, budget, traceability, or schema is a protocol failure. Missing data or unavailable capabilities are not reasons to fabricate a task; Executive returns a visible `unresolved` decision when the request itself remains valid.
 

@@ -61,12 +61,12 @@ Identify receives the dataset profile and, when applicable, the visual profile i
 | Agent | Input role | Validated output |
 |---|---|---|
 | Identify | Dataset/task description and bounded discovery context | `CandidateReport` |
-| Executive | Candidate report and declared runtime capabilities | `RoutingPlan` |
+| Executive | Candidate report plus candidate-specific executable context | `ExecutiveAgentDraft`; Python finalizes `RoutingPlan` |
 | Quantitative | Quantitative tasks selected by the routing plan | `QuantitativeResult` batch |
 | Qualitative | Qualitative tasks and bounded evidence context | `QualitativeAgentDraft`; Python finalizes the `QualitativeResult` batch |
 | Summarize | Routing plan and both result batches | `SummaryReport` |
 
-Every executor loads its own workspace, invokes an injected `AgentClient`, validates the returned protocol object, and persists stage artifacts. The deterministic control layer, rather than Agent prose, decides graph transitions and artifact locations.
+Every executor loads its own workspace, invokes an injected `AgentClient`, validates the returned protocol object, and persists stage artifacts. Before Executive invocation, the control layer resolves exact candidate bindings and computes candidate-specific checks from one requirement registry. The Executive model chooses only route, intent, checks, reason, and limitations. Python owns canonical task construction, graph transitions, and artifact locations.
 
 ## State and contracts
 
@@ -134,8 +134,9 @@ support with no supporting record or a substantive verdict when all work failed.
 
 `run_experiment` delegates to the `ExperimentExecutor` Protocol. `MockExperimentExecutor` remains the isolated test backend. `RealExperimentExecutor` uses a static registry of CPU implementations for association, subgroup analysis, lightweight out-of-sample probes, metadata permutation, metadata-feature ablation, allowlisted prediction metrics, task-model training/evaluation, OOD evaluation, and paired counterfactual intervention.
 
-Agent and backend responsibilities remain separate: Executive defines a scoped AnalysisTask and
-requested checks; a deterministic plan compiler materializes authorized canonical steps; the
+Agent and backend responsibilities remain separate: Executive selects requested checks from a
+candidate-specific allowed set; a deterministic Executive finalizer constructs the scoped
+`AnalysisTask`, and a deterministic plan compiler materializes authorized canonical steps; the
 control layer executes mandatory ready evidence before the first Quantitative model call;
 Quantitative interprets measurements and may select another ready precompiled step only by ID;
 Summarize combines evidence. The compiler is a control component, not another Agent. The backend
