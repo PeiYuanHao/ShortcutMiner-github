@@ -77,6 +77,7 @@ class ExecutiveCapabilities(StrictProtocolModel):
     available_metadata_fields: list[NonEmptyText] = Field(
         default_factory=list
     )
+    addressing_fields: list[NonEmptyText] = Field(default_factory=list)
     available_splits: list[NonEmptyText] = Field(default_factory=list)
     quantitative_checks: list[NonEmptyText] = Field(default_factory=list)
     qualitative_checks: list[NonEmptyText] = Field(default_factory=list)
@@ -88,6 +89,7 @@ class ExecutiveCapabilities(StrictProtocolModel):
     @field_validator(
         "available_targets",
         "available_metadata_fields",
+        "addressing_fields",
         "available_splits",
         "quantitative_checks",
         "qualitative_checks",
@@ -225,3 +227,38 @@ class RoutingPlan(StrictProtocolModel):
     @classmethod
     def validate_unique_lists(cls, values: list[str], info) -> list[str]:
         return _reject_duplicates(values, info.field_name)
+
+
+class ExecutiveTaskDraft(StrictProtocolModel):
+    objective: NonEmptyText
+    requested_checks: list[NonEmptyText] = Field(min_length=1)
+
+    @field_validator("requested_checks")
+    @classmethod
+    def validate_checks(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "requested_checks")
+
+
+class ExecutiveDecisionDraft(StrictProtocolModel):
+    candidate_id: CandidateId
+    route: ValidationRoute
+    routing_reason: NonEmptyText
+    quantitative: ExecutiveTaskDraft | None = None
+    qualitative: ExecutiveTaskDraft | None = None
+    missing_requirements: list[NonEmptyText] = Field(default_factory=list)
+    limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("missing_requirements", "limitations")
+    @classmethod
+    def validate_unique_draft_lists(cls, values: list[str], info) -> list[str]:
+        return _reject_duplicates(values, info.field_name)
+
+
+class ExecutiveAgentDraft(StrictProtocolModel):
+    decisions: list[ExecutiveDecisionDraft]
+    limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("limitations")
+    @classmethod
+    def validate_limitations(cls, values: list[str]) -> list[str]:
+        return _reject_duplicates(values, "limitations")

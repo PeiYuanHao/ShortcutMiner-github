@@ -502,6 +502,12 @@ other
 
 Use a concise normalized cue name.
 
+When `cue.family` is `metadata` and the candidate clearly refers to one authoritative metadata
+column present in the prepared context, `cue.name` must be exactly that column name, including
+case. For example, column `device` must use `"device"`, not `"device identity"` or `"device
+metadata"`. If an abstract metadata concept does not identify one exact column, retain an honest
+natural name; downstream binding will mark it unresolved. Never guess or fuzzily map a column.
+
 Prefer:
 
 ```text

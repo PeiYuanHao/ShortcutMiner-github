@@ -146,6 +146,11 @@ class PilotSnapshot(StrictProtocolModel):
     quantitative_experiment_plan_version: NonEmptyText | None = None
     quantitative_experiment_plan_protocol_hash: NonEmptyText | None = None
     quantitative_experiment_plan_compiler_hash: NonEmptyText | None = None
+    candidate_binding_resolver_hash: NonEmptyText | None = None
+    check_requirement_registry_hash: NonEmptyText | None = None
+    executive_agent_draft_protocol_hash: NonEmptyText | None = None
+    executive_finalizer_hash: NonEmptyText | None = None
+    semantic_completeness_validator_hash: NonEmptyText | None = None
     text_runtime: ModelRuntimeSnapshot
     semantic_runtime: ModelRuntimeSnapshot
     provider_combination_id: NonEmptyText

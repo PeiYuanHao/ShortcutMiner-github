@@ -106,6 +106,9 @@ def build_pilot_snapshot(
         for value in protocol_paths
     }
     backend_paths = (
+        "shortcutminer/experiment/candidate_binding.py",
+        "shortcutminer/experiment/check_requirements.py",
+        "shortcutminer/experiment/executive_executor.py",
         "shortcutminer/experiment/real_executor.py",
         "shortcutminer/experiment/qualitative_backend.py",
         "shortcutminer/experiment/qualitative_executor.py",
@@ -159,6 +162,21 @@ def build_pilot_snapshot(
         "quantitative_experiment_plan_compiler_hash": backend_hashes[
             "shortcutminer/experiment/quantitative_plan.py"
         ],
+        "candidate_binding_resolver_hash": backend_hashes[
+            "shortcutminer/experiment/candidate_binding.py"
+        ],
+        "check_requirement_registry_hash": backend_hashes[
+            "shortcutminer/experiment/check_requirements.py"
+        ],
+        "executive_agent_draft_protocol_hash": protocol_hashes[
+            "shortcutminer/protocol"
+        ],
+        "executive_finalizer_hash": backend_hashes[
+            "shortcutminer/experiment/executive_executor.py"
+        ],
+        "semantic_completeness_validator_hash": backend_hashes[
+            "shortcutminer/experiment/check_requirements.py"
+        ],
         "text_runtime": text.model_dump(mode="json"),
         "semantic_runtime": semantic.model_dump(mode="json"),
         "provider_combination_id": combination,
@@ -198,6 +216,21 @@ def build_pilot_snapshot(
         ],
         quantitative_experiment_plan_compiler_hash=backend_hashes[
             "shortcutminer/experiment/quantitative_plan.py"
+        ],
+        candidate_binding_resolver_hash=backend_hashes[
+            "shortcutminer/experiment/candidate_binding.py"
+        ],
+        check_requirement_registry_hash=backend_hashes[
+            "shortcutminer/experiment/check_requirements.py"
+        ],
+        executive_agent_draft_protocol_hash=protocol_hashes[
+            "shortcutminer/protocol"
+        ],
+        executive_finalizer_hash=backend_hashes[
+            "shortcutminer/experiment/executive_executor.py"
+        ],
+        semantic_completeness_validator_hash=backend_hashes[
+            "shortcutminer/experiment/check_requirements.py"
         ],
         text_runtime=text,
         semantic_runtime=semantic,

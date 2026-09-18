@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from shortcutminer.agent_client import AgentClient, invoke_agent_client
-from shortcutminer.protocol.executive import RoutingPlan
+from shortcutminer.protocol.executive import ExecutiveAgentDraft
 from shortcutminer.protocol.identify import CandidateReport
 from shortcutminer.protocol.qualitative import QualitativeAgentDraft
 from shortcutminer.protocol.quantitative import (
@@ -62,7 +62,7 @@ class RequiredExperimentNotAttempted(RuntimeError):
 
 _FINAL_SCHEMAS = {
     "identify": CandidateReport,
-    "executive": RoutingPlan,
+    "executive": ExecutiveAgentDraft,
     "quantitative": QuantitativeAgentDraft,
     "qualitative": QualitativeAgentDraft,
     "summarize": SummaryReport,

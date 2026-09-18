@@ -60,7 +60,8 @@ def _parser() -> argparse.ArgumentParser:
         ("identify-diagnostic", "Run one gated real Identify compatibility diagnostic"),
         ("qualitative-diagnostic", "Run one gated real Qualitative compatibility diagnostic"),
         ("quantitative-diagnostic", "Run one gated real Quantitative compatibility diagnostic"),
-        ("offline-quantitative-replay", "Replay TASK-C002 through the local real backend without providers"),
+        ("legacy-task-negative-replay", "Verify the persisted malformed task is rejected without providers"),
+        ("regenerate-task-offline", "Regenerate and execute a task from a public CandidateReport without providers"),
         ("canary", "Run one real-provider end-to-end canary"),
         ("run", "Run the frozen scientific suite sequentially"),
         ("resume", "Continue only unattempted runs in the frozen suite"),
@@ -68,7 +69,10 @@ def _parser() -> argparse.ArgumentParser:
     ):
         command = pilot_commands.add_parser(name, help=help_text)
         command.add_argument("--config", required=True, help="PilotConfig JSON/YAML")
-        if name in {"qualitative-diagnostic", "quantitative-diagnostic", "offline-quantitative-replay"}:
+        if name in {
+            "qualitative-diagnostic", "quantitative-diagnostic",
+            "legacy-task-negative-replay", "regenerate-task-offline",
+        }:
             command.add_argument(
                 "--source-pilot-id", required=True,
                 help="Prior failed canary whose persisted public input is reused",
@@ -165,8 +169,12 @@ def main(argv: list[str] | None = None) -> int:
                 value = pilot_runner.quantitative_diagnostic(
                     source_pilot_id=args.source_pilot_id,
                 )
-            elif args.pilot_command == "offline-quantitative-replay":
-                value = pilot_runner.offline_quantitative_replay(
+            elif args.pilot_command == "legacy-task-negative-replay":
+                value = pilot_runner.legacy_task_negative_replay(
+                    source_pilot_id=args.source_pilot_id,
+                )
+            elif args.pilot_command == "regenerate-task-offline":
+                value = pilot_runner.regenerate_task_offline(
                     source_pilot_id=args.source_pilot_id,
                 )
             elif args.pilot_command == "canary":

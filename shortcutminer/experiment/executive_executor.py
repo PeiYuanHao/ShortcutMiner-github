@@ -6,8 +6,22 @@ from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.protocol.executive import (
     AnalysisTask,
+    AnalysisTaskInputs,
+    ExecutiveAgentDraft,
+    ExecutiveDecisionDraft,
     ExecutiveRequest,
+    RoutingDecision,
     RoutingPlan,
+)
+from shortcutminer.experiment.check_requirements import (
+    AnalysisTaskSemanticError,
+    CHECK_REQUIREMENTS,
+    ExecutableCandidateContext,
+    build_candidate_contexts,
+    checks_require_sample_access,
+    expected_outputs_for_checks,
+    required_model_capabilities,
+    validate_analysis_task_semantics,
 )
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.executive_artifacts import (
@@ -17,12 +31,27 @@ from shortcutminer.storage.executive_artifacts import (
 )
 from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
+
+
 class ExecutiveExecutionError(RuntimeError):
     """Raised when Executive cannot produce a valid routing plan."""
 
 
-def build_executive_agent_payload(request: ExecutiveRequest) -> dict:
-    return {"request": request.model_dump(mode="json")}
+class ExecutiveDraftSemanticError(ExecutiveExecutionError):
+    """Raised when a schema-valid Executive draft selects impossible work."""
+
+
+def build_executive_agent_payload(
+    request: ExecutiveRequest,
+    candidate_contexts: list[ExecutableCandidateContext] | None = None,
+) -> dict:
+    contexts = candidate_contexts or build_candidate_contexts(request)
+    return {
+        "request": request.model_dump(mode="json"),
+        "executable_candidate_contexts": [
+            item.model_dump(mode="json") for item in contexts
+        ],
+    }
 
 
 def validate_executive_request(request: ExecutiveRequest) -> None:
@@ -138,9 +167,192 @@ def _validate_dependencies(tasks: list[AnalysisTask]) -> None:
         visit(task_id)
 
 
+def validate_executive_draft(
+    draft: ExecutiveAgentDraft,
+    request: ExecutiveRequest,
+    candidate_contexts: list[ExecutableCandidateContext],
+) -> None:
+    expected_ids = [
+        candidate.candidate_id for candidate in request.candidate_report.candidates
+    ]
+    actual_ids = [decision.candidate_id for decision in draft.decisions]
+    if actual_ids != expected_ids or len(actual_ids) != len(set(actual_ids)):
+        raise ExecutiveDraftSemanticError(
+            "Executive draft must cover every candidate exactly once in order."
+        )
+    contexts = {item.candidate_id: item for item in candidate_contexts}
+    for decision in draft.decisions:
+        quantitative_required = decision.route in {"quantitative", "both"}
+        qualitative_required = decision.route in {"qualitative", "both"}
+        if (decision.quantitative is not None) != quantitative_required:
+            raise ExecutiveDraftSemanticError(
+                "Executive draft quantitative branch does not match route."
+            )
+        if (decision.qualitative is not None) != qualitative_required:
+            raise ExecutiveDraftSemanticError(
+                "Executive draft qualitative branch does not match route."
+            )
+        if decision.route == "unresolved":
+            if not decision.missing_requirements and not decision.limitations:
+                raise ExecutiveDraftSemanticError(
+                    "Unresolved Executive draft requires a limitation or missing requirement."
+                )
+            continue
+        if decision.missing_requirements:
+            raise ExecutiveDraftSemanticError(
+                "Executable Executive draft cannot retain missing requirements."
+            )
+        context = contexts[decision.candidate_id]
+        for target, branch, allowed in (
+            (
+                "quantitative",
+                decision.quantitative,
+                context.allowed_quantitative_checks,
+            ),
+            (
+                "qualitative",
+                decision.qualitative,
+                context.allowed_qualitative_checks,
+            ),
+        ):
+            if branch is None:
+                continue
+            if not set(branch.requested_checks).issubset(set(allowed)):
+                raise ExecutiveDraftSemanticError(
+                    f"Executive draft selected unavailable {target} check."
+                )
+
+
+def _finalize_task(
+    *,
+    request: ExecutiveRequest,
+    plan_message_id: str,
+    candidate,
+    candidate_context: ExecutableCandidateContext,
+    target: str,
+    task_draft,
+) -> AnalysisTask:
+    checks = task_draft.requested_checks
+    needs_samples = checks_require_sample_access(checks)
+    metadata_fields = (
+        candidate_context.bound_metadata_fields
+        if any(
+            CHECK_REQUIREMENTS[check].minimum_metadata_fields
+            for check in checks
+        )
+        else []
+    )
+    suffix = "QT" if target == "quantitative" else "QL"
+    task_id = f"TASK-{candidate.candidate_id}-{suffix}"
+    outputs = expected_outputs_for_checks(
+        checks, request.routing_context.capabilities.available_output_types
+    )
+    if not outputs:
+        raise ExecutiveDraftSemanticError(
+            "Executive task has no available canonical output type."
+        )
+    return AnalysisTask(
+        protocol_version=request.protocol_version,
+        run_id=request.run_id,
+        message_id=f"{request.run_id}:executive:{task_id}:task",
+        source="executive",
+        target=target,
+        message_type="analysis_task",
+        in_reply_to=plan_message_id,
+        task_id=task_id,
+        candidate_id=candidate.candidate_id,
+        hypothesis=candidate.hypothesis,
+        objective=task_draft.objective,
+        inputs=AnalysisTaskInputs(
+            dataset=request.routing_context.dataset.name,
+            dataset_reference=request.routing_context.dataset.root,
+            label_column=request.routing_context.task.label_column,
+            split=None,
+            metadata_fields=metadata_fields,
+            artifact_references=[],
+            sample_limit=(
+                request.routing_context.audit_options.max_samples_per_task
+                if needs_samples else None
+            ),
+            requires_sample_access=needs_samples,
+            requires_external_services=False,
+            runtime_constraints=(
+                request.routing_context.audit_options.runtime_constraints
+            ),
+            required_model_capabilities=required_model_capabilities(checks),
+        ),
+        requested_checks=checks,
+        expected_outputs=outputs,
+        priority=candidate.priority,
+        dependencies=[],
+        status="planned",
+    )
+
+
+def finalize_executive_draft(
+    request: ExecutiveRequest,
+    candidate_contexts: list[ExecutableCandidateContext],
+    draft: ExecutiveAgentDraft,
+) -> RoutingPlan:
+    validate_executive_draft(draft, request, candidate_contexts)
+    plan_message_id = f"{request.run_id}:executive:routing-plan"
+    candidates = {
+        item.candidate_id: item for item in request.candidate_report.candidates
+    }
+    contexts = {item.candidate_id: item for item in candidate_contexts}
+    decisions: list[RoutingDecision] = []
+    tasks: list[AnalysisTask] = []
+    for item in draft.decisions:
+        candidate = candidates[item.candidate_id]
+        task_ids = _expected_task_ids(item.candidate_id, item.route)
+        decisions.append(RoutingDecision(
+            candidate=candidate,
+            route=item.route,
+            routing_reason=item.routing_reason,
+            task_ids=task_ids,
+            priority=candidate.priority,
+            status="unresolved" if item.route == "unresolved" else "planned",
+            missing_requirements=item.missing_requirements,
+            limitations=item.limitations,
+        ))
+        for target, task_draft in (
+            ("quantitative", item.quantitative),
+            ("qualitative", item.qualitative),
+        ):
+            if task_draft is not None:
+                tasks.append(_finalize_task(
+                    request=request,
+                    plan_message_id=plan_message_id,
+                    candidate=candidate,
+                    candidate_context=contexts[item.candidate_id],
+                    target=target,
+                    task_draft=task_draft,
+                ))
+    plan = RoutingPlan(
+        protocol_version=request.protocol_version,
+        run_id=request.run_id,
+        message_id=plan_message_id,
+        source="executive",
+        target="orchestrator",
+        message_type="routing_plan",
+        in_reply_to=request.message_id,
+        artifact_references=request.routing_context.artifact_references,
+        decisions=decisions,
+        tasks=tasks,
+        limitations=list(dict.fromkeys([
+            *request.routing_context.limitations,
+            *draft.limitations,
+        ])),
+    )
+    validate_routing_plan(plan, request, candidate_contexts=candidate_contexts)
+    return plan
+
+
 def validate_routing_plan(
     plan: RoutingPlan,
     request: ExecutiveRequest,
+    *,
+    candidate_contexts: list[ExecutableCandidateContext] | None = None,
 ) -> None:
     validate_executive_request(request)
     report = request.candidate_report
@@ -191,6 +403,10 @@ def validate_routing_plan(
 
     candidate_by_id = {
         candidate.candidate_id: candidate for candidate in report.candidates
+    }
+    semantic_contexts = {
+        item.candidate_id: item
+        for item in (candidate_contexts or build_candidate_contexts(request))
     }
     expected_plan_task_ids: list[str] = []
 
@@ -360,26 +576,6 @@ def validate_routing_plan(
                 f"AnalysisTask {task.task_id} did not preserve runtime "
                 "constraints."
             )
-        capability_requirements = {
-            "task_model_training": {"retraining"},
-            "task_model_evaluation": {"checkpoint"},
-            "ood_evaluation": {"checkpoint", "intervention_inference"},
-            "counterfactual_intervention": {"checkpoint", "intervention_inference"},
-        }
-        implied_capabilities = {
-            capability
-            for check in task.requested_checks
-            for capability in capability_requirements.get(check, set())
-        }
-        undeclared_capabilities = implied_capabilities - set(
-            inputs.required_model_capabilities
-        )
-        if undeclared_capabilities:
-            raise ExecutiveExecutionError(
-                f"AnalysisTask {task.task_id} did not declare capabilities required "
-                "by its model-reliance checks: "
-                + ", ".join(sorted(undeclared_capabilities))
-            )
         if (
             "no_retraining" in options.runtime_constraints
             and "retraining" in inputs.required_model_capabilities
@@ -418,6 +614,14 @@ def validate_routing_plan(
             raise ExecutiveExecutionError(
                 f"AnalysisTask {task.task_id} requests an unavailable output."
             )
+        try:
+            validate_analysis_task_semantics(
+                task,
+                semantic_contexts[task.candidate_id],
+                capabilities,
+            )
+        except AnalysisTaskSemanticError as exc:
+            raise ExecutiveExecutionError(str(exc)) from exc
 
     if plan.tasks:
         covered_outputs = {
@@ -457,7 +661,8 @@ def execute_executive(
 
         validate_executive_request(request)
 
-        payload = build_executive_agent_payload(request)
+        candidate_contexts = build_candidate_contexts(request)
+        payload = build_executive_agent_payload(request, candidate_contexts)
         system_prompt = load_agent_workspace_prompt(
             "executive", workspace_dir
         )
@@ -495,13 +700,12 @@ def execute_executive(
             )
 
         try:
-            plan = RoutingPlan.model_validate(raw_output)
+            draft = ExecutiveAgentDraft.model_validate(raw_output)
         except ValidationError as exc:
             raise ExecutiveExecutionError(
-                "Executive agent returned an invalid RoutingPlan."
+                "Executive agent returned an invalid ExecutiveAgentDraft."
             ) from exc
-
-        validate_routing_plan(plan, request)
+        plan = finalize_executive_draft(request, candidate_contexts, draft)
 
         if runs_root is not None:
             save_executive_routing(runs_root=runs_root, plan=plan)

@@ -146,72 +146,49 @@ class DemoAgentClient(MockAgentClient):
         }
 
     def _executive(self, payload: dict) -> dict:
-        request = payload["request"]
-        candidate = request["candidate_report"]["candidates"][0]
-        context = request["routing_context"]
-        common_inputs = {
-            "dataset": context["dataset"]["name"],
-            "dataset_reference": context["dataset"]["root"],
-            "label_column": context["task"]["label_column"],
-            "split": None,
-            "metadata_fields": ["site", "id"],
-            "artifact_references": [],
-            "sample_limit": 4,
-            "requires_sample_access": False,
-            "requires_external_services": False,
-            "runtime_constraints": ["no_external_services"],
-            "required_model_capabilities": [],
-        }
-        tasks = []
-        for suffix, target, check, output in (
-            ("QT", "quantitative", "association_test", "metrics"),
-            ("QL", "qualitative", "metadata_inspection", "observations"),
+        decisions = []
+        for candidate, executable in zip(
+            payload["request"]["candidate_report"]["candidates"],
+            payload["executable_candidate_contexts"],
+            strict=True,
         ):
-            tasks.append(
+            quantitative = (
                 {
-                    "protocol_version": "1.0",
-                    "run_id": request["run_id"],
-                    "message_id": f"{request['run_id']}:executive:{suffix}:task",
-                    "source": "executive",
-                    "target": target,
-                    "message_type": "analysis_task",
-                    "in_reply_to": f"{request['run_id']}:executive:plan",
-                    "task_id": f"TASK-C001-{suffix}",
-                    "candidate_id": "C001",
-                    "hypothesis": candidate["hypothesis"],
-                    "objective": f"Validate the candidate with {target} evidence.",
-                    "inputs": common_inputs,
-                    "requested_checks": [check],
-                    "expected_outputs": [output],
-                    "priority": candidate["priority"],
-                    "dependencies": [],
-                    "status": "planned",
+                    "objective": "Measure the candidate with authorized quantitative evidence.",
+                    "requested_checks": [
+                        executable["allowed_quantitative_checks"][0]
+                    ],
                 }
+                if executable["allowed_quantitative_checks"] else None
             )
-        return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:executive:plan",
-            "source": "executive",
-            "target": "orchestrator",
-            "message_type": "routing_plan",
-            "in_reply_to": request["message_id"],
-            "artifact_references": [],
-            "decisions": [
+            qualitative = (
                 {
-                    "candidate": candidate,
-                    "route": "both",
-                    "routing_reason": "Both evidence modes are available.",
-                    "task_ids": ["TASK-C001-QT", "TASK-C001-QL"],
-                    "priority": candidate["priority"],
-                    "status": "planned",
-                    "missing_requirements": [],
-                    "limitations": [],
+                    "objective": "Inspect the candidate with authorized qualitative evidence.",
+                    "requested_checks": [
+                        executable["allowed_qualitative_checks"][0]
+                    ],
                 }
-            ],
-            "tasks": tasks,
-            "limitations": context["limitations"],
-        }
+                if executable["allowed_qualitative_checks"] else None
+            )
+            route = (
+                "both" if quantitative and qualitative
+                else "quantitative" if quantitative
+                else "qualitative" if qualitative
+                else "unresolved"
+            )
+            decisions.append({
+                "candidate_id": candidate["candidate_id"],
+                "route": route,
+                "routing_reason": "Use only candidate-specific executable checks.",
+                "quantitative": quantitative,
+                "qualitative": qualitative,
+                "missing_requirements": (
+                    [] if route != "unresolved"
+                    else ["No candidate-specific executable check is available."]
+                ),
+                "limitations": [],
+            })
+        return {"decisions": decisions, "limitations": []}
 
     def _quantitative(self, payload: dict) -> dict:
         runtime = payload.get("tool_runtime")
@@ -264,8 +241,8 @@ class DemoAgentClient(MockAgentClient):
 
     def _summarize(self, payload: dict) -> dict:
         request = payload["request"]
-        quantitative = request["quantitative_result"]["results"][0]
-        qualitative = request["qualitative_result"]["results"][0]
+        quantitative_results = request["quantitative_result"]["results"]
+        qualitative_results = request["qualitative_result"]["results"]
         ledger_entry = request.get("evidence_ledger", {}).get("candidates", [{}])[0]
         profile = ledger_entry.get("profile", {})
         consistency = profile.get("consistency")
@@ -294,8 +271,12 @@ class DemoAgentClient(MockAgentClient):
                             if consistency == "mixed"
                             else "Site is a plausible shortcut."
                         ),
-                        "quantitative_result_ids": [quantitative["message_id"]],
-                        "qualitative_result_ids": [qualitative["message_id"]],
+                        "quantitative_result_ids": [
+                            item["message_id"] for item in quantitative_results
+                        ],
+                        "qualitative_result_ids": [
+                            item["message_id"] for item in qualitative_results
+                        ],
                         "evidence_record_ids": ledger_entry.get("record_ids", []),
                         "limitations": [],
                         "recommendations": ["Validate on a held-out site."],

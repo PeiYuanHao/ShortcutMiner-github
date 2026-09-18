@@ -231,6 +231,20 @@ def build_executive_request_from_state(
         )
         identify_result = CandidateReport.model_validate(state["identify_result"])
         config = _stage_config(state, "executive_config")
+        capability_value = dict(config.get("capabilities", {}))
+        visual_options = _stage_config(state, "identify_config").get(
+            "visual_discovery", {}
+        )
+        addressing_fields = list(capability_value.get("addressing_fields", []))
+        for field in (
+            identify_request.task.label_column,
+            visual_options.get("sample_id_column"),
+            visual_options.get("sample_path_column"),
+            visual_options.get("split_column"),
+        ):
+            if field is not None and field not in addressing_fields:
+                addressing_fields.append(field)
+        capability_value["addressing_fields"] = addressing_fields
         return build_executive_request(
             identify_request=identify_request,
             identify_context=identify_context,
@@ -241,9 +255,7 @@ def build_executive_request_from_state(
             audit_options=ExecutiveAuditOptions.model_validate(
                 config.get("audit_options", {})
             ),
-            capabilities=ExecutiveCapabilities.model_validate(
-                config.get("capabilities", {})
-            ),
+            capabilities=ExecutiveCapabilities.model_validate(capability_value),
             artifact_references=config.get("artifact_references"),
             limitations=config.get("limitations"),
         )
