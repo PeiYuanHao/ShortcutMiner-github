@@ -39,11 +39,9 @@ class RealEvidenceClient(DemoAgentClient):
             }
         if agent_name == "executive":
             output = super()._executive(payload)
-            for task in output["tasks"]:
-                task["inputs"]["metadata_fields"] = ["site", "id", "path"]
-                if task["target"] == "qualitative":
-                    task["inputs"]["requires_sample_access"] = True
-                    task["requested_checks"] = ["sample_inspection"]
+            decision = output["decisions"][0]
+            if decision["qualitative"] is not None:
+                decision["qualitative"]["requested_checks"] = ["sample_inspection"]
             return output
         if agent_name == "quantitative" and runtime:
             output = super()._quantitative(payload)

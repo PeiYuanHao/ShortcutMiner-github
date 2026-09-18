@@ -77,30 +77,20 @@ class WorkflowAgentClient(FakeAgentClient):
         if agent_name == "executive":
             candidate = request["candidate_report"]["candidates"][0]
             return {
-                "protocol_version": "1.0",
-                "run_id": request["run_id"],
-                "message_id": "identify_workflow_run:executive:plan",
-                "source": "executive",
-                "target": "orchestrator",
-                "message_type": "routing_plan",
-                "in_reply_to": request["message_id"],
-                "artifact_references": [],
                 "decisions": [
                     {
-                        "candidate": candidate,
+                        "candidate_id": candidate["candidate_id"],
                         "route": "unresolved",
                         "routing_reason": "No downstream capabilities configured.",
-                        "task_ids": [],
-                        "priority": candidate["priority"],
-                        "status": "unresolved",
+                        "quantitative": None,
+                        "qualitative": None,
                         "missing_requirements": [
                             "Downstream capabilities were not configured."
                         ],
                         "limitations": [],
                     }
                 ],
-                "tasks": [],
-                "limitations": request["routing_context"]["limitations"],
+                "limitations": [],
             }
         if agent_name == "summarize":
             candidate = request["identify_result"]["candidates"][0]

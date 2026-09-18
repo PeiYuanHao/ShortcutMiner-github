@@ -26,6 +26,29 @@ class VisualEvidenceClient(RealEvidenceClient):
             assert visual["descriptor_differences"]
         else:
             assert visual["sample_observations"]
+        candidate = (
+            {
+                "candidate_id": "C001",
+                "cue": {"family": "metadata", "name": "site"},
+                "description": "Collection site may encode an unintended cue.",
+                "observation": "The exact public site column varies across selected labels.",
+                "hypothesis": "Site may be spuriously associated with label.",
+                "evidence_sources": ["metadata", "sample_inspection", "image_statistics"],
+                "priority": "high",
+                "status": "unverified",
+            }
+            if context["metadata_available"] else
+            {
+                "candidate_id": "C001",
+                "cue": {"family": "appearance", "name": "brightness"},
+                "description": "Brightness differs across selected samples.",
+                "observation": "Real decoded descriptors expose brightness variation.",
+                "hypothesis": "Brightness may be spuriously associated with label.",
+                "evidence_sources": ["sample_inspection", "image_statistics"],
+                "priority": "high",
+                "status": "unverified",
+            }
+        )
         return {
             "protocol_version": "1.0",
             "run_id": request["run_id"],
@@ -40,21 +63,7 @@ class VisualEvidenceClient(RealEvidenceClient):
                 "samples_inspected": visual["coverage"]["decoded_samples"],
                 "metadata_used": True,
             },
-            "candidates": [
-                {
-                    "candidate_id": "C001",
-                    "cue": {"family": "appearance", "name": "brightness"},
-                    "description": "Brightness differs across selected label groups.",
-                    "observation": "Real decoded descriptors expose different group means.",
-                    "hypothesis": "Brightness may be spuriously associated with label.",
-                    "evidence_sources": [
-                        "sample_inspection",
-                        "image_statistics",
-                    ],
-                    "priority": "high",
-                    "status": "unverified",
-                }
-            ],
+            "candidates": [candidate],
             "limitations": context["limitations"],
         }
 
@@ -77,13 +86,7 @@ class MetadataFreeVisualClient(VisualEvidenceClient):
                 "system_prompt": system_prompt,
             }
         )
-        output = DemoAgentClient._executive(self, payload)
-        for task in output["tasks"]:
-            task["inputs"]["metadata_fields"] = []
-            task["inputs"]["requires_sample_access"] = task["target"] == "qualitative"
-            if task["target"] == "qualitative":
-                task["requested_checks"] = ["sample_inspection"]
-        return output
+        return DemoAgentClient._executive(self, payload)
 
     def _real_qualitative(self, payload: dict) -> dict:
         context = payload["evidence_context"]
@@ -179,6 +182,7 @@ def test_full_metadata_visual_workflow_uses_real_evidence_backends(tmp_path: Pat
 
     assert visual["coverage"]["decoded_samples"] == 4
     assert result["identify_result"]["candidates"][0]["evidence_sources"] == [
+        "metadata",
         "sample_inspection",
         "image_statistics",
     ]

@@ -239,26 +239,28 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
     config = _config(tmp_path)
     runner = PilotRunner(config)
     runner.dry_run()
-    with pytest.raises(PilotRunnerError, match="quantitative_diagnostic"):
+    with pytest.raises(PilotRunnerError, match="legacy_task_negative_replay"):
         runner.canary()
     snapshot = runner._snapshot()
     source_id = "phase16-source-canary-gates"
-    source = runner.pilot_root.parent / source_id
-    source.mkdir()
-    (source / "preflight.json").write_text(
-        json.dumps({"status": "passed"}), encoding="utf-8"
+    (runner.pilot_root / "legacy_task_negative_replay.json").write_text(
+        json.dumps({
+            "status": "passed", "semantic_gate": "rejected",
+            "source_pilot_id": source_id,
+        }),
+        encoding="utf-8",
     )
-    (source / "identify_diagnostic.json").write_text(
-        json.dumps({"status": "passed"}), encoding="utf-8"
-    )
-    (source / "qualitative_diagnostic.json").write_text(
-        json.dumps({"status": "passed"}), encoding="utf-8"
-    )
-    (source / "snapshot.json").write_text(
-        snapshot.model_dump_json(), encoding="utf-8"
-    )
-    (runner.pilot_root / "quantitative_diagnostic.json").write_text(
-        json.dumps({"status": "passed", "source_pilot_id": source_id}),
+    (runner.pilot_root / "regenerated_task_offline.json").write_text(
+        json.dumps({
+            "status": "passed", "provider_call_count": 0,
+            "source_pilot_id": source_id, "ready_step_count": 1,
+            "mandatory_backend_attempt_count": 1,
+            "successful_tool_result_count": 1,
+            "task": {
+                "requested_checks": ["association_test"],
+                "metadata_fields": ["field"],
+            },
+        }),
         encoding="utf-8",
     )
     saved = PilotRunRecord(
@@ -277,6 +279,25 @@ def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path
     run_id = "phase16-test-canary"
     scope = runner.runs_root / run_id / "quantitative" / "TASK-C002-QT"
     scope.mkdir(parents=True)
+    executive = runner.runs_root / run_id / "executive"
+    executive.mkdir(parents=True)
+    (executive / "input.json").write_text(json.dumps({
+        "request": {"candidate_report": {"candidates": [{
+            "candidate_id": "C002", "cue": {"family": "metadata"},
+        }]}},
+        "executable_candidate_contexts": [{
+            "binding_status": "resolved", "binding_kind": "metadata_field",
+        }],
+    }), encoding="utf-8")
+    (executive / "routing.json").write_text(json.dumps({"tasks": [{
+        "task_id": "TASK-C002-QT", "target": "quantitative",
+        "requested_checks": ["association_test"],
+        "inputs": {
+            "metadata_fields": ["device"],
+            "required_model_capabilities": [],
+            "requires_sample_access": False,
+        },
+    }]}), encoding="utf-8")
     (scope / "input.json").write_text(json.dumps({
         "request": {
             "task": {

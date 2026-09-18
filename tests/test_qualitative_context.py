@@ -187,7 +187,7 @@ def test_request_is_built_from_validated_executive_state(tmp_path: Path):
         preparation=QualitativePreparationOptions(
             sampling_strategy="group_balanced",
             seed=42,
-            group_columns=["site"],
+            group_columns=["label"],
             max_evidence_records=20,
         ),
     )
@@ -274,12 +274,12 @@ def test_group_column_requires_task_evidence_authorization(tmp_path: Path):
 
     output = routing_plan.model_dump(mode="json")
     output["tasks"][1]["inputs"]["metadata_fields"] = ["device"]
-    authorized_plan = RoutingPlan.model_validate(output)
-    request = build_qualitative_request(
-        executive_request=executive_request,
-        routing_plan=authorized_plan,
-        task_id="TASK-C001-QL",
-        message_id="qualitative:request:C001",
-        preparation=_addressing_preparation(group_columns=["device"]),
-    )
-    assert request.preparation.group_columns == ["device"]
+    injected_plan = RoutingPlan.model_validate(output)
+    with pytest.raises(QualitativeContextError, match="candidate_bound"):
+        build_qualitative_request(
+            executive_request=executive_request,
+            routing_plan=injected_plan,
+            task_id="TASK-C001-QL",
+            message_id="qualitative:request:C001",
+            preparation=_addressing_preparation(group_columns=["device"]),
+        )

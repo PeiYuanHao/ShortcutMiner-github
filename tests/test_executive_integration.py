@@ -68,16 +68,7 @@ def test_executive_mock_runtime_integration(tmp_path: Path):
         ),
     )
     output = {
-        "protocol_version": "1.0",
-        "run_id": report.run_id,
-        "message_id": "executive:plan:empty",
-        "source": "executive",
-        "target": "orchestrator",
-        "message_type": "routing_plan",
-        "in_reply_to": request.message_id,
-        "artifact_references": [],
         "decisions": [],
-        "tasks": [],
         "limitations": ["No candidates were identified."],
     }
     client = RecordingAgentClient(output)

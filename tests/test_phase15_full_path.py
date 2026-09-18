@@ -43,55 +43,21 @@ class Phase15Reasoning:
             })
             return output
         if agent_name == "executive":
-            request = payload["request"]
-            candidate = request["candidate_report"]["candidates"][0]
-            context = request["routing_context"]
-            plan_id = f"{request['run_id']}:executive:plan"
-            common = {
-                "dataset": context["dataset"]["name"],
-                "dataset_reference": context["dataset"]["root"],
-                "label_column": "label", "split": None,
-                "metadata_fields": ["id", "label", "path"],
-                "artifact_references": [], "sample_limit": 20,
-                "requires_sample_access": True, "requires_external_services": False,
-                "runtime_constraints": ["no_external_services"],
-                "required_model_capabilities": ["retraining", "checkpoint", "intervention_inference"],
-            }
-            tasks = []
-            for suffix, target, checks, outputs in (
-                (
-                    "QT", "quantitative",
-                    ["task_model_training", "task_model_evaluation", "ood_evaluation", "counterfactual_intervention"],
-                    ["metrics"],
-                ),
-                ("QL", "qualitative", ["sample_inspection"], ["observations"]),
-            ):
-                task_inputs = dict(common)
-                if target == "qualitative":
-                    task_inputs["required_model_capabilities"] = []
-                tasks.append({
-                    "protocol_version": "1.0", "run_id": request["run_id"],
-                    "message_id": f"{request['run_id']}:executive:{suffix}:task",
-                    "source": "executive", "target": target, "message_type": "analysis_task",
-                    "in_reply_to": plan_id, "task_id": f"TASK-C001-{suffix}",
-                    "candidate_id": "C001", "hypothesis": candidate["hypothesis"],
-                    "objective": "Measure candidate-specific model behavior without reading private truth.",
-                    "inputs": task_inputs, "requested_checks": checks,
-                    "expected_outputs": outputs, "priority": "high", "dependencies": [],
-                    "status": "planned",
-                })
             return {
-                "protocol_version": "1.0", "run_id": request["run_id"],
-                "message_id": plan_id, "source": "executive", "target": "orchestrator",
-                "message_type": "routing_plan", "in_reply_to": request["message_id"],
-                "artifact_references": [],
                 "decisions": [{
-                    "candidate": candidate, "route": "both",
+                    "candidate_id": "C001", "route": "both",
                     "routing_reason": "Deep model-reliance validation and visual inspection are available.",
-                    "task_ids": ["TASK-C001-QT", "TASK-C001-QL"], "priority": "high",
-                    "status": "planned", "missing_requirements": [], "limitations": [],
+                    "quantitative": {
+                        "objective": "Measure candidate-specific model behavior without reading private truth.",
+                        "requested_checks": ["task_model_training", "task_model_evaluation"],
+                    },
+                    "qualitative": {
+                        "objective": "Inspect the visible candidate on bounded samples.",
+                        "requested_checks": ["sample_inspection"],
+                    },
+                    "missing_requirements": [], "limitations": [],
                 }],
-                "tasks": tasks, "limitations": context["limitations"],
+                "limitations": [],
             }
         if agent_name == "quantitative":
             return self._quantitative(payload)
@@ -243,7 +209,7 @@ def test_full_model_reliance_workflow_reaches_blind_evaluation_and_resumes(tmp_p
     ]
     assert state["qualitative_result"]["results"][0]["payload"]["observations"]
     ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
-    assert ledger.candidates[0].records[0].evidence_kind == "quantitative_counterfactual"
+    assert ledger.candidates[0].records[0].evidence_kind == "quantitative_model_reliance"
     assert ledger.candidates[0].records[0].metrics["model_hash"]
 
     snapshot = build_evaluation_snapshot(

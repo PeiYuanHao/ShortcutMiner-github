@@ -52,16 +52,11 @@ class FullPathTransport:
             output = self.reasoning.invoke_agent(agent, payload)
             if agent == "identify":
                 candidate = output["candidates"][0]
-                candidate["cue"] = {"family": "context", "name": "visible background"}
-                candidate["description"] = "Visible background context may co-vary with labels."
-                candidate["observation"] = "Semantic observations describe visible backgrounds."
-                candidate["hypothesis"] = "Background context may be spuriously associated with label."
-                candidate["evidence_sources"] = ["sample_inspection"]
-            elif agent == "executive":
-                for task in output["tasks"]:
-                    task["inputs"]["metadata_fields"] = ["site", "id", "path"]
-            elif agent == "quantitative" and "tool_calls" in output:
-                output["tool_calls"][0]["arguments"]["parameters"]["cue_field"] = "site"
+                candidate["cue"] = {"family": "metadata", "name": "site"}
+                candidate["description"] = "Collection site may co-vary with labels."
+                candidate["observation"] = "The public metadata exposes an exact site column."
+                candidate["hypothesis"] = "Site may be spuriously associated with label."
+                candidate["evidence_sources"] = ["metadata"]
         return {
             "choices": [{"message": {"content": json.dumps(output)}}],
             "usage": {"prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20},
@@ -171,7 +166,7 @@ def test_fake_http_full_production_path_reaches_blind_evaluator(tmp_path: Path):
     )
     state = execution.workflow_state
     assert state["identify_context"]["visual_discovery"]["semantic"]["runtime_kind"] == "real_provider"
-    assert state["identify_result"]["candidates"][0]["cue"]["name"] == "visible background"
+    assert state["identify_result"]["candidates"][0]["cue"]["name"] == "site"
     assert any(
         reference.startswith("experiments/")
         for reference in state["quantitative_result"]["results"][0]["payload"]["artifact_references"]

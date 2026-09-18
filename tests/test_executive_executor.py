@@ -9,6 +9,10 @@ from shortcutminer.experiment.executive_executor import (
     validate_executive_request,
     validate_routing_plan,
 )
+from shortcutminer.experiment.candidate_binding import CandidateBinding
+from shortcutminer.experiment.check_requirements import (
+    build_executable_candidate_context,
+)
 from shortcutminer.protocol.executive import (
     ExecutiveAuditOptions,
     ExecutiveCapabilities,
@@ -158,7 +162,7 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "dataset_reference": root,
                     "label_column": "label",
                     "split": "train",
-                    "metadata_fields": ["site", "label"],
+                    "metadata_fields": ["site"],
                     "artifact_references": [],
                     "sample_limit": None,
                     "requires_sample_access": False,
@@ -167,7 +171,7 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["association_test"],
-                "expected_outputs": ["metrics", "tables"],
+                "expected_outputs": ["metrics"],
                 "priority": "high",
                 "dependencies": [],
                 "status": "planned",
@@ -189,7 +193,7 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "dataset_reference": root,
                     "label_column": "label",
                     "split": "train",
-                    "metadata_fields": ["site"],
+                    "metadata_fields": [],
                     "artifact_references": [],
                     "sample_limit": 20,
                     "requires_sample_access": True,
@@ -198,10 +202,7 @@ def _valid_output(request: ExecutiveRequest) -> dict:
                     "required_model_capabilities": [],
                 },
                 "requested_checks": ["sample_inspection"],
-                "expected_outputs": [
-                    "observations",
-                    "representative_examples",
-                ],
+                "expected_outputs": ["observations"],
                 "priority": "high",
                 "dependencies": [],
                 "status": "planned",
@@ -211,9 +212,30 @@ def _valid_output(request: ExecutiveRequest) -> dict:
     }
 
 
+def _valid_draft() -> dict:
+    return {
+        "decisions": [{
+            "candidate_id": "C001",
+            "route": "both",
+            "routing_reason": "Complementary evidence is useful.",
+            "quantitative": {
+                "objective": "Measure the site-label association.",
+                "requested_checks": ["association_test"],
+            },
+            "qualitative": {
+                "objective": "Inspect site-related visual context.",
+                "requested_checks": ["sample_inspection"],
+            },
+            "missing_requirements": [],
+            "limitations": [],
+        }],
+        "limitations": [],
+    }
+
+
 def test_execute_executive_returns_valid_plan(tmp_path: Path):
     request = _request(tmp_path)
-    client = MockExecutiveClient(_valid_output(request))
+    client = MockExecutiveClient(_valid_draft())
 
     plan = execute_executive(request=request, client=client)
 
@@ -294,6 +316,9 @@ def _model_reliance_plan(tmp_path: Path, *, check: str, capabilities, required, 
     output["tasks"][0]["expected_outputs"] = ["metrics"]
     output["tasks"][0]["inputs"]["runtime_constraints"] = list(constraints)
     output["tasks"][0]["inputs"]["required_model_capabilities"] = list(required)
+    output["tasks"][0]["inputs"]["metadata_fields"] = []
+    output["tasks"][0]["inputs"]["requires_sample_access"] = True
+    output["tasks"][0]["inputs"]["sample_limit"] = 20
     return request, RoutingPlan.model_validate(output)
 
 
@@ -321,7 +346,7 @@ def test_counterfactual_requires_declared_intervention_inference(tmp_path: Path)
     request, missing = _model_reliance_plan(
         tmp_path, check="counterfactual_intervention", capabilities=["predictions"], required=[]
     )
-    with pytest.raises(ExecutiveExecutionError, match="did not declare"):
+    with pytest.raises(ExecutiveExecutionError, match="semantically_incomplete"):
         validate_routing_plan(missing, request)
 
     allowed_request, allowed = _model_reliance_plan(
@@ -329,7 +354,19 @@ def test_counterfactual_requires_declared_intervention_inference(tmp_path: Path)
         capabilities=["checkpoint", "intervention_inference"],
         required=["checkpoint", "intervention_inference"],
     )
-    validate_routing_plan(allowed, allowed_request)
+    context = build_executable_candidate_context(
+        CandidateBinding(
+            candidate_id="C001",
+            status="resolved",
+            kind="metadata_field",
+            metadata_fields=["site"],
+            source="exact_candidate_cue_name",
+        ),
+        capabilities=allowed_request.routing_context.capabilities,
+        runtime_constraints=[],
+        structured_spec_available=True,
+    )
+    validate_routing_plan(allowed, allowed_request, candidate_contexts=[context])
 
 
 def test_sample_access_requires_explicit_limit(tmp_path: Path):
@@ -460,7 +497,7 @@ def test_unresolved_candidate_is_preserved_without_tasks(tmp_path: Path):
 def test_artifacts_and_events_are_persisted(tmp_path: Path):
     request = _request(tmp_path / "dataset")
     runs_root = tmp_path / "runs"
-    output = _valid_output(request)
+    output = _valid_draft()
 
     execute_executive(
         request=request,
@@ -495,7 +532,7 @@ def test_invalid_raw_output_is_retained_and_failure_is_logged(tmp_path: Path):
     request = _request(tmp_path / "dataset")
     runs_root = tmp_path / "runs"
 
-    with pytest.raises(ExecutiveExecutionError, match="invalid RoutingPlan"):
+    with pytest.raises(ExecutiveExecutionError, match="invalid ExecutiveAgentDraft"):
         execute_executive(
             request=request,
             client=MockExecutiveClient({"invalid": "output"}),
