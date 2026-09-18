@@ -18,6 +18,23 @@ from shortcutminer.evaluation.pilot.snapshot import build_pilot_snapshot
 from shortcutminer.evaluation.pilot.suite import build_suite
 from shortcutminer.inspection.semantic_provider import OpenAICompatibleSemanticVisualInspector
 from shortcutminer.protocol.model import OpenAICompatibleModelConfig
+from shortcutminer.protocol.executive import (
+    AnalysisTask,
+    AnalysisTaskInputs,
+    ExecutiveAuditOptions,
+    ExecutiveCapabilities,
+    ExecutiveRequest,
+    ExecutiveRoutingContext,
+)
+from shortcutminer.protocol.identify import (
+    Candidate,
+    CandidateReport,
+    Cue,
+    DatasetInspectionSummary,
+    DatasetSpec,
+    TaskSpec,
+)
+from shortcutminer.protocol.quantitative import QuantitativeRequest
 from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
 
 
@@ -72,6 +89,143 @@ def _config(tmp_path: Path) -> PilotConfig:
     )
 
 
+def _write_historical_replay_source(
+    runner: PilotRunner,
+    source_id: str = "phase16-historical-source",
+) -> str:
+    source_root = runner.pilot_root.parent / source_id
+    run_id = f"{source_id}-canary"
+    run_root = source_root / "runs" / run_id
+    candidates = [
+        Candidate(
+            candidate_id="C001",
+            cue=Cue(family="appearance", name="visual_style"),
+            description="Legacy public appearance candidate.",
+            observation="Legacy bounded public observation.",
+            hypothesis="The visual style may correlate with the label.",
+            evidence_sources=["sample_inspection"],
+            priority="high",
+            status="unverified",
+        ),
+        Candidate(
+            candidate_id="C002",
+            cue=Cue(family="metadata", name="site_device_batch"),
+            description="Legacy ambiguous metadata candidate.",
+            observation="The old contract used a composite cue name.",
+            hypothesis="The composite metadata concept may correlate with the label.",
+            evidence_sources=["metadata"],
+            priority="high",
+            status="unverified",
+        ),
+    ]
+    report = CandidateReport(
+        protocol_version="1.0",
+        run_id=run_id,
+        message_id=f"{run_id}:identify:report",
+        source="identify",
+        target="executive",
+        message_type="candidate_report",
+        in_reply_to=f"{run_id}:identify:request",
+        artifact_references=[],
+        dataset_summary=DatasetInspectionSummary(
+            dataset="legacy_public", samples_inspected=2, metadata_used=True
+        ),
+        candidates=candidates,
+        limitations=[],
+    )
+    executive_request = ExecutiveRequest(
+        protocol_version="1.0",
+        run_id=run_id,
+        message_id=f"{run_id}:executive:request",
+        source="orchestrator",
+        target="executive",
+        message_type="executive_request",
+        in_reply_to=report.message_id,
+        candidate_report=report,
+        routing_context=ExecutiveRoutingContext(
+            protocol_version="1.0",
+            run_id=run_id,
+            dataset=DatasetSpec(
+                name="legacy_public", root=str(source_root), metadata_file="metadata.csv"
+            ),
+            task=TaskSpec(type="classification", label_column="label"),
+            audit_options=ExecutiveAuditOptions(
+                allowed_targets=["quantitative"], requested_outputs=["metrics"]
+            ),
+            capabilities=ExecutiveCapabilities(
+                available_targets=["quantitative"],
+                available_metadata_fields=["id", "label", "site", "device", "batch", "path"],
+                quantitative_checks=["association_test"],
+                available_output_types=["metrics"],
+            ),
+        ),
+    )
+    (run_root / "executive").mkdir(parents=True, exist_ok=True)
+    (run_root / "executive" / "input.json").write_text(
+        json.dumps({"request": executive_request.model_dump(mode="json")}),
+        encoding="utf-8",
+    )
+    (run_root / "input.json").write_text(json.dumps({
+        "initial_state": {
+            "identify_config": {
+                "visual_discovery": {
+                    "sample_id_column": "id", "sample_path_column": "path",
+                }
+            }
+        }
+    }), encoding="utf-8")
+    for candidate in candidates:
+        task_id = f"TASK-{candidate.candidate_id}-QT"
+        task = AnalysisTask(
+            protocol_version="1.0",
+            run_id=run_id,
+            message_id=f"{run_id}:executive:{task_id}:task",
+            source="executive",
+            target="quantitative",
+            message_type="analysis_task",
+            in_reply_to=f"{run_id}:executive:routing-plan",
+            task_id=task_id,
+            candidate_id=candidate.candidate_id,
+            hypothesis=candidate.hypothesis,
+            objective="Legacy malformed association task.",
+            inputs=AnalysisTaskInputs(
+                dataset="legacy_public",
+                dataset_reference=str(source_root),
+                label_column="label",
+                metadata_fields=[],
+                artifact_references=[],
+                sample_limit=None,
+                requires_sample_access=False,
+                requires_external_services=False,
+                runtime_constraints=[],
+                required_model_capabilities=[],
+            ),
+            requested_checks=["association_test"],
+            expected_outputs=["metrics"],
+            priority="high",
+            dependencies=[],
+            status="planned",
+        )
+        quantitative = QuantitativeRequest(
+            protocol_version="1.0",
+            run_id=run_id,
+            message_id=f"{run_id}:quantitative:{task_id}:request",
+            source="orchestrator",
+            target="quantitative",
+            message_type="quantitative_analysis_request",
+            in_reply_to=task.message_id,
+            candidate=candidate,
+            task=task,
+        )
+        task_root = run_root / "quantitative" / task_id
+        task_root.mkdir(parents=True, exist_ok=True)
+        (task_root / "input.json").write_text(
+            json.dumps({"request": quantitative.model_dump(mode="json")}),
+            encoding="utf-8",
+        )
+    return source_id
+
+
 def test_config_is_strict_and_requires_real_semantic_capability(tmp_path: Path):
     value = _config(tmp_path).model_dump(mode="json")
     value["unexpected"] = True
@@ -81,6 +235,86 @@ def test_config_is_strict_and_requires_real_semantic_capability(tmp_path: Path):
     value["semantic_runtime"]["capabilities"]["supports_image_input"] = False
     with pytest.raises(ValidationError, match="supports_image_input"):
         PilotConfig.model_validate(value)
+
+
+def test_legacy_replay_selects_task_c002_explicitly(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    source_id = _write_historical_replay_source(runner)
+    result = runner.legacy_task_negative_replay(source_pilot_id=source_id)
+    assert result["selected_task_id"] == "TASK-C002-QT"
+    assert result["semantic_gate"] == "rejected"
+
+
+def test_legacy_replay_does_not_require_unique_malformed_task(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    source_id = _write_historical_replay_source(runner)
+    result = runner.legacy_task_negative_replay(source_pilot_id=source_id)
+    assert result["historical_malformed_task_count"] == 2
+
+
+def test_both_historical_malformed_tasks_are_rejected(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    source_id = _write_historical_replay_source(runner)
+    result = runner.legacy_task_negative_replay(source_pilot_id=source_id)
+    assert result["rejected_malformed_task_ids"] == [
+        "TASK-C001-QT", "TASK-C002-QT"
+    ]
+
+
+def test_historical_site_device_batch_binding_remains_unresolved(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    source_id = _write_historical_replay_source(runner)
+    result = runner.historical_candidate_binding_replay(
+        source_pilot_id=source_id
+    )
+    assert result["site_device_batch_result"] == "unresolved"
+    assert result["generated_task_count"] == 0
+
+
+def test_historical_binding_never_falls_back_to_site_device_or_batch(tmp_path: Path):
+    runner = PilotRunner(_config(tmp_path))
+    source_id = _write_historical_replay_source(runner)
+    result = runner.historical_candidate_binding_replay(
+        source_pilot_id=source_id
+    )
+    assert result["fuzzy_fallback_count"] == 0
+    legacy = next(
+        item for item in result["candidate_bindings"]
+        if item["cue_name"] == "site_device_batch"
+    )
+    assert legacy["binding_status"] == "unresolved"
+    assert legacy["binding_kind"] == "unresolved"
+
+
+def test_current_contract_fixture_exact_metadata_binding(tmp_path: Path):
+    result = PilotRunner(_config(tmp_path)).current_contract_task_offline()
+    assert result["binding_status"] == "resolved"
+    assert result["binding_kind"] == "metadata_field"
+    assert result["bound_metadata_fields"] == ["scientific_cue"]
+
+
+def test_current_contract_fixture_builds_semantic_complete_task(tmp_path: Path):
+    result = PilotRunner(_config(tmp_path)).current_contract_task_offline()
+    assert result["task"]["metadata_fields"] == ["scientific_cue"]
+    assert result["task"]["semantic_completeness"] == "passed"
+
+
+def test_current_contract_fixture_compiles_ready_plan(tmp_path: Path):
+    result = PilotRunner(_config(tmp_path)).current_contract_task_offline()
+    assert result["ready_step_count"] >= 1
+
+
+def test_current_contract_fixture_runs_real_backend(tmp_path: Path):
+    result = PilotRunner(_config(tmp_path)).current_contract_task_offline()
+    assert result["real_backend"] == "real_cpu_v1"
+    assert result["mandatory_backend_attempt_count"] >= 1
+
+
+def test_current_contract_fixture_produces_successful_tool_result(tmp_path: Path):
+    result = PilotRunner(_config(tmp_path)).current_contract_task_offline()
+    assert result["successful_tool_result_count"] >= 1
+    assert result["quantitative_finalization"] == "passed"
+    assert result["provider_call_count"] == 0
 
 
 def test_snapshot_and_provider_combination_are_stable_and_secret_free(tmp_path: Path):
@@ -250,12 +484,24 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
         }),
         encoding="utf-8",
     )
-    (runner.pilot_root / "regenerated_task_offline.json").write_text(
+    (runner.pilot_root / "historical_candidate_binding_replay.json").write_text(
         json.dumps({
             "status": "passed", "provider_call_count": 0,
-            "source_pilot_id": source_id, "ready_step_count": 1,
+            "source_pilot_id": source_id,
+            "site_device_batch_result": "unresolved",
+            "fuzzy_fallback_count": 0,
+            "generated_task_count": 0,
+        }),
+        encoding="utf-8",
+    )
+    (runner.pilot_root / "current_contract_task_offline.json").write_text(
+        json.dumps({
+            "status": "passed", "provider_call_count": 0,
+            "binding_status": "resolved", "ready_step_count": 1,
             "mandatory_backend_attempt_count": 1,
             "successful_tool_result_count": 1,
+            "real_backend": "real_cpu_v1",
+            "quantitative_finalization": "passed",
             "task": {
                 "requested_checks": ["association_test"],
                 "metadata_fields": ["field"],
