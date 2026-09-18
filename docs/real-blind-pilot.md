@@ -98,6 +98,24 @@ raw draft remains an internal/offline compatibility boundary and is not exposed 
 provider path. The snapshot freezes the plan protocol/version/compiler, resolver, finalizer,
 backend, workspace, and the complete ten-experiment classification.
 
+Quantitative mutable authority is scoped to one `AnalysisTask`. Each task forks a clean
+`ToolRuntime` from shared registry/backend infrastructure, while history, call IDs, generated
+artifacts, dependency availability, and tool-call budget remain task-local. Explicit upstream
+artifacts are distinct from current-task generated artifacts. Model-reliance steps resolve a model
+only from a successful training result matching the current run, candidate, and task, or from a
+model artifact explicitly assigned to that task. Sibling task results never enter the provider
+payload. Resume restoration applies the same run/candidate/task filter.
+
+Before another paid Canary, run the zero-provider real-backend isolation replay:
+
+```powershell
+python scripts/phase16_task_isolation_replay.py --root runs/phase16-task-isolation-offline-gate
+```
+
+It executes two independent training/evaluation tasks and one exact-field association task,
+requires five successful `real_cpu_v1` results, verifies same-task model lineage, and reports zero
+provider calls and zero provider-visible cross-task results.
+
 Experiment availability is staged as `available_now`, `pending_dependency`, and `unsupported`.
 Task-model evaluation remains pending until a successful training step has produced an approved
 model artifact. OOD and counterfactual work without an explicit deterministic transformation is
