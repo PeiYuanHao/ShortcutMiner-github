@@ -37,6 +37,17 @@ The API override enables bridge networking and loads `.env.phase16`. Without the
 `-f`, the service remains offline and receives neither credential. The readiness command reports
 only `SET` or `MISSING`.
 
+Provider persistence uses a deny-by-schema boundary. The unambiguous readiness field is
+`raw_provider_body_persistence=false`: raw HTTP response bodies, reasoning content,
+Authorization headers, API keys, and image base64 are never written. Runtime snapshots retain
+the legacy contract field `raw_response_persistence=false`; model-call artifacts contain only
+sanitized identifiers, hashes, latency, usage, finish/schema status, and retry diagnostics.
+The offline regression can be run without credentials or network access:
+
+```bash
+python scripts/phase16_provider_security_preflight.py --root /tmp/provider-security-preflight
+```
+
 ## Result and checkpoint persistence across removed containers
 
 Use fresh run IDs if these examples have already been executed. Never overwrite
