@@ -1,6 +1,7 @@
 """Per-invocation budget, persistence, and event tracing for tools."""
 
 from dataclasses import dataclass, replace
+from threading import Lock
 import json
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,23 @@ class ToolBudget(StrictProtocolModel):
     max_selected_samples: int = Field(default=100, ge=1, le=100_000)
 
 
+class RunToolBudgetState:
+    """Atomic run-wide tool-call counter shared by task runtime forks."""
+
+    def __init__(self, max_tool_calls: int, *, used: int = 0) -> None:
+        self.max_tool_calls = max_tool_calls
+        if used < 0 or used > max_tool_calls:
+            raise ValueError("invalid restored run tool budget")
+        self.used = used
+        self._lock = Lock()
+
+    def reserve(self) -> None:
+        with self._lock:
+            if self.used >= self.max_tool_calls:
+                raise ToolBudgetExceeded("Run tool-call budget is exhausted")
+            self.used += 1
+
+
 @dataclass(frozen=True)
 class TaskExecutionScope:
     """Authoritative correlation and explicit inputs for one AnalysisTask."""
@@ -63,6 +81,7 @@ class ToolRuntime:
         budget: ToolBudget | None = None,
         task_scope: TaskExecutionScope | None = None,
         restore_persisted_task_results: bool = False,
+        run_budget_state: RunToolBudgetState | None = None,
     ) -> None:
         self.registry = registry
         self.budget = budget or ToolBudget()
@@ -85,6 +104,7 @@ class ToolRuntime:
         self._call_ids: set[str] = set()
         self.task_scope = task_scope
         self.restore_persisted_task_results = restore_persisted_task_results
+        self.run_budget_state = run_budget_state or RunToolBudgetState(self.budget.max_tool_calls)
 
     @property
     def agent_name(self) -> AgentName:
@@ -114,8 +134,8 @@ class ToolRuntime:
     ) -> "ToolRuntime":
         """Create an isolated mutable runtime while sharing static infrastructure."""
 
-        if self.agent_name != "quantitative":
-            raise ToolRuntimeError("Only Quantitative runtimes may be task-scoped")
+        if self.agent_name not in {"quantitative", "qualitative"}:
+            raise ToolRuntimeError("Only task Agents may be task-scoped")
         validated_candidate = TypeAdapter(CandidateId).validate_python(candidate_id)
         validated_task = TypeAdapter(TaskId).validate_python(task_id)
         task_candidate = validated_task.removeprefix("TASK-").rsplit("-", 1)[0]
@@ -133,10 +153,13 @@ class ToolRuntime:
             runs_root=self.context.runs_root,
             workspace_root=self.context.workspace_root,
             approved_artifacts=explicit,
-            approved_samples=self.context.approved_samples,
+            approved_samples=frozenset(),
             runtime_constraints=runtime_constraints,
             model_capabilities=self.context.model_capabilities,
-            allowed_experiment_types=resolve_quantitative_checks(requested_checks),
+            allowed_experiment_types=(
+                resolve_quantitative_checks(requested_checks)
+                if self.agent_name == "quantitative" else frozenset()
+            ),
             budget=self.budget,
             task_scope=TaskExecutionScope(
                 candidate_id=validated_candidate,
@@ -144,6 +167,7 @@ class ToolRuntime:
                 explicit_artifacts=explicit,
             ),
             restore_persisted_task_results=self.restore_persisted_task_results,
+            run_budget_state=self.run_budget_state,
         )
         if child.restore_persisted_task_results:
             child.restore_task_history()
@@ -304,6 +328,7 @@ class ToolRuntime:
             )
         if len(self.history) >= self.budget.max_tool_calls:
             raise ToolBudgetExceeded("Agent tool-call budget is exhausted")
+        self.run_budget_state.reserve()
         self._call_ids.add(parsed.tool_call_id)
         schemas = tuple(spec.model_dump(mode="json") for spec in self.tool_specs())
         context = replace(self.context, tool_schemas=schemas)
