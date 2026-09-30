@@ -288,8 +288,8 @@
   "remaining_real_provider_readiness_blockers": 0,
   "remaining_blockers": [],
   "tests": {
-    "host": "743 passed, 11 skipped",
-    "docker": "745 passed, 9 skipped",
+    "host": "745 passed, 11 skipped",
+    "docker": "747 passed, 9 skipped",
     "security_targeted": "22 passed, 2 skipped",
     "offline_persistence_sentinel": "passed; API key, Authorization, raw body, reasoning, base64 all zero",
     "three_candidate_fake_transport": "passed",
