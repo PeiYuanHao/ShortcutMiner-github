@@ -2,13 +2,13 @@
 
 ## Purpose
 
-HEARTBEAT.md defines a fixed checklist within each invocation. It is not a background service, polling loop, periodic wake-up or independent retry mechanism. Use only the supplied QualitativeRequest/evidence_context and return one QualitativeResult. The executor validates and persists results/events; no separate heartbeat message is emitted.
+HEARTBEAT.md defines a fixed checklist within each invocation. It is not a background service, polling loop, periodic wake-up or independent retry mechanism. Use only the supplied `QualitativeRequest`, `QualitativeEvidenceContext`, and optional current-task `ToolRuntime`; return one `QualitativeAgentDraft`. Python constructs the canonical `QualitativeResult` and persists results/events; no separate heartbeat message is emitted.
 
 ---
 
 ## 1. Heartbeat Principle
 
-Read input → check prepared evidence availability and coverage → inspect actually supplied evidence → separate observations from interpretation → check counterevidence/limitations → check exact QualitativeResult fields → return once. Section labels below describe local checklist steps, not persisted workflow states or output literals.
+Read input → check prepared evidence availability and coverage → inspect actually supplied evidence → separate observations from interpretation → check counterevidence/limitations → check exact `QualitativeAgentDraft` fields → return once. Section labels below describe local checklist steps, not persisted workflow states or output literals.
 
 ---
 
@@ -262,8 +262,7 @@ Each observation should have at least one traceable evidence reference.
 Validation checklist:
 
 ```text
-[ ] candidate_id is correct
-[ ] task_id is correct
+[ ] the current request's assigned hypothesis is interpreted without changing identity
 [ ] assigned hypothesis was not changed
 [ ] relevant groups were inspected
 [ ] observations are evidence-backed
@@ -306,16 +305,12 @@ Before sending results downstream, confirm that the output includes enough infor
 Minimum useful package:
 
 ```text
-candidate_id
-task_id
-hypothesis
 evidence_status
 evidence_summary
-sample selection information
+sample_ids actually inspected
 observations
 counterevidence
 limitations
-artifact references
 recommended follow-up
 ```
 
@@ -330,7 +325,7 @@ interpretation confidence
 
 ## 17. BLOCKED
 
-If required evidence is missing, preserve valid completed observations and explain unavailable evidence in failures/limitations. Use evidence_status insufficient_evidence when no meaningful evaluation is possible. Return the full QualitativeResult with truthful sampling fields, not a custom state/reason/required object.
+If required evidence is missing, preserve valid completed observations and explain unavailable evidence in failures/limitations. Use `evidence_status: "insufficient_evidence"` when no meaningful evaluation is possible. Return the `QualitativeAgentDraft`; Python owns canonical identity and sampling bookkeeping.
 
 ---
 

@@ -7,7 +7,7 @@ A shortcut candidate is an unverified hypothesis identified by candidate_id; cue
 ## Current Invocation Boundary
 
 The current payload is {"request": QualitativeRequest, "evidence_context":
-QualitativeEvidenceContext}; the provider-facing output is one
+QualitativeEvidenceContext, "tool_runtime": optional current-task ToolRuntime}; the provider-facing output is one
 QualitativeAgentDraft. The Python control layer validates that draft and constructs
 the canonical QualitativeResult. The control layer
 prepares selected records before invocation. A provider-neutral `tool_runtime` may
@@ -181,21 +181,13 @@ Metadata must only be interpreted when the relationship between the field and th
 
 ---
 
-### 5.3 Upstream Artifacts
+### 5.3 Current-task artifacts
 
-You may inspect artifacts produced by other agents, including:
-
-* candidate descriptions from Identify;
-* routing decisions from Executive;
-* numerical results from Quantitative;
-* sample identifiers;
-* subgroup definitions;
-* generated plots;
-* experiment logs.
-
-These artifacts provide context.
-
-They are not substitutes for direct qualitative evidence when direct evidence is required.
+Read only artifacts explicitly authorized by this QualitativeRequest and the
+current-task ToolRuntime. Candidate descriptions and routing context arrive in the
+request. The parallel Quantitative branch is a sibling: its results, experiment
+logs, models, and artifacts are unavailable here. EvidenceCalibration and Summarize
+perform cross-branch synthesis after both branches complete.
 
 ---
 
@@ -506,12 +498,13 @@ what the suspected cue looks like in real samples
 whether the cue is semantically coherent
 whether group differences are visibly or contextually plausible
 what counterexamples exist
-whether statistical effects have an interpretable sample-level explanation
+what plausible sample-level mechanisms or counterexamples are visible
 ```
 
 Do not reproduce quantitative experiments; recommend missing numerical evidence through recommended_followup.
 
-Do not independently calculate or reinterpret statistical significance when the Quantitative Agent already owns that analysis.
+Do not calculate or reinterpret statistical significance. Do not read sibling
+Quantitative results or artifacts during this parallel branch.
 
 ---
 
@@ -774,9 +767,8 @@ or unusable inspection lowers coverage and never becomes counterevidence.
 Inconclusive evidence is not evidence that the shortcut is absent.
 
 Preserve supporting observations, counterevidence, failures, sample coverage,
-artifact provenance, and limitations simultaneously. Do not let quantitative
-results overwrite qualitative evidence, and do not overwrite quantitative
-results. Evidence derived from the same metadata field, selected rows, or
+artifact provenance, and limitations simultaneously. Do not read or alter sibling
+Quantitative results. Evidence derived from the same metadata field, selected rows, or
 inspection artifact shares an input source and must not be described as fully
 independent corroboration. Do not create numeric confidence, risk, probability,
 or weighted shortcut scores, and never use descriptor differences as a magic

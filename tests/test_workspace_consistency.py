@@ -18,6 +18,7 @@ from shortcutminer.experiment.agent_workspace import (
     load_agent_workspace_prompt,
 )
 from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
+from shortcutminer.protocol.qualitative import QualitativeAgentDraft
 from shortcutminer.protocol.summarize import SummarizeAgentDraft
 
 
@@ -190,3 +191,45 @@ def test_documented_output_templates_match_real_pydantic_schema(
 
     result = schema.model_validate(substitute(example))
     assert result.model_dump(mode="json") == substitute(example)
+
+
+def test_full_quantitative_prompt_respects_provider_draft_ownership():
+    prompt = load_agent_workspace_prompt("quantitative")
+    assert "Return exactly one valid JSON object matching `QuantitativeAgentDraft`" in prompt
+    assert "Python deterministically derives evidence maturity and design strength" in prompt
+    assert set(QuantitativeAgentDraft.model_fields) == {
+        "status", "analysis_type", "evidence_direction", "evidence_summary",
+        "additional_limitations", "recommended_followup",
+    }
+    assert not re.search(r"\bQ[0-4]\b|evidence_level|evidence_tool_call_ids", prompt)
+    for line in prompt.splitlines():
+        if re.search(r"(?:choose|select|emit|return|justify|self-check).{0,45}evidence level", line, re.I):
+            assert "do not" in line.lower() or "python" in line.lower()
+    for owned in ("measurement_id", "plan_step_id", "tool_call_id", "artifact_references"):
+        assert owned not in QuantitativeAgentDraft.model_fields
+
+
+def test_full_qualitative_prompt_respects_parallel_draft_and_tool_boundary():
+    prompt = load_agent_workspace_prompt("qualitative")
+    assert "QualitativeAgentDraft" in prompt
+    assert "Python constructs" in prompt and "QualitativeResult" in prompt
+    assert set(QualitativeAgentDraft.model_fields).isdisjoint({
+        "task_id", "candidate_id", "run_id", "message_id", "sampling",
+        "observation_id", "comparison_id", "groups", "group",
+    })
+    for tool in (
+        "inspect_tool_capabilities", "inspect_sample_metadata",
+        "inspect_sample", "read_artifact",
+    ):
+        assert tool in prompt
+    forbidden_output = (
+        "return QualitativeResult", "return the exact QualitativeResult",
+        "return the full QualitativeResult", "check exact QualitativeResult fields",
+        "current invocation has no inspection tools",
+        "preserve task_id, candidate_id",
+    )
+    assert not any(phrase.lower() in prompt.lower() for phrase in forbidden_output)
+    for line in prompt.splitlines():
+        lower = line.lower()
+        if re.search(r"\b(?:inspect|read|fetch|use)\b.*\bquantitative\b.*\b(?:result|artifact)", lower):
+            assert "do not" in lower or "unavailable" in lower
