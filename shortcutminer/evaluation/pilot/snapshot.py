@@ -22,6 +22,7 @@ from shortcutminer.protocol.quantitative_plan import (
 )
 from shortcutminer.runtime.openai_compatible import build_runtime_snapshot
 from shortcutminer.storage.json_artifacts import atomic_write_json
+from shortcutminer.tooling.builtins import build_default_tool_registry
 
 
 class PilotSnapshotError(RuntimeError):
@@ -120,6 +121,9 @@ def build_pilot_snapshot(
         "shortcutminer/protocol/quantitative_plan.py",
         "shortcutminer/tooling/protocol.py",
         "shortcutminer/tooling/agent_loop.py",
+        "shortcutminer/tooling/builtins.py",
+        "shortcutminer/tooling/registry.py",
+        "shortcutminer/tooling/runtime.py",
         "shortcutminer/workflow/nodes.py",
         "shortcutminer/workflow/graph.py",
         "shortcutminer/evaluation/evidence_ledger.py",
@@ -128,12 +132,17 @@ def build_pilot_snapshot(
     backend_hashes = {
         value: file_hash(root / value) for value in backend_paths if (root / value).is_file()
     }
+    tool_permission_matrix_hash = canonical_hash(
+        build_default_tool_registry().permission_matrix()
+    )
     identity = {
         "pilot_id": config.pilot_id,
         "git_commit": resolved_commit,
+        "repository_dirty": repository_dirty,
         "workspace_hashes": [item.model_dump(mode="json") for item in workspaces],
         "protocol_hashes": protocol_hashes,
         "backend_hashes": backend_hashes,
+        "tool_permission_matrix_hash": tool_permission_matrix_hash,
         "quantitative_check_resolution_version": (
             QUANTITATIVE_CHECK_RESOLUTION_VERSION
         ),
@@ -193,6 +202,7 @@ def build_pilot_snapshot(
         workspace_hashes=workspaces,
         protocol_hashes=protocol_hashes,
         backend_hashes=backend_hashes,
+        tool_permission_matrix_hash=tool_permission_matrix_hash,
         quantitative_check_resolution_version=(
             QUANTITATIVE_CHECK_RESOLUTION_VERSION
         ),

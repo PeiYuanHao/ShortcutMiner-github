@@ -25,6 +25,7 @@ class PilotBudget(StrictProtocolModel):
     max_total_vlm_calls: int = Field(default=40, ge=1, le=100_000)
     max_total_vlm_images: int = Field(default=160, ge=2, le=1_000_000)
     max_total_tokens: int | None = Field(default=None, ge=1)
+    max_tasks_per_run: int = Field(default=20, ge=1, le=1_000)
     max_tool_calls_per_run: int = Field(default=20, ge=1, le=1_000)
     max_text_calls_per_run: int = Field(default=15, ge=5, le=1_000)
     max_vlm_calls_per_run: int = Field(default=3, ge=1, le=100)
@@ -136,6 +137,7 @@ class PilotSnapshot(StrictProtocolModel):
     workspace_hashes: list[FrozenWorkspace]
     protocol_hashes: dict[NonEmptyText, NonEmptyText]
     backend_hashes: dict[NonEmptyText, NonEmptyText]
+    tool_permission_matrix_hash: NonEmptyText | None = None
     quantitative_check_resolution_version: NonEmptyText | None = None
     quantitative_check_resolution_hash: NonEmptyText | None = None
     quantitative_check_resolver_implementation_hash: NonEmptyText | None = None
@@ -212,6 +214,24 @@ class PilotRunRecord(StrictProtocolModel):
     evaluation: BlindEvaluationResult | None = None
 
 
+class CanaryAttemptRecord(StrictProtocolModel):
+    attempt_id: NonEmptyText
+    pilot_id: SafeRunId
+    snapshot_id: NonEmptyText
+    git_commit: NonEmptyText
+    run_id: SafeRunId
+    started_at: NonEmptyText
+    status: Literal["running", "completed", "failed"]
+    completed_at: NonEmptyText | None = None
+    failure_stage: NonEmptyText | None = None
+    failure_category: NonEmptyText | None = None
+    text_calls: int = Field(default=0, ge=0)
+    vlm_calls: int = Field(default=0, ge=0)
+    vlm_images: int = Field(default=0, ge=0)
+    known_tokens: int = Field(default=0, ge=0)
+    usage_complete: bool = True
+
+
 class PilotChallengeResult(StrictProtocolModel):
     challenge_id: SafeRunId
     challenge_kind: ChallengeKind
@@ -240,6 +260,7 @@ class PilotAggregate(StrictProtocolModel):
     failure_taxonomy: dict[NonEmptyText, int]
     total_text_calls: int = Field(ge=0)
     total_vlm_calls: int = Field(ge=0)
+    total_vlm_images: int = Field(default=0, ge=0)
     retry_calls: int = Field(ge=0)
     schema_retries: int = Field(ge=0)
     prompt_tokens: int | None = Field(default=None, ge=0)
