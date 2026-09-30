@@ -135,7 +135,8 @@ def test_complete_mock_workflow_is_parallel_typed_and_network_free(tmp_path: Pat
         "executive": "completed",
         "feasibility": "completed",
         "quantitative": "completed",
-        "qualitative": "completed",
+            "qualitative": "completed",
+            "evidence_calibration": "completed",
         "summarize": "completed",
     }
     assert client.calls[0]["agent_name"] == "identify"

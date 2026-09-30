@@ -532,7 +532,7 @@ def test_invalid_raw_output_is_retained_and_failure_is_logged(tmp_path: Path):
     request = _request(tmp_path / "dataset")
     runs_root = tmp_path / "runs"
 
-    with pytest.raises(ExecutiveExecutionError, match="invalid ExecutiveAgentDraft"):
+    with pytest.raises(ExecutiveExecutionError, match="required draft schema"):
         execute_executive(
             request=request,
             client=MockExecutiveClient({"invalid": "output"}),
@@ -540,7 +540,7 @@ def test_invalid_raw_output_is_retained_and_failure_is_logged(tmp_path: Path):
         )
 
     executive_dir = runs_root / request.run_id / "executive"
-    assert (executive_dir / "raw_output.json").exists()
+    assert not (executive_dir / "raw_output.json").exists()
     assert not (executive_dir / "routing.json").exists()
     events = (
         runs_root / request.run_id / "events.jsonl"

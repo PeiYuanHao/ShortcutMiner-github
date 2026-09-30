@@ -169,6 +169,54 @@ def _execute_model_task(request, runtime):
     }
 
 
+def test_mid_dag_failed_evaluation_resumes_without_duplicate_training(tmp_path: Path):
+    dataset = _dataset(tmp_path / "dataset")
+    runs_root = tmp_path / "runs"
+    request = _task_request(
+        dataset, candidate_id="C001",
+        requested_checks=["task_model_training", "task_model_evaluation"],
+    )
+
+    class FailEvaluationOnce(RealExperimentExecutor):
+        def execute(self, execution_request, *, context=None):
+            if execution_request.experiment_type == "task_model_evaluation":
+                raise RuntimeError("planned evaluation interruption")
+            return super().execute(execution_request, context=context)
+
+    first_base = ToolRuntime(
+        build_default_tool_registry(experiment_executor=FailEvaluationOnce()),
+        run_id=request.run_id, agent_name="quantitative", dataset_root=dataset,
+        runs_root=runs_root,
+        model_capabilities={"retraining", "checkpoint", "predictions", "logits"},
+        budget=ToolBudget(max_tool_calls=12, timeout_seconds=30),
+    )
+    first = _fork(first_base, request)
+    requirement = _requirement(request, first)
+    plan = compile_quantitative_experiment_plan(request, requirement, first)
+    training = next(step for step in plan.steps if step.experiment_type == "task_model_training")
+    _, trained = _execute_step(request, first, requirement, plan, training)
+    assert trained.status == "success"
+    refreshed = compile_quantitative_experiment_plan(request, requirement, first)
+    evaluation = next(step for step in refreshed.steps if step.experiment_type == "task_model_evaluation")
+    _, interrupted = _execute_step(request, first, requirement, refreshed, evaluation)
+    assert interrupted.status == "failed"
+
+    resumed_base = _base_runtime(
+        dataset, runs_root, restore_persisted_task_results=True,
+    )
+    resumed = _fork(resumed_base, request)
+    assert len(resumed.history) == 2
+    from shortcutminer.runtime.demo import DemoAgentClient
+    result = execute_quantitative(
+        request, DemoAgentClient(), runs_root=runs_root,
+        tool_runtime=resumed, execution_requirement=_requirement(request, resumed),
+    )
+    assert result.payload.status == "completed"
+    assert len(result.payload.measurements) == 2
+    assert len({item.plan_step_id for item in result.payload.measurements}) == 2
+    assert sum(item.experiment_type == "task_model_training" for item in resumed.history) == 1
+
+
 def test_sibling_training_does_not_satisfy_dependency_and_current_training_does(
     tmp_path: Path,
 ):
@@ -278,10 +326,8 @@ def test_provider_tool_runtime_results_are_task_local(tmp_path: Path):
             return {
                 "status": "completed",
                 "analysis_type": "offline_task_isolation",
-                "evidence_level": "Q2",
                 "evidence_direction": "inconclusive",
                 "evidence_summary": "Only current-task real ToolResults were interpreted.",
-                "evidence_tool_call_ids": [item["tool_call_id"] for item in results],
                 "additional_limitations": ["Offline engineering verification."],
                 "recommended_followup": [],
             }

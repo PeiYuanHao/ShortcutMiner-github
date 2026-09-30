@@ -18,7 +18,7 @@ from shortcutminer.experiment.agent_workspace import (
     load_agent_workspace_prompt,
 )
 from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
-from shortcutminer.protocol.summarize import SummaryReport
+from shortcutminer.protocol.summarize import SummarizeAgentDraft
 
 
 AGENTS = ("identify", "executive", "quantitative", "qualitative", "summarize")
@@ -98,11 +98,11 @@ def test_real_workspace_loading_needs_no_network_or_environment(agent, monkeypat
 @pytest.mark.parametrize(
     ("agent", "protocol"),
     [
-        ("identify", "CandidateReport"),
+        ("identify", "IdentifyAgentDraft"),
         ("executive", "RoutingPlan"),
         ("quantitative", "QuantitativeAgentDraft"),
-        ("qualitative", "QualitativeResult"),
-        ("summarize", "SummaryReport"),
+        ("qualitative", "QualitativeAgentDraft"),
+        ("summarize", "SummarizeAgentDraft"),
     ],
 )
 def test_workspace_prompt_ends_with_strict_json_output_rule(agent, protocol):
@@ -141,7 +141,7 @@ def test_operational_docs_name_actual_contracts_and_parallel_workflow(
     text = (default_agent_workspace_dir(agent) / "AGENTS.md").read_text("utf-8")
     assert request_name in text
     assert result_name in text
-    assert "START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END" in text
+    assert "START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END" in text
     assert "parallel branches" in text
 
 
@@ -161,15 +161,17 @@ def test_invalid_required_document_fails_clearly(filename, invalid_content, tmp_
 
 @pytest.mark.parametrize("agent,schema,message_type", [
     ("quantitative", QuantitativeAgentDraft, None),
-    ("summarize", SummaryReport, "summary_report"),
+    ("summarize", SummarizeAgentDraft, None),
 ])
 def test_documented_output_templates_match_real_pydantic_schema(
     agent, schema, message_type,
 ):
     text = (default_agent_workspace_dir(agent) / "AGENTS.md").read_text("utf-8")
     examples = [json.loads(block) for block in re.findall(r"```json\n(.*?)\n```", text, re.S)]
-    if message_type is None:
-        example, = [item for item in examples if "evidence_tool_call_ids" in item]
+    if agent == "quantitative":
+        example, = [item for item in examples if "analysis_type" in item and "evidence_direction" in item]
+    elif message_type is None:
+        example, = [item for item in examples if "findings" in item and "overview" in item]
     else:
         example, = [item for item in examples if item.get("message_type") == message_type]
 

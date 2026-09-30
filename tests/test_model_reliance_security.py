@@ -119,4 +119,4 @@ def test_model_artifact_directory_symlink_escape_is_rejected(tmp_path: Path):
         pytest.skip(f"Directory symlinks are unavailable: {exc}")
     result = execute(runtime, "task_model_training", training_parameters(), "escape-model")
     assert result.status == "failed"
-    assert "escaped" in result.error.message
+    assert "escapes" in result.error.message

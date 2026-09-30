@@ -5,11 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from shortcutminer.experiment.qualitative_executor import (
-    MAX_DRAFT_INVARIANT_RETRIES,
-    QualitativeDraftValidationError,
-    execute_qualitative,
-)
+from shortcutminer.experiment.qualitative_executor import MAX_DRAFT_INVARIANT_RETRIES, execute_qualitative
+from shortcutminer.experiment.qualitative_executor import QualitativeExecutionError
 from shortcutminer.protocol.model import OpenAICompatibleModelConfig
 from shortcutminer.runtime.openai_compatible import OpenAICompatibleClient
 from shortcutminer.storage.model_calls import load_run_model_telemetry
@@ -59,29 +56,16 @@ def test_cross_group_observation_fails_without_special_retry(tmp_path: Path):
     draft["observations"][0]["sample_refs"] = ["S1", "S3"]
     client, transport = _client(runs_root, draft)
 
-    with pytest.raises(QualitativeDraftValidationError) as raised:
+    with pytest.raises(QualitativeExecutionError, match="protocol schema"):
         execute_qualitative(request, client, runs_root=runs_root)
-
-    assert raised.value.category == "observation_crosses_groups"
-    assert raised.value.observation_index == 0
-    assert raised.value.referenced_group_count == 2
     assert MAX_DRAFT_INVARIANT_RETRIES == 0
-    assert len(client.invocations) == len(transport.calls) == 1
+    assert len(client.invocations) == len(transport.calls) == 2
     model_telemetry = load_run_model_telemetry(runs_root, request.run_id)
     assert model_telemetry is not None
-    assert model_telemetry.total_calls == 1
-    assert model_telemetry.schema_retry_calls == 0
-    assert model_telemetry.retry_calls == 0
-    assert model_telemetry.protocol_schema_failure_count == 0
-    invariant_telemetry = json.loads(
-        (
-            runs_root / request.run_id / "qualitative"
-            / "draft_invariant_telemetry.json"
-        ).read_text(encoding="utf-8")
-    )
-    assert invariant_telemetry["status"] == "failed"
-    assert invariant_telemetry["max_draft_invariant_retries"] == 0
-    assert invariant_telemetry["draft_invariant_retry_count"] == 0
+    assert model_telemetry.total_calls == 2
+    assert model_telemetry.schema_retry_calls == 1
+    assert model_telemetry.protocol_schema_failure_count == 2
+    assert not (runs_root / request.run_id / "qualitative" / "draft_invariant_telemetry.json").exists()
     assert not (
         runs_root / request.run_id / "qualitative" / "raw_output.json"
     ).exists()

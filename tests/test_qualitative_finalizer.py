@@ -15,10 +15,10 @@ from shortcutminer.experiment.qualitative_executor import (
 )
 from shortcutminer.evaluation.evidence_ledger import _qualitative_records
 from shortcutminer.protocol.executive import ExecutiveAgentDraft
-from shortcutminer.protocol.identify import CandidateReport
+from shortcutminer.protocol.identify import IdentifyAgentDraft
 from shortcutminer.protocol.qualitative import QualitativeAgentDraft, QualitativeResult
 from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
-from shortcutminer.protocol.summarize import SummaryReport
+from shortcutminer.protocol.summarize import SummarizeAgentDraft
 from shortcutminer.runtime.openai_compatible import canonical_json_hash
 from shortcutminer.tooling.agent_loop import _FINAL_SCHEMAS, _validate_provider_output
 from test_qualitative_context import _dataset, _request
@@ -52,12 +52,12 @@ def _draft_dict() -> dict:
         "evidence_summary": "Inspected evidence contains a bounded group difference.",
         "observations": [
             {
-                "sample_refs": ["S1", "S2"],
+                "sample_ref": "S1",
                 "observation": "The inspected descriptors share a visible property.",
                 "inspection_quality": "sufficient",
             },
             {
-                "sample_refs": ["S3"],
+                "sample_ref": "S3",
                 "observation": "The comparison descriptor differs from the first group.",
                 "inspection_quality": "sufficient",
             },
@@ -224,13 +224,8 @@ def test_observation_cannot_cross_authoritative_groups(tmp_path: Path):
     request, context = _context_with_numeric_groups(tmp_path)
     value = _draft_dict()
     value["observations"][0]["sample_refs"] = ["S1", "S3"]
-
-    with pytest.raises(QualitativeDraftValidationError) as raised:
-        finalize_qualitative_draft(
-            QualitativeAgentDraft.model_validate(value), request, context
-        )
-
-    assert raised.value.category == "observation_crosses_groups"
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        QualitativeAgentDraft.model_validate(value)
 
 
 def test_cross_group_comparison_is_valid_and_groups_follow_first_appearance(
@@ -328,10 +323,8 @@ def test_interpretation_out_of_range_evidence_index_is_rejected(
     draft_value = _draft_dict()
     draft_value["interpretations"][0][field] = value
 
-    with pytest.raises(QualitativeDraftValidationError, match=error_match):
-        finalize_qualitative_draft(
-            QualitativeAgentDraft.model_validate(draft_value), request, context
-        )
+    with pytest.raises(ValidationError, match=error_match):
+        QualitativeAgentDraft.model_validate(draft_value)
 
 
 @pytest.mark.parametrize(
@@ -362,11 +355,11 @@ def test_j_tool_call_contract_and_k_other_agent_schemas_are_unchanged():
         },
     )
     assert _FINAL_SCHEMAS == {
-        "identify": CandidateReport,
+        "identify": IdentifyAgentDraft,
         "executive": ExecutiveAgentDraft,
         "quantitative": QuantitativeAgentDraft,
         "qualitative": QualitativeAgentDraft,
-        "summarize": SummaryReport,
+        "summarize": SummarizeAgentDraft,
     }
 
 

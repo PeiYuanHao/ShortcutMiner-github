@@ -111,25 +111,11 @@ def test_metadata_free_profile_reaches_identify_without_crashing(tmp_path: Path)
     }
 
     def response(payload, _system_prompt):
-        request = payload["request"]
         context = payload["discovery_context"]
         assert context["dataset_profile"]["metadata"]["available"] is False
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": "metadata-free-identify:identify:report",
-            "source": "identify",
-            "target": "executive",
-            "message_type": "candidate_report",
-            "in_reply_to": request["message_id"],
-            "artifact_references": [],
-            "dataset_summary": {
-                "dataset": request["dataset"]["name"],
-                "samples_inspected": 0,
-                "metadata_used": False,
-            },
             "candidates": [],
-            "limitations": context["limitations"],
+            "additional_limitations": [],
         }
 
     update = identify_node(

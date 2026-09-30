@@ -83,22 +83,8 @@ def _create_request(
 
 def _agent_report() -> dict:
     return {
-        "protocol_version": "1.0",
-        "run_id": "integration_test_run",
-        "message_id": "integration_test_run:identify:report",
-        "source": "identify",
-        "target": "executive",
-        "message_type": "candidate_report",
-        "in_reply_to": "integration_test_run:identify:request",
-        "artifact_references": [],
-        "dataset_summary": {
-            "dataset": "test_dataset",
-            "samples_inspected": 0,
-            "metadata_used": True,
-        },
         "candidates": [
             {
-                "candidate_id": "C001",
                 "cue": {
                     "family": "metadata",
                     "name": "site",
@@ -119,16 +105,11 @@ def _agent_report() -> dict:
                     "metadata"
                 ],
                 "priority": "medium",
-                "status": "unverified",
+                "metadata_field_ref": "site",
+                "additional_limitations": [],
             }
         ],
-        "limitations": [
-            "The candidate has not been validated.",
-            (
-                "Selected records are metadata rows only; "
-                "no dataset sample content was inspected."
-            ),
-        ],
+        "additional_limitations": ["The candidate has not been validated."],
     }
 
 

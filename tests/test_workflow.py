@@ -53,8 +53,11 @@ def test_workflow_graph_has_expected_topology():
     assert ("executive", "feasibility") in edges
     assert ("feasibility", "quantitative") in edges
     assert ("feasibility", "qualitative") in edges
-    assert ("quantitative", "summarize") in edges
-    assert ("qualitative", "summarize") in edges
+    assert ("quantitative", "evidence_calibration") in edges
+    assert ("qualitative", "evidence_calibration") in edges
+    assert ("evidence_calibration", "summarize") in edges
+    assert ("quantitative", "summarize") not in edges
+    assert ("qualitative", "summarize") not in edges
     assert ("summarize", "__end__") in edges
 
 

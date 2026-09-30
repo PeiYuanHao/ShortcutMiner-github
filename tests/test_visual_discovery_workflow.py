@@ -28,50 +28,38 @@ class VisualEvidenceClient(RealEvidenceClient):
             assert visual["sample_observations"]
         candidate = (
             {
-                "candidate_id": "C001",
                 "cue": {"family": "metadata", "name": "site"},
                 "description": "Collection site may encode an unintended cue.",
                 "observation": "The exact public site column varies across selected labels.",
                 "hypothesis": "Site may be spuriously associated with label.",
                 "evidence_sources": ["metadata", "sample_inspection", "image_statistics"],
                 "priority": "high",
-                "status": "unverified",
+                "metadata_field_ref": "site",
+                "additional_limitations": [],
             }
             if context["metadata_available"] else
             {
-                "candidate_id": "C001",
                 "cue": {"family": "appearance", "name": "brightness"},
                 "description": "Brightness differs across selected samples.",
                 "observation": "Real decoded descriptors expose brightness variation.",
                 "hypothesis": "Brightness may be spuriously associated with label.",
                 "evidence_sources": ["sample_inspection", "image_statistics"],
                 "priority": "high",
-                "status": "unverified",
+                "metadata_field_ref": None,
+                "additional_limitations": [],
             }
         )
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:identify:visual-report",
-            "source": "identify",
-            "target": "executive",
-            "message_type": "candidate_report",
-            "in_reply_to": request["message_id"],
-            "artifact_references": [],
-            "dataset_summary": {
-                "dataset": request["dataset"]["name"],
-                "samples_inspected": visual["coverage"]["decoded_samples"],
-                "metadata_used": True,
-            },
             "candidates": [candidate],
-            "limitations": context["limitations"],
+            "additional_limitations": [],
         }
 
 
 class MetadataFreeVisualClient(VisualEvidenceClient):
     def _identify(self, payload: dict) -> dict:
         output = super()._identify(payload)
-        output["dataset_summary"]["metadata_used"] = False
+        output["candidates"][0]["evidence_sources"] = ["sample_inspection", "image_statistics"]
+        output["candidates"][0]["metadata_field_ref"] = None
         return output
 
     def invoke_agent(self, agent_name, payload, *, system_prompt=None):
@@ -99,7 +87,7 @@ class MetadataFreeVisualClient(VisualEvidenceClient):
             "evidence_summary": "Real image descriptors were inspected without a label grouping.",
             "observations": [
                 {
-                    "sample_refs": [samples[0]["sample_id"]],
+                    "sample_ref": samples[0]["sample_id"],
                     "observation": "A bounded image descriptor was computed.",
                     "inspection_quality": "sufficient",
                 }

@@ -188,14 +188,14 @@ def _controlled_outputs(generated, *, run_id: str):
         "protocol_version": "1.0", "run_id": run_id,
         "message_id": f"{run_id}:quantitative:result", "source": "quantitative",
         "target": "summarize", "message_type": "quantitative_analysis_result",
-        "in_reply_to": f"{run_id}:quantitative:request",
-        "payload": {"task_id": "TASK-C001-QT", "candidate_id": "C001", "hypothesis": candidate["hypothesis"], "status": "completed", "analysis_type": "controlled public fixture", "metrics": {"sample_count": 40}, "evidence_level": "Q2", "evidence_direction": "supports", "evidence_summary": "Controlled public fixture evidence.", "limitations": [], "artifact_references": [], "recommended_followup": []},
+        "in_reply_to": f"{run_id}:quantitative:TASK-C001-QT:request",
+        "payload": {"task_id": "TASK-C001-QT", "candidate_id": "C001", "hypothesis": candidate["hypothesis"], "status": "completed", "analysis_type": "controlled public fixture", "metrics": {"sample_count": 40}, "measurements": [{"measurement_id": "M-fixture", "run_id": run_id, "candidate_id": "C001", "task_id": "TASK-C001-QT", "plan_step_id": "STEP-fixture", "planning_check": "public_evidence_check", "experiment_type": "statistical_check", "tool_call_id": "TC-fixture", "backend_identity": "controlled_fixture", "execution_outcome": "completed", "metrics": {"sample_count": 40}, "artifact_references": [], "model_lineage": {}, "design_strength": "observational", "uncertainty_metadata": []}], "evidence_level": "Q2", "evidence_direction": "supports", "evidence_summary": "Controlled public fixture evidence.", "limitations": [], "artifact_references": [], "recommended_followup": []},
     })
     qual = QualitativeResult.model_validate({
         "protocol_version": "1.0", "run_id": run_id,
         "message_id": f"{run_id}:qualitative:result", "source": "qualitative",
         "target": "summarize", "message_type": "qualitative_analysis_result",
-        "in_reply_to": f"{run_id}:qualitative:request",
+        "in_reply_to": f"{run_id}:qualitative:TASK-C001-QL:request",
         "payload": {"task_id": "TASK-C001-QL", "candidate_id": "C001", "candidate_name": cue_name, "hypothesis": candidate["hypothesis"], "evidence_status": "supported", "evidence_summary": "Controlled public fixture evidence.", "sampling": {"strategy": "random", "seed": 5, "groups": {"all": 1}, "sample_count": 1, "sample_ids": ["sample-0001"]}, "observations": [{"observation_id": "QO-C001-001", "group": "all", "sample_refs": ["sample-0001"], "observation": f"The public sample evidence references {cue_name}.", "inspection_quality": "sufficient"}], "comparisons": [], "interpretations": [{"interpretation": "Controlled harness fixture only.", "supporting_observation_ids": ["QO-C001-001"], "supporting_comparison_ids": [], "confidence": "low"}], "counterevidence": [], "metadata_evidence": [], "failures": [], "limitations": [], "artifact_references": [], "recommended_followup": []},
     })
     quant_batch = QuantitativeResultBatch(protocol_version="1.0", run_id=run_id, source="quantitative", target="summarize", message_type="quantitative_result_batch", results=[quant])

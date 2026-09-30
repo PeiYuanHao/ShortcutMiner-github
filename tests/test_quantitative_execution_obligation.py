@@ -33,10 +33,8 @@ def _blocked():
     return {
         "status": "blocked",
         "analysis_type": "association_test",
-        "evidence_level": "Q0",
         "evidence_direction": "not_tested",
         "evidence_summary": "The required measurement could not be completed.",
-        "evidence_tool_call_ids": [],
         "additional_limitations": ["The experiment backend failed."],
         "recommended_followup": [],
     }
@@ -46,10 +44,8 @@ def _completed(call_id: str, *, direction: str = "inconclusive"):
     return {
         "status": "completed",
         "analysis_type": "association_test",
-        "evidence_level": "Q2",
         "evidence_direction": direction,
         "evidence_summary": "The executed measurement is scientifically inconclusive.",
-        "evidence_tool_call_ids": [call_id],
         "additional_limitations": ["The analysis is observational."],
         "recommended_followup": [],
     }
@@ -217,7 +213,7 @@ def test_successful_experiment_cannot_be_downgraded_to_blocked(tmp_path):
     runtime = _runtime(request, MockExperimentExecutor(outcome="inconclusive"))
     client = _ScriptedClient(_blocked())
 
-    with pytest.raises(QuantitativeDraftInvariantError, match="successful"):
+    with pytest.raises(QuantitativeExecutionError, match="quantitative_context_invalid"):
         execute_quantitative(
             request,
             client,
