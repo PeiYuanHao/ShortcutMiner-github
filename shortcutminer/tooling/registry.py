@@ -1,8 +1,13 @@
 """Permission-aware registry and typed execution boundary."""
 
 import json
+import os
+import shutil
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from dataclasses import replace
 from datetime import datetime, timezone
+from pathlib import Path
 from time import monotonic
 
 from pydantic import ValidationError
@@ -24,6 +29,31 @@ from shortcutminer.tooling.protocol import (
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _publish_experiment_artifacts(
+    staged_root: Path, authoritative_root: Path, references: list[str]
+) -> None:
+    """Publish only completed experiment outputs, with no path escape."""
+    checked: list[tuple[Path, Path]] = []
+    for reference in references:
+        source = (staged_root / reference).resolve(strict=True)
+        destination = (authoritative_root / reference).resolve(strict=False)
+        if not source.is_file() or not source.is_relative_to(staged_root.resolve()):
+            raise ValueError("Experiment artifact path escapes its staging directory")
+        if not destination.is_relative_to(authoritative_root.resolve()):
+            raise ValueError("Experiment artifact path escapes the run directory")
+        checked.append((source, destination))
+    for source, destination in checked:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".publish-", dir=destination.parent)
+        os.close(descriptor)
+        temporary = Path(temporary_name)
+        try:
+            shutil.copy2(source, temporary)
+            os.replace(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 class ToolRegistry:
@@ -104,18 +134,62 @@ class ToolRegistry:
 
         started_at = _utc_now()
         started = monotonic()
-        executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(tool.execute, arguments, context)
+        stage_directory: Path | None = None
+        execution_context = context
+        executor: ThreadPoolExecutor | None = None
+        future = None
+        cleanup_deferred = False
         try:
+            if call.tool_name == "run_experiment" and context.runs_root is not None:
+                authoritative_root = (context.runs_root / call.run_id).resolve(strict=True)
+                stage_directory = Path(tempfile.mkdtemp(prefix="shortcutminer-experiment-"))
+                staged_root = stage_directory / call.run_id
+                staged_root.mkdir()
+                if call.task_id is not None:
+                    previous_task_artifacts = authoritative_root / "experiments" / call.task_id
+                    resolved_task_artifacts = previous_task_artifacts.resolve(strict=False)
+                    if (
+                        resolved_task_artifacts.is_relative_to(authoritative_root)
+                        and previous_task_artifacts.is_dir()
+                        and not previous_task_artifacts.is_symlink()
+                    ):
+                        if any(path.is_symlink() for path in previous_task_artifacts.rglob("*")):
+                            raise ValueError("Experiment task artifact tree contains a symlink")
+                        shutil.copytree(
+                            previous_task_artifacts,
+                            staged_root / "experiments" / call.task_id,
+                        )
+                for reference in context.approved_artifacts:
+                    source = (authoritative_root / reference).resolve(strict=False)
+                    if not source.is_relative_to(authoritative_root) or not source.is_file():
+                        continue
+                    destination = staged_root / reference
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, destination)
+                execution_context = replace(context, runs_root=stage_directory)
+            executor = ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(tool.execute, arguments, execution_context)
             raw_output = future.result(timeout=timeout_seconds)
             output = tool.output_model.model_validate(raw_output)
             serialized = output.model_dump(mode="json")
             json.dumps(serialized, allow_nan=False)
+            if stage_directory is not None:
+                _publish_experiment_artifacts(
+                    stage_directory / call.run_id,
+                    authoritative_root,
+                    list(getattr(output, "artifact_references", [])),
+                )
             status = "success"
             error = None
             artifacts = list(getattr(output, "artifact_references", []))
         except FutureTimeoutError:
-            future.cancel()
+            if future is not None:
+                future.cancel()
+            if stage_directory is not None:
+                future.add_done_callback(
+                    lambda _future, path=stage_directory: shutil.rmtree(path, ignore_errors=True)
+                )
+                cleanup_deferred = True
             serialized = None
             status = "failed"
             error = ToolErrorInfo(
@@ -134,7 +208,10 @@ class ToolRegistry:
             )
             artifacts = []
         finally:
-            executor.shutdown(wait=False, cancel_futures=True)
+            if executor is not None:
+                executor.shutdown(wait=False, cancel_futures=True)
+            if stage_directory is not None and not cleanup_deferred:
+                shutil.rmtree(stage_directory, ignore_errors=True)
 
         return ToolResult(
             tool_call_id=call.tool_call_id,
@@ -143,6 +220,9 @@ class ToolRegistry:
             run_id=call.run_id,
             candidate_id=call.candidate_id,
             task_id=call.task_id,
+            plan_step_id=call.plan_step_id,
+            planning_check=call.planning_check,
+            experiment_type=call.experiment_type,
             status=status,
             output=serialized,
             error=error,
