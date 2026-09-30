@@ -383,6 +383,15 @@ def finalize_quantitative_result(
     """Construct the canonical result from provider reasoning and authoritative tools."""
 
     selected = _selected_evidence(draft, request, tool_results, experiment_plan)
+    if (
+        draft.status == "completed"
+        and experiment_plan is not None
+        and any(
+            step.required and step.execution_state in {"ready", "pending_dependency"}
+            for step in experiment_plan.steps
+        )
+    ):
+        raise QuantitativeDraftInvariantError("required plan step is unhandled")
     measurements = [_measurement(item) for item in selected]
     execution_limitations: list[str] = []
     for result in selected:

@@ -516,6 +516,44 @@ def test_timed_out_experiment_cannot_publish_late_or_restore_authority(tmp_path:
     assert reference not in restored.context.approved_artifacts
 
 
+def test_experiment_cannot_claim_an_artifact_it_did_not_write(tmp_path: Path):
+    reference = "experiments/TASK-C001-QT/invented.json"
+
+    def forged_output(_arguments, _context):
+        return ExperimentToolOutput(
+            outcome="completed", metrics={"score": 1}, summary="claimed",
+            artifact_references=[reference], metadata={"backend": "fixture"},
+        )
+
+    registry = ToolRegistry()
+    registry.register(StructuredTool(
+        "run_experiment", "Fixture experiment.", ExperimentToolInput,
+        ExperimentToolOutput, forged_output,
+    ), agents={"quantitative"})
+    runtime = ToolRuntime(
+        registry, run_id="tool_test_run", agent_name="quantitative",
+        runs_root=tmp_path / "runs",
+        budget=ToolBudget(max_tool_calls=1, timeout_seconds=1),
+    ).fork_for_task(
+        candidate_id="C001", task_id="TASK-C001-QT",
+        runtime_constraints=[], requested_checks=["association_test"],
+        explicitly_authorized_artifacts=[],
+    )
+    result = runtime.execute(ToolCall(
+        tool_call_id="TC-invented", tool_name="run_experiment",
+        agent_name="quantitative", run_id="tool_test_run",
+        candidate_id="C001", task_id="TASK-C001-QT",
+        plan_step_id="STEP-invented", planning_check="association_test",
+        experiment_type="statistical_check",
+        arguments={"candidate_id": "C001", "task_id": "TASK-C001-QT",
+                   "experiment_type": "statistical_check"},
+    ))
+    assert result.status == "failed"
+    assert reference not in result.artifacts
+    assert reference not in runtime.context.approved_artifacts
+    assert not (tmp_path / "runs" / "tool_test_run" / reference).exists()
+
+
 def test_invalid_tool_output_is_structured_and_budget_is_bounded(tmp_path: Path):
     def invalid_output(_arguments, _context):
         return {"value": "not-an-integer"}
