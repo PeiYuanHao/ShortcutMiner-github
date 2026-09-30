@@ -186,15 +186,13 @@ class QuantitativeAgentDraft(StrictProtocolModel):
 
     status: QuantitativeStatus
     analysis_type: NonEmptyText
-    evidence_level: EvidenceLevel
     evidence_direction: EvidenceDirection
     evidence_summary: NonEmptyText
-    evidence_tool_call_ids: list[EvidenceToolCallId]
     additional_limitations: list[NonEmptyText]
     recommended_followup: list[NonEmptyText]
 
     @field_validator(
-        "evidence_tool_call_ids", "additional_limitations", "recommended_followup"
+        "additional_limitations", "recommended_followup"
     )
     @classmethod
     def validate_unique_lists(cls, values: list[str], info) -> list[str]:
@@ -203,20 +201,36 @@ class QuantitativeAgentDraft(StrictProtocolModel):
     @model_validator(mode="after")
     def validate_status_evidence(self):
         if self.status == "completed":
-            if self.evidence_level == "Q0":
-                raise ValueError("completed quantitative draft cannot use Q0")
             if self.evidence_direction == "not_tested":
                 raise ValueError(
                     "completed quantitative draft cannot be marked not_tested"
                 )
         else:
-            if self.evidence_level != "Q0":
-                raise ValueError("blocked or failed quantitative draft must use Q0")
             if self.evidence_direction != "not_tested":
                 raise ValueError(
                     "blocked or failed quantitative draft must be marked not_tested"
                 )
         return self
+
+
+class QuantitativeMeasurement(StrictProtocolModel):
+    """One canonical plan step and one actual backend execution."""
+
+    measurement_id: NonEmptyText
+    run_id: SafeRunId
+    candidate_id: CandidateId
+    task_id: NonEmptyText
+    plan_step_id: NonEmptyText
+    planning_check: NonEmptyText
+    experiment_type: NonEmptyText
+    tool_call_id: EvidenceToolCallId
+    backend_identity: NonEmptyText
+    execution_outcome: Literal["completed", "inconclusive"]
+    metrics: dict[NonEmptyText, MetricValue]
+    artifact_references: list[SafeRelativePath]
+    model_lineage: dict[str, object] = Field(default_factory=dict)
+    design_strength: Literal["descriptive", "observational", "predictive", "interventional"]
+    uncertainty_metadata: list[dict[str, object]] = Field(default_factory=list)
 
 
 class QuantitativeResultPayload(StrictProtocolModel):
@@ -226,6 +240,7 @@ class QuantitativeResultPayload(StrictProtocolModel):
     status: QuantitativeStatus
     analysis_type: NonEmptyText
     metrics: dict[NonEmptyText, MetricValue]
+    measurements: list[QuantitativeMeasurement] = Field(default_factory=list)
     evidence_level: EvidenceLevel
     evidence_direction: EvidenceDirection
     evidence_summary: NonEmptyText
@@ -274,3 +289,28 @@ class QuantitativeResult(StrictProtocolModel):
     message_type: Literal["quantitative_analysis_result"]
     in_reply_to: NonEmptyText
     payload: QuantitativeResultPayload
+
+    @model_validator(mode="after")
+    def validate_measurement_provenance(self):
+        seen_steps: set[str] = set()
+        seen_calls: set[str] = set()
+        seen_ids: set[str] = set()
+        for measurement in self.payload.measurements:
+            if (
+                measurement.run_id != self.run_id
+                or measurement.candidate_id != self.payload.candidate_id
+                or measurement.task_id != self.payload.task_id
+            ):
+                raise ValueError("quantitative measurement correlation differs from result")
+            if (
+                measurement.plan_step_id in seen_steps
+                or measurement.tool_call_id in seen_calls
+                or measurement.measurement_id in seen_ids
+            ):
+                raise ValueError("duplicate quantitative measurement provenance")
+            seen_steps.add(measurement.plan_step_id)
+            seen_calls.add(measurement.tool_call_id)
+            seen_ids.add(measurement.measurement_id)
+        if self.payload.status == "completed" and not self.payload.measurements:
+            raise ValueError("completed quantitative result requires measurements")
+        return self

@@ -117,32 +117,19 @@ class DemoAgentClient(MockAgentClient):
         request = payload["request"]
         context = payload["discovery_context"]
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:identify:report",
-            "source": "identify",
-            "target": "executive",
-            "message_type": "candidate_report",
-            "in_reply_to": request["message_id"],
-            "artifact_references": [],
-            "dataset_summary": {
-                "dataset": request["dataset"]["name"],
-                "samples_inspected": context["samples_inspected"],
-                "metadata_used": context["metadata_available"],
-            },
             "candidates": [
                 {
-                    "candidate_id": "C001",
                     "cue": {"family": "metadata", "name": "site"},
                     "description": "Collection site may encode the label.",
                     "observation": "Site and label co-vary in metadata.",
                     "hypothesis": "Site may be spuriously associated with label.",
                     "evidence_sources": ["metadata"],
                     "priority": "high",
-                    "status": "unverified",
+                    "metadata_field_ref": "site",
+                    "additional_limitations": [],
                 }
             ],
-            "limitations": context["limitations"],
+            "additional_limitations": [],
         }
 
     def _executive(self, payload: dict) -> dict:
@@ -203,14 +190,12 @@ class DemoAgentClient(MockAgentClient):
         return {
             "status": "completed" if completed else "blocked",
             "analysis_type": "dataset_association",
-            "evidence_level": "Q2" if completed else "Q0",
             "evidence_direction": "supports" if completed else "not_tested",
             "evidence_summary": (
                 "The selected experiment result supports the interpretation."
                 if completed
                 else "No successful experiment result is available."
             ),
-            "evidence_tool_call_ids": selected,
             "additional_limitations": (
                 [] if completed else ["No successful experiment result is available."]
             ),
@@ -253,37 +238,19 @@ class DemoAgentClient(MockAgentClient):
             "consistent_contradiction": "contradicted",
         }.get(consistency, "supported")
         return {
-            "protocol_version": "1.0",
-            "run_id": request["run_id"],
-            "message_id": f"{request['run_id']}:summarize:report",
-            "source": "summarize",
-            "target": "orchestrator",
-            "message_type": "summary_report",
-            "in_reply_to": request["message_id"],
-            "payload": {
-                "overview": "Both mock evidence branches support the candidate.",
-                "findings": [
+            "overview": "Both mock evidence branches support the candidate.",
+            "findings": [
                     {
-                        "candidate_id": "C001",
+                        "candidate_ref": "C001",
                         "assessment": assessment,
                         "summary": (
                             "Supporting and contradictory evidence are both retained."
                             if consistency == "mixed"
                             else "Site is a plausible shortcut."
                         ),
-                        "quantitative_result_ids": [
-                            item["message_id"] for item in quantitative_results
-                        ],
-                        "qualitative_result_ids": [
-                            item["message_id"] for item in qualitative_results
-                        ],
-                        "evidence_record_ids": ledger_entry.get("record_ids", []),
-                        "limitations": [],
+                        "additional_limitations": [],
                         "recommendations": ["Validate on a held-out site."],
                     }
                 ],
-                "limitations": [],
-                "artifact_references": ["evidence/ledger.json"],
-                "evidence_ledger_reference": "evidence/ledger.json",
-            },
+            "additional_limitations": [],
         }

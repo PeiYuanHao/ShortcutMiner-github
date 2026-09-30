@@ -22,13 +22,16 @@ from shortcutminer.protocol.quantitative import (
     MetricValue,
     QuantitativeAgentDraft,
     QuantitativeExecutionRequirement,
+    QuantitativeMeasurement,
     QuantitativeRequest,
     QuantitativeResult,
     QuantitativeResultPayload,
 )
+from shortcutminer.protocol.quantitative_plan import QuantitativeExperimentPlan
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.stage_artifacts import save_stage_json
 from shortcutminer.tooling.agent_loop import (
+    ProviderContractValidationError,
     RequiredExperimentNotAttempted,
     finalize_tool_call_draft,
     invoke_agent_with_tools,
@@ -215,19 +218,33 @@ def _unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
 
 
+_EXPERIMENT_MATURITY = {
+    "statistical_check": ("Q2", "observational"),
+    "subgroup_evaluation": ("Q2", "observational"),
+    "model_evaluation": ("Q3", "predictive"),
+    "intervention": ("Q4", "interventional"),
+    "ablation": ("Q4", "interventional"),
+    "metric_computation": ("Q1", "descriptive"),
+    "task_model_training": ("Q1", "descriptive"),
+    "task_model_evaluation": ("Q3", "predictive"),
+    "ood_evaluation": ("Q3", "predictive"),
+    "counterfactual_intervention": ("Q4", "interventional"),
+}
+
+
 def _selected_evidence(
     draft: QuantitativeAgentDraft,
     request: QuantitativeRequest,
     tool_results: tuple[ToolResult, ...],
+    experiment_plan: QuantitativeExperimentPlan | None = None,
 ) -> list[ToolResult]:
-    by_id = {result.tool_call_id: result for result in tool_results}
     selected: list[ToolResult] = []
-    for tool_call_id in draft.evidence_tool_call_ids:
-        result = by_id.get(tool_call_id)
-        if result is None:
-            raise QuantitativeDraftInvariantError(
-                f"unknown evidence_tool_call_id: {tool_call_id}"
-            )
+    seen_steps: set[str] = set()
+    seen_calls: set[str] = set()
+    for result in tool_results:
+        if result.tool_name != "run_experiment":
+            continue
+        tool_call_id = result.tool_call_id
         if result.agent_name != "quantitative":
             raise QuantitativeDraftInvariantError(
                 f"evidence ToolResult {tool_call_id} belongs to another agent"
@@ -245,25 +262,66 @@ def _selected_evidence(
                 f"evidence ToolResult {tool_call_id} belongs to another task"
             )
         if result.status != "success":
-            raise QuantitativeDraftInvariantError(
-                f"evidence ToolResult {tool_call_id} did not succeed"
-            )
-        if result.tool_name != "run_experiment":
-            raise QuantitativeDraftInvariantError(
-                f"evidence ToolResult {tool_call_id} is not a run_experiment result"
-            )
+            continue
+        if not result.plan_step_id or not result.planning_check or not result.experiment_type:
+            raise QuantitativeDraftInvariantError("successful experiment lacks canonical plan provenance")
+        if experiment_plan is not None:
+            step = next((item for item in experiment_plan.steps if item.step_id == result.plan_step_id), None)
+            if step is None or step.planning_check != result.planning_check or step.experiment_type != result.experiment_type:
+                raise QuantitativeDraftInvariantError("ToolResult plan provenance differs from canonical plan")
+        if result.plan_step_id in seen_steps or tool_call_id in seen_calls:
+            raise QuantitativeDraftInvariantError("duplicate quantitative measurement")
+        seen_steps.add(result.plan_step_id)
+        seen_calls.add(tool_call_id)
         try:
-            ExperimentToolOutput.model_validate(result.output)
+            output = ExperimentToolOutput.model_validate(result.output)
         except ValidationError as exc:
             raise QuantitativeDraftInvariantError(
                 f"evidence ToolResult {tool_call_id} has an invalid typed output"
             ) from exc
+        if output.metadata.get("experiment_type") not in {None, result.experiment_type}:
+            raise QuantitativeDraftInvariantError("backend experiment type differs from plan")
         selected.append(result)
     if draft.status == "completed" and not selected:
         raise QuantitativeDraftInvariantError(
-            "completed quantitative draft requires selected successful evidence"
+            "completed quantitative draft requires successful planned evidence"
         )
+    if draft.status == "completed" and draft.evidence_direction == "supports" and all(
+        ExperimentToolOutput.model_validate(result.output).outcome == "inconclusive"
+        or result.experiment_type == "task_model_training"
+        for result in selected
+    ):
+        raise QuantitativeDraftInvariantError("inconclusive backend cannot support a claim")
     return selected
+
+
+def _measurement(result: ToolResult) -> QuantitativeMeasurement:
+    output = ExperimentToolOutput.model_validate(result.output)
+    metadata = output.metadata
+    details = metadata.get("details")
+    lineage = {
+        key: value for key, value in (details.items() if isinstance(details, dict) else [])
+        if key in {"model_id", "model_hash", "intervention_id", "ood_id", "weights_reference", "model_reference"}
+    }
+    uncertainty = metadata.get("uncertainty")
+    level, strength = _EXPERIMENT_MATURITY[result.experiment_type]
+    return QuantitativeMeasurement(
+        measurement_id=f"M-{result.tool_call_id}",
+        run_id=result.run_id,
+        candidate_id=result.candidate_id,
+        task_id=result.task_id,
+        plan_step_id=result.plan_step_id,
+        planning_check=result.planning_check,
+        experiment_type=result.experiment_type,
+        tool_call_id=result.tool_call_id,
+        backend_identity=str(metadata.get("backend") or "unknown_backend"),
+        execution_outcome=output.outcome,
+        metrics=output.metrics,
+        artifact_references=list(dict.fromkeys([*output.artifact_references, *result.artifacts])),
+        model_lineage=lineage,
+        design_strength=strength,
+        uncertainty_metadata=(uncertainty if isinstance(uncertainty, list) else []),
+    )
 
 
 def extract_quantitative_metrics(
@@ -320,10 +378,12 @@ def finalize_quantitative_result(
     request: QuantitativeRequest,
     *,
     tool_results: tuple[ToolResult, ...] = (),
+    experiment_plan: QuantitativeExperimentPlan | None = None,
 ) -> QuantitativeResult:
     """Construct the canonical result from provider reasoning and authoritative tools."""
 
-    selected = _selected_evidence(draft, request, tool_results)
+    selected = _selected_evidence(draft, request, tool_results, experiment_plan)
+    measurements = [_measurement(item) for item in selected]
     execution_limitations: list[str] = []
     for result in selected:
         output = ExperimentToolOutput.model_validate(result.output)
@@ -368,7 +428,11 @@ def finalize_quantitative_result(
                 status=draft.status,
                 analysis_type=draft.analysis_type,
                 metrics=metrics,
-                evidence_level=draft.evidence_level,
+                measurements=measurements,
+                evidence_level=(
+                    max((_EXPERIMENT_MATURITY[item.experiment_type][0] for item in selected))
+                    if draft.status == "completed" else "Q0"
+                ),
                 evidence_direction=draft.evidence_direction,
                 evidence_summary=draft.evidence_summary,
                 limitations=limitations,
@@ -424,35 +488,77 @@ def execute_quantitative(
             experiment_plan = compile_quantitative_experiment_plan(
                 request, requirement, tool_runtime
             )
-            mandatory = primary_mandatory_steps(
-                experiment_plan, request.task.requested_checks
-            )
-            if not mandatory:
+            known_steps = {step.step_id: step for step in experiment_plan.steps}
+            for previous in tool_runtime.history:
+                if previous.tool_name != "run_experiment" or previous.status != "success":
+                    continue
+                step = known_steps.get(previous.plan_step_id)
+                if (
+                    step is None
+                    or previous.run_id != request.run_id
+                    or previous.candidate_id != request.candidate.candidate_id
+                    or previous.task_id != request.task.task_id
+                    or previous.planning_check != step.planning_check
+                    or previous.experiment_type != step.experiment_type
+                    or previous.plan_step_id in mandatory_step_ids
+                ):
+                    raise QuantitativeExecutionError("restored_quantitative_step_provenance_invalid")
+                mandatory_step_ids.append(previous.plan_step_id)
+                mandatory_results.append(previous)
+            if not mandatory_step_ids and not any(
+                step.required and step.execution_state == "ready"
+                for step in experiment_plan.steps
+            ):
                 raise QuantitativePlanUnmaterializable(
                     "no_required_ready_quantitative_plan_step"
                 )
+            if mandatory_step_ids:
+                done = set(mandatory_step_ids)
+                experiment_plan = experiment_plan.model_copy(update={
+                    "steps": [
+                        step.model_copy(update={"execution_state": "completed"})
+                        if step.step_id in done else step
+                        for step in experiment_plan.steps
+                    ]
+                })
             base_payload = {
                 "request": request.model_dump(
                     mode="json", exclude={"execution_resources"}
                 ),
                 "execution_requirement": requirement.model_dump(mode="json"),
             }
-            for index, step in enumerate(mandatory):
-                call = finalize_tool_call_draft(
-                    {
-                        "name": "run_experiment",
-                        "arguments": {"plan_step_id": step.step_id},
-                    },
-                    agent_name="quantitative",
-                    base_payload=base_payload,
-                    tool_runtime=tool_runtime,
-                    iteration=0,
-                    call_index=index,
-                    experiment_plan=experiment_plan,
-                )
-                result = tool_runtime.execute(call)
-                mandatory_step_ids.append(step.step_id)
-                mandatory_results.append(result)
+            while True:
+                ready = [
+                    step for step in experiment_plan.steps
+                    if step.required and step.execution_state == "ready"
+                    and step.step_id not in mandatory_step_ids
+                ]
+                if not ready:
+                    break
+                for step in ready:
+                    call = finalize_tool_call_draft(
+                        {"name": "run_experiment", "arguments": {"plan_step_id": step.step_id}},
+                        agent_name="quantitative",
+                        base_payload=base_payload,
+                        tool_runtime=tool_runtime,
+                        iteration=0,
+                        call_index=len(tool_runtime.history),
+                        experiment_plan=experiment_plan,
+                    )
+                    result = tool_runtime.execute(call)
+                    mandatory_step_ids.append(step.step_id)
+                    mandatory_results.append(result)
+                    if result.status != "success":
+                        raise QuantitativePlanUnmaterializable("mandatory_quantitative_backend_execution_failed")
+                refreshed = compile_quantitative_experiment_plan(request, requirement, tool_runtime)
+                done = set(mandatory_step_ids)
+                experiment_plan = refreshed.model_copy(update={
+                    "steps": [
+                        step.model_copy(update={"execution_state": "completed"})
+                        if step.step_id in done else step
+                        for step in refreshed.steps
+                    ]
+                })
             if runs_root is not None:
                 save_stage_json(
                     runs_root,
@@ -470,10 +576,14 @@ def execute_quantitative(
                     filename="plan_execution.json",
                     payload={
                         "mandatory_executed_step_ids": mandatory_step_ids,
-                        "backend_attempt_count": len(mandatory_results),
+                        "backend_attempt_count": sum(
+                            result.tool_name == "run_experiment"
+                            for result in tool_runtime.history
+                        ),
                         "successful_tool_result_count": sum(
-                            result.status == "success"
-                            for result in mandatory_results
+                            result.tool_name == "run_experiment"
+                            and result.status == "success"
+                            for result in tool_runtime.history
                         ),
                         "quantitative_agent_call_count": 0,
                     },
@@ -484,16 +594,8 @@ def execute_quantitative(
                 raise QuantitativePlanUnmaterializable(
                     "mandatory_quantitative_backend_execution_failed"
                 )
-            refreshed = compile_quantitative_experiment_plan(
-                request, requirement, tool_runtime
-            )
-            experiment_plan = refreshed.model_copy(update={
-                "steps": [
-                    step.model_copy(update={"execution_state": "completed"})
-                    if step.step_id in set(mandatory_step_ids) else step
-                    for step in refreshed.steps
-                ]
-            })
+            if any(step.required and step.execution_state == "ready" for step in experiment_plan.steps):
+                raise QuantitativePlanUnmaterializable("required_quantitative_step_remains_ready")
         payload = build_quantitative_agent_payload(
             request, requirement, experiment_plan
         )
@@ -545,6 +647,22 @@ def execute_quantitative(
                 "successful_current_task_run_experiment_required_before_provider"
             )
         invocation = None
+        def validate_provider_draft(raw: dict) -> None:
+            draft = QuantitativeAgentDraft.model_validate(raw)
+            history = tuple(tool_runtime.history) if tool_runtime is not None else ()
+            try:
+                validate_quantitative_execution_obligation(draft, request, requirement, history)
+                finalize_quantitative_result(
+                    draft, request, tool_results=history,
+                    experiment_plan=experiment_plan,
+                )
+                if draft.status == "completed" and experiment_plan is not None and any(
+                    step.required and step.execution_state in {"ready", "pending_dependency"}
+                    for step in experiment_plan.steps
+                ):
+                    raise QuantitativeDraftInvariantError("required plan step is unhandled")
+            except QuantitativeExecutionError as exc:
+                raise ProviderContractValidationError("quantitative_context_invalid") from exc
         try:
             invocation = invoke_agent_with_tools(
                 client,
@@ -554,6 +672,7 @@ def execute_quantitative(
                 tool_runtime=tool_runtime,
                 experiment_plan=experiment_plan,
                 quantitative_request=request,
+                provider_contract_validator=validate_provider_draft,
             )
             raw_output = invocation.output
         except RequiredExperimentNotAttempted as exc:
@@ -654,6 +773,7 @@ def execute_quantitative(
             draft,
             request,
             tool_results=invocation.tool_results,
+            experiment_plan=experiment_plan,
         )
         if runs_root is not None:
             save_stage_json(
