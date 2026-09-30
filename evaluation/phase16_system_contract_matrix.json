@@ -285,11 +285,30 @@
     {"id": "B7", "status": "closed", "implementation": ["shortcutminer/experiment/quantitative_executor.py", "tests/test_phase16_three_candidate_chain.py", "tests/test_phase16_resume_stages.py"], "regression": ["tests/test_quantitative_task_isolation.py", "tests/test_phase16_canary_lifecycle.py", "tests/test_tool_runtime.py"]}
   ],
   "post_provider_failure_inventory": "evaluation/phase16_post_provider_failure_inventory.json",
+  "final_cross_contract_review": {
+    "status": "PASS",
+    "remaining_blockers": 0,
+    "R1": {
+      "status": "closed",
+      "implementation": ["shortcutminer/protocol/identify.py", "shortcutminer/experiment/identify_executor.py", "shortcutminer/experiment/candidate_binding.py"],
+      "regression": "tests/test_identify_executor.py::test_exact_metadata_selector_survives_finalization_and_binding"
+    },
+    "R2": {
+      "status": "closed",
+      "implementation": ["agents/quantitative/workspace/AGENTS.md", "agents/quantitative/workspace/IDENTITY.md", "agents/quantitative/workspace/SOUL.md", "agents/quantitative/workspace/USER.md", "agents/quantitative/workspace/TOOLS.md", "agents/quantitative/workspace/MEMORY.md", "agents/quantitative/workspace/HEARTBEAT.md"],
+      "regression": "tests/test_workspace_consistency.py::test_full_quantitative_prompt_respects_provider_draft_ownership"
+    },
+    "R3": {
+      "status": "closed",
+      "implementation": ["agents/qualitative/workspace/AGENTS.md", "agents/qualitative/workspace/IDENTITY.md", "agents/qualitative/workspace/SOUL.md", "agents/qualitative/workspace/USER.md", "agents/qualitative/workspace/TOOLS.md", "agents/qualitative/workspace/MEMORY.md", "agents/qualitative/workspace/HEARTBEAT.md"],
+      "regression": "tests/test_workspace_consistency.py::test_full_qualitative_prompt_respects_parallel_draft_and_tool_boundary"
+    }
+  },
   "remaining_real_provider_readiness_blockers": 0,
   "remaining_blockers": [],
   "tests": {
-    "host": "745 passed, 11 skipped",
-    "docker": "747 passed, 9 skipped",
+    "host": "748 passed, 11 skipped",
+    "docker": "750 passed, 9 skipped",
     "security_targeted": "22 passed, 2 skipped",
     "offline_persistence_sentinel": "passed; API key, Authorization, raw body, reasoning, base64 all zero",
     "three_candidate_fake_transport": "passed",

@@ -1,5 +1,17 @@
 # PHASE 16 SYSTEM CONTRACT CLOSURE: PASS
 
+## Final cross-contract review (R1–R3)
+
+The subsequent code review identified three additional readiness blockers. All three are closed in the same closure branch. No real Provider or Canary was called.
+
+| ID | Closure | Explicit regression |
+|---|---|---|
+| R1 | Canonical `Candidate.metadata_field_ref` retains the context-validated exact public selector. `resolve_candidate_binding` uses it exclusively when present; historical candidates without it retain exact `cue.name` matching. Non-metadata candidates cannot carry a selector. | `test_identify_executor.py::test_exact_metadata_selector_survives_finalization_and_binding` |
+| R2 | All seven loaded Quantitative workspace files assign evidence maturity and design strength to deterministic Python. The Provider emits only `QuantitativeAgentDraft` scientific fields and never selects a Q level. | `test_workspace_consistency.py::test_full_quantitative_prompt_respects_provider_draft_ownership` |
+| R3 | All seven loaded Qualitative workspace files describe `QualitativeRequest` plus `QualitativeEvidenceContext` and optional current-task tools as input, `QualitativeAgentDraft` as Provider output, and canonical `QualitativeResult` as Python output. Sibling Quantitative results and artifacts are unavailable during the parallel branch. | `test_workspace_consistency.py::test_full_qualitative_prompt_respects_parallel_draft_and_tool_boundary` |
+
+The full concatenated workspace prompts are checked semantically, including draft schema ownership and permitted tool names. Final cross-contract readiness blockers: **0**.
+
 This is an offline contract qualification, not a Full Real Canary or real-provider readiness result. DeepSeek calls, Qwen calls, Canary runs, and formal Pilot runs in this closure: **0**. Baseline before closure: `8ab6fcec8951ab22ad4aac8ef5842f54a1af3eab`.
 
 ## Original blocker closure
