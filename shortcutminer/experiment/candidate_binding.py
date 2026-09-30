@@ -24,6 +24,7 @@ class CandidateBinding(StrictProtocolModel):
     kind: BindingKind
     metadata_fields: list[NonEmptyText] = Field(default_factory=list)
     source: Literal[
+        "exact_metadata_field_ref",
         "exact_candidate_cue_name",
         "candidate_non_metadata_family",
         "unresolved_candidate_cue",
@@ -38,7 +39,7 @@ def resolve_candidate_binding(
     label_column: str,
     addressing_fields: list[str] | tuple[str, ...] | set[str] = (),
 ) -> CandidateBinding:
-    """Resolve only exact, non-addressing metadata cue names."""
+    """Resolve an explicit exact selector, or a historical exact cue name."""
 
     if candidate.cue.family != "metadata":
         return CandidateBinding(
@@ -49,14 +50,18 @@ def resolve_candidate_binding(
         )
 
     forbidden = {label_column, *addressing_fields}
-    cue_name = candidate.cue.name
-    if cue_name in available_metadata_fields and cue_name not in forbidden:
+    selected_field = candidate.metadata_field_ref or candidate.cue.name
+    if selected_field in available_metadata_fields and selected_field not in forbidden:
         return CandidateBinding(
             candidate_id=candidate.candidate_id,
             status="resolved",
             kind="metadata_field",
-            metadata_fields=[cue_name],
-            source="exact_candidate_cue_name",
+            metadata_fields=[selected_field],
+            source=(
+                "exact_metadata_field_ref"
+                if candidate.metadata_field_ref is not None
+                else "exact_candidate_cue_name"
+            ),
         )
     return CandidateBinding(
         candidate_id=candidate.candidate_id,
@@ -64,7 +69,7 @@ def resolve_candidate_binding(
         kind="unresolved",
         source="unresolved_candidate_cue",
         limitation=(
-            "Metadata candidate cue did not exactly identify one authorized "
+            "Metadata candidate selector did not exactly identify one authorized "
             "non-addressing metadata field."
         ),
     )

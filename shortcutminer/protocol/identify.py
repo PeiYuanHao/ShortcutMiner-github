@@ -8,6 +8,7 @@ from pydantic import (
     Field,
     StringConstraints,
     field_validator,
+    model_validator,
 )
 
 
@@ -178,6 +179,7 @@ class Candidate(StrictProtocolModel):
     candidate_id: CandidateId
 
     cue: Cue
+    metadata_field_ref: NonEmptyText | None = None
 
     description: NonEmptyText
     observation: NonEmptyText
@@ -187,6 +189,12 @@ class Candidate(StrictProtocolModel):
 
     priority: CandidatePriority
     status: CandidateStatus
+
+    @model_validator(mode="after")
+    def metadata_selector_requires_metadata_family(self):
+        if self.cue.family != "metadata" and self.metadata_field_ref is not None:
+            raise ValueError("non-metadata candidate cannot select a metadata field")
+        return self
 
 
 class IdentifyCandidateDraft(StrictProtocolModel):
@@ -200,6 +208,12 @@ class IdentifyCandidateDraft(StrictProtocolModel):
     priority: CandidatePriority
     metadata_field_ref: NonEmptyText | None = None
     additional_limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def metadata_selector_requires_metadata_family(self):
+        if self.cue.family != "metadata" and self.metadata_field_ref is not None:
+            raise ValueError("non-metadata candidate cannot select a metadata field")
+        return self
 
     @field_validator("evidence_sources", "additional_limitations")
     @classmethod

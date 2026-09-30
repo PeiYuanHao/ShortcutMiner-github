@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from shortcutminer.experiment.identify_context import build_identify_context
+from shortcutminer.experiment.candidate_binding import resolve_candidate_binding
 from shortcutminer.experiment.identify_executor import (
     IdentifyExecutionError,
     execute_identify,
@@ -177,6 +178,38 @@ def test_execute_identify(
     assert report.run_id == "identify_test_run"
     assert len(report.candidates) == 1
     assert report.candidates[0].status == "unverified"
+
+
+def test_exact_metadata_selector_survives_finalization_and_binding(tmp_path: Path):
+    _create_test_dataset(tmp_path)
+    draft = _valid_draft()
+    draft["candidates"][0]["cue"]["name"] = "collection site"
+    report = execute_identify(
+        request=_create_request(tmp_path), seed=42,
+        client=MockIdentifyClient(draft),
+    )
+    candidate = report.candidates[0]
+    assert candidate.cue.name == "collection site"
+    assert candidate.metadata_field_ref == "site"
+    binding = resolve_candidate_binding(
+        candidate, available_metadata_fields=["id", "label", "site"],
+        label_column="label", addressing_fields=["id"],
+    )
+    assert binding.status == "resolved"
+    assert binding.metadata_fields == ["site"]
+    assert binding.source == "exact_metadata_field_ref"
+
+    historical = candidate.model_dump(mode="json", exclude={"metadata_field_ref"})
+    historical["cue"]["name"] = "site_device_batch"
+    from shortcutminer.protocol.identify import Candidate
+    old_candidate = Candidate.model_validate(historical)
+    assert old_candidate.metadata_field_ref is None
+    unresolved = resolve_candidate_binding(
+        old_candidate, available_metadata_fields=["site", "device", "batch"],
+        label_column="label",
+    )
+    assert unresolved.status == "unresolved"
+    assert unresolved.metadata_fields == []
 
 
 def test_executor_sends_structured_payload(

@@ -96,6 +96,7 @@ def finalize_identify_draft(
         candidates=[Candidate(
             candidate_id=f"C{index:03d}",
             cue=item.cue,
+            metadata_field_ref=item.metadata_field_ref,
             description=item.description,
             observation=item.observation,
             hypothesis=item.hypothesis,
