@@ -1,0 +1,58 @@
+{
+  "schema_version": "1.0",
+  "scope": "five provider executors after invoke_agent_with_tools returns",
+  "static_provider_contract_after_invocation": 0,
+  "context_provider_contract_after_invocation": 0,
+  "entries": [
+    {
+      "component": "Identify",
+      "static_provider_contract": "IdentifyAgentDraft.model_validate inside shared invocation",
+      "context_provider_contract": "finalize_identify_draft preflight inside shared invocation",
+      "post_invocation": "repeat finalizer for canonical persistence",
+      "post_invocation_classification": "DETERMINISTIC_FINALIZER_ASSERTION"
+    },
+    {
+      "component": "Executive",
+      "static_provider_contract": "ExecutiveAgentDraft.model_validate inside shared invocation",
+      "context_provider_contract": "finalize_executive_draft preflight inside shared invocation",
+      "post_invocation": "repeat finalizer for canonical persistence",
+      "post_invocation_classification": "DETERMINISTIC_FINALIZER_ASSERTION"
+    },
+    {
+      "component": "Quantitative",
+      "static_provider_contract": "QuantitativeAgentDraft.model_validate inside shared invocation",
+      "context_provider_contract": "execution obligation and finalize_quantitative_result preflight inside shared invocation",
+      "post_invocation": "repeat finalizer and validate canonical result",
+      "post_invocation_classification": "DETERMINISTIC_FINALIZER_ASSERTION"
+    },
+    {
+      "component": "Qualitative",
+      "static_provider_contract": "QualitativeAgentDraft.model_validate inside shared invocation",
+      "context_provider_contract": "finalize_qualitative_draft preflight inside shared invocation",
+      "post_invocation": "repeat finalizer for canonical persistence",
+      "post_invocation_classification": "DETERMINISTIC_FINALIZER_ASSERTION"
+    },
+    {
+      "component": "Summarize",
+      "static_provider_contract": "SummarizeAgentDraft.model_validate inside shared invocation",
+      "context_provider_contract": "finalize_summarize_draft preflight inside shared invocation",
+      "post_invocation": "repeat finalizer for canonical persistence",
+      "post_invocation_classification": "DETERMINISTIC_FINALIZER_ASSERTION"
+    },
+    {
+      "component": "ToolRegistry.run_experiment",
+      "post_invocation": "backend execution and staged artifact publication",
+      "post_invocation_classification": "BACKEND_RUNTIME_FAILURE"
+    },
+    {
+      "component": "stage persistence and checkpoint",
+      "post_invocation": "filesystem writes or checkpoint recovery",
+      "post_invocation_classification": "STORAGE_RUNTIME_FAILURE"
+    },
+    {
+      "component": "artifact path authorization",
+      "post_invocation": "path escape or forbidden artifact rejection",
+      "post_invocation_classification": "SECURITY_FAILURE"
+    }
+  ]
+}

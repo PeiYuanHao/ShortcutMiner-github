@@ -1,0 +1,301 @@
+{
+  "schema_version": "1.0",
+  "phase": "16-system-contract-closure",
+  "status": "PASS",
+  "real_provider_calls": 0,
+  "baseline_commit": "8ab6fcec8951ab22ad4aac8ef5842f54a1af3eab",
+  "historical_failed_evidence": {
+    "pilot_id": "phase16-readiness-r2",
+    "snapshot_id": "pilot-snapshot-25c08166ddd6e8c6c84e"
+  },
+  "workflow": {
+    "old": [
+      "identify",
+      "executive",
+      "feasibility",
+      [
+        "quantitative",
+        "qualitative"
+      ],
+      "summarize"
+    ],
+    "new": [
+      "identify",
+      "executive",
+      "feasibility",
+      [
+        "quantitative",
+        "qualitative"
+      ],
+      "evidence_calibration",
+      "summarize"
+    ],
+    "implicit_ledger_fallback": false
+  },
+  "provider_ownership": {
+    "identify": {
+      "provider_semantic_fields": [
+        "candidates[].cue",
+        "candidates[].description",
+        "candidates[].observation",
+        "candidates[].hypothesis",
+        "candidates[].evidence_sources",
+        "candidates[].priority",
+        "candidates[].metadata_field_ref",
+        "additional_limitations"
+      ],
+      "python_fields": [
+        "protocol_version",
+        "run_id",
+        "message_id",
+        "source",
+        "target",
+        "message_type",
+        "in_reply_to",
+        "candidate_id",
+        "status",
+        "dataset_summary",
+        "artifact_references",
+        "context limitation union"
+      ],
+      "static": [
+        "extra fields forbidden",
+        "non-empty text",
+        "unique evidence sources",
+        "unique limitations"
+      ],
+      "context": [
+        "candidate budget",
+        "source availability",
+        "exact public metadata selector",
+        "duplicate metadata selector"
+      ]
+    },
+    "executive": {
+      "provider_semantic_fields": [
+        "decisions[].candidate_id",
+        "route",
+        "routing_reason",
+        "branch objectives",
+        "requested_checks",
+        "missing_requirements",
+        "limitations"
+      ],
+      "python_fields": [
+        "task IDs",
+        "task inputs",
+        "dataset/reference",
+        "metadata fields",
+        "sample access",
+        "capabilities",
+        "artifacts",
+        "runtime constraints",
+        "expected outputs",
+        "dependencies",
+        "status",
+        "RoutingPlan envelope"
+      ],
+      "static": [
+        "route/branch agreement",
+        "unresolved explanation",
+        "executable missing requirements empty",
+        "unique lists"
+      ],
+      "context": [
+        "candidate coverage and check availability inside generic retry"
+      ]
+    },
+    "quantitative": {
+      "provider_semantic_fields": [
+        "status",
+        "analysis_type",
+        "evidence_direction",
+        "evidence_summary",
+        "additional_limitations",
+        "recommended_followup"
+      ],
+      "python_fields": [
+        "result envelope",
+        "task/candidate/hypothesis identity",
+        "metrics",
+        "measurements and measurement IDs",
+        "plan step and ToolCall correlation",
+        "Q maturity and design strength",
+        "artifact references",
+        "upstream limitation union"
+      ],
+      "static": [
+        "status/direction combinations",
+        "unique lists"
+      ],
+      "context": [
+        "task local evidence and complete required plan validation inside generic retry"
+      ]
+    },
+    "qualitative": {
+      "provider_semantic_fields": [
+        "sample_ids",
+        "evidence_status",
+        "evidence_summary",
+        "atomic observations",
+        "comparisons",
+        "interpretations",
+        "counterevidence",
+        "metadata_evidence",
+        "failures",
+        "additional_limitations",
+        "artifact_references",
+        "recommended_followup"
+      ],
+      "python_fields": [
+        "result envelope",
+        "task/candidate identity",
+        "observation IDs",
+        "comparison IDs",
+        "groups",
+        "sampling bookkeeping",
+        "context limitation union"
+      ],
+      "static": [
+        "one sample_ref per observation",
+        "comparison min 2",
+        "interpretation indexes in range",
+        "unique references",
+        "substantive status requires evidence"
+      ],
+      "context": [
+        "selected and inspected samples",
+        "cross-group comparisons",
+        "metadata authorization",
+        "artifact authorization"
+      ]
+    },
+    "summarize": {
+      "provider_semantic_fields": [
+        "overview",
+        "findings[].candidate_ref",
+        "findings[].assessment",
+        "findings[].summary",
+        "additional_limitations",
+        "recommendations"
+      ],
+      "python_fields": [
+        "report envelope",
+        "candidate IDs/order",
+        "specialist result IDs",
+        "EvidenceRecord IDs",
+        "artifacts",
+        "ledger reference",
+        "limitation union"
+      ],
+      "static": [
+        "extra fields forbidden",
+        "unique lists"
+      ],
+      "context": [
+        "exact candidate coverage",
+        "assessment allowed by ledger consistency"
+      ]
+    }
+  },
+  "mutable_scope": {
+    "ToolRuntime.history": "agent or AnalysisTask",
+    "_call_ids": "agent or AnalysisTask",
+    "approved_samples": "AnalysisTask for qualitative",
+    "approved_artifacts": "AnalysisTask explicit plus same-task generated",
+    "explicit task artifacts": "AnalysisTask",
+    "model artifacts": "AnalysisTask",
+    "dependency state": "AnalysisTask",
+    "trace visibility": "run for executive/summarize only",
+    "tool budget": "AnalysisTask local plus shared run counter",
+    "provider call budget": "run client state; pilot seeding",
+    "VLM image budget": "shared pilot live state reconstructed from persisted invocations",
+    "token budget": "shared pilot live state; unavailable usage blocks further calls under hard cap",
+    "checkpoint/resume state": "run and exact task result restore",
+    "pilot artifacts": "pilot/snapshot"
+  },
+  "tool_permissions": {
+    "inspect_tool_capabilities": [
+      "identify",
+      "executive",
+      "quantitative",
+      "qualitative",
+      "summarize"
+    ],
+    "inspect_dataset": [
+      "identify"
+    ],
+    "inspect_metadata": [
+      "identify"
+    ],
+    "select_samples": [
+      "identify"
+    ],
+    "get_column_distribution": [
+      "identify"
+    ],
+    "read_artifact": [
+      "identify",
+      "executive",
+      "quantitative",
+      "qualitative",
+      "summarize"
+    ],
+    "inspect_sample_metadata": [
+      "identify",
+      "qualitative"
+    ],
+    "inspect_sample": [
+      "qualitative"
+    ],
+    "read_run_trace": [
+      "executive",
+      "summarize"
+    ],
+    "run_experiment": [
+      "quantitative"
+    ]
+  },
+  "implemented_closures": [
+    "explicit evidence calibration graph stage",
+    "Identify draft/finalizer and exact metadata binding",
+    "Executive static route invariants",
+    "generic context-aware provider validator API",
+    "Qualitative atomic observations and context retry",
+    "Qualitative task runtime isolation",
+    "task and run tool budgets",
+    "automatic execution of ready required quantitative DAG steps",
+    "Summarize draft/finalizer and allowed assessments",
+    "evidence fan-in exact coverage",
+    "qualitative coverage and assessment provenance separation",
+    "canonical quantitative measurements and one record per measurement",
+    "all five context validators inside generic provider retry",
+    "staged experiment timeout publication boundary",
+    "live pilot VLM image and token accounting",
+    "immutable failed canary attempts and same-snapshot refusal",
+    "three-candidate fake-provider production chain and resume matrix"
+  ],
+  "original_blockers": [
+    {"id": "B1", "status": "closed", "implementation": ["shortcutminer/protocol/quantitative.py", "shortcutminer/tooling/agent_loop.py", "shortcutminer/experiment/quantitative_executor.py"], "regression": ["tests/test_quantitative_finalizer.py", "tests/test_quantitative_experiment_plan.py"]},
+    {"id": "B2", "status": "closed", "implementation": ["shortcutminer/protocol/quantitative.py", "shortcutminer/evaluation/evidence_ledger.py"], "regression": ["tests/test_quantitative_finalizer.py", "tests/test_phase16_three_candidate_chain.py"]},
+    {"id": "B3", "status": "closed", "implementation": ["shortcutminer/tooling/agent_loop.py", "shortcutminer/experiment/executive_executor.py", "shortcutminer/experiment/quantitative_executor.py", "evaluation/phase16_post_provider_failure_inventory.json"], "regression": ["tests/test_phase16_five_agent_contract_retry.py"]},
+    {"id": "B4", "status": "closed", "implementation": ["shortcutminer/tooling/registry.py"], "regression": ["tests/test_tool_runtime.py", "tests/test_quantitative_backend_security.py"]},
+    {"id": "B5", "status": "closed", "implementation": ["shortcutminer/runtime/openai_compatible.py", "shortcutminer/evaluation/pilot/runner.py"], "regression": ["tests/test_phase16_live_budget.py", "tests/test_real_blind_pilot.py"]},
+    {"id": "B6", "status": "closed", "implementation": ["shortcutminer/evaluation/pilot/runner.py", "shortcutminer/evaluation/pilot/snapshot.py"], "regression": ["tests/test_phase16_canary_lifecycle.py"]},
+    {"id": "B7", "status": "closed", "implementation": ["shortcutminer/experiment/quantitative_executor.py", "tests/test_phase16_three_candidate_chain.py", "tests/test_phase16_resume_stages.py"], "regression": ["tests/test_quantitative_task_isolation.py", "tests/test_phase16_canary_lifecycle.py", "tests/test_tool_runtime.py"]}
+  ],
+  "post_provider_failure_inventory": "evaluation/phase16_post_provider_failure_inventory.json",
+  "remaining_real_provider_readiness_blockers": 0,
+  "remaining_blockers": [],
+  "tests": {
+    "host": "743 passed, 11 skipped",
+    "docker": "745 passed, 9 skipped",
+    "security_targeted": "22 passed, 2 skipped",
+    "offline_persistence_sentinel": "passed; API key, Authorization, raw body, reasoning, base64 all zero",
+    "three_candidate_fake_transport": "passed",
+    "resume_stage_matrix": "6 passed",
+    "mid_quantitative_dag_resume": "passed",
+    "git_diff_check": "passed",
+    "docker_network": "none"
+  }
+}
