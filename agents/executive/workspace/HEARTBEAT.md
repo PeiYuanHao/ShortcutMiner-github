@@ -32,7 +32,7 @@ There is no polling, periodic wake-up, task-status loop or Agent-controlled retr
 5. The executor validates and persists the plan and events. Finish this invocation;
    do not wait for either specialist or initiate a Summarize handoff.
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
 
 ## Failure Discipline
 

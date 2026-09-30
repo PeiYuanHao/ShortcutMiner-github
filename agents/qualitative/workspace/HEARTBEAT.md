@@ -358,7 +358,7 @@ Do not continue exploring unrelated dataset properties after the candidate has b
 
 ## 20. Completion Condition
 
-Return the full QualitativeResult with source qualitative, target summarize, message_type qualitative_analysis_result and in_reply_to = request.message_id. Preserve request.task.task_id, candidate.cue.name as candidate_name, the hypothesis, context limitations and sampling strategy/seed. sampled IDs and groups must reflect actual inspected evidence; observations use sequential QO-Cnnn-nnn IDs and valid sample_refs. No custom COMPLETED state is emitted. The executor performs schema/correlation validation and persistence.
+Return one QualitativeAgentDraft. Cite one inspected sample_ref per observation and use comparisons for claims spanning authoritative groups. Python owns the canonical QualitativeResult identity, observation IDs, groups, sampling bookkeeping, and context limitations. Quantitative and Qualitative run in parallel before Summarize.
 
 ---
 
@@ -392,7 +392,7 @@ confident but unsupported
 
 ## Final Structured-Output Rule
 
-Return exactly one valid JSON object matching `QualitativeResult`. Do not return
+Return exactly one valid JSON object matching `QualitativeAgentDraft`. Do not return
 Markdown, use code fences, or include prose before or after the JSON object. The
 first non-whitespace character must be `{` and the last non-whitespace character
 must be `}`.

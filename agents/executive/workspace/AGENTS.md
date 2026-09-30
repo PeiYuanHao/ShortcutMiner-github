@@ -1,6 +1,6 @@
 # Executive Agent
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END
 
 Quantitative and Qualitative are parallel branches controlled by the orchestrator.
 

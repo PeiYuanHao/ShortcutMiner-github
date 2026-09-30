@@ -27,7 +27,7 @@ Your responsibility is to determine:
 
 ## Position in ShortcutMiner
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
 
 Identify proposes CandidateReport hypotheses; Executive turns ExecutiveRequest into a RoutingPlan; Quantitative and Qualitative return evidence; Summarize returns the SummaryReport. Executive owns planning only, never experiment execution or final synthesis.
 

@@ -48,7 +48,7 @@ class SummarizeRequest(StrictProtocolModel):
     executive_result: RoutingPlan
     quantitative_result: QuantitativeResultBatch
     qualitative_result: QualitativeResultBatch
-    evidence_ledger: EvidenceLedger | None = None
+    evidence_ledger: EvidenceLedger
 
 
 class SummaryFinding(StrictProtocolModel):
@@ -95,3 +95,27 @@ class SummaryReport(StrictProtocolModel):
     message_type: Literal["summary_report"]
     in_reply_to: NonEmptyText
     payload: SummaryReportPayload
+
+
+class SummarizeFindingDraft(StrictProtocolModel):
+    candidate_ref: CandidateId
+    assessment: SummaryAssessment
+    summary: NonEmptyText
+    additional_limitations: list[NonEmptyText] = Field(default_factory=list)
+    recommendations: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("additional_limitations", "recommendations")
+    @classmethod
+    def unique_draft_lists(cls, values: list[str], info):
+        return _reject_duplicates(values, info.field_name)
+
+
+class SummarizeAgentDraft(StrictProtocolModel):
+    overview: NonEmptyText
+    findings: list[SummarizeFindingDraft]
+    additional_limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("additional_limitations")
+    @classmethod
+    def unique_limitations(cls, values: list[str]):
+        return _reject_duplicates(values, "additional_limitations")

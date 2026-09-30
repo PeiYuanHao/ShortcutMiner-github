@@ -9,6 +9,7 @@ from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.nodes import (
+    evidence_calibration_node,
     executive_node,
     feasibility_node,
     identify_node,
@@ -83,6 +84,10 @@ def create_workflow_graph(
         ),
     )
     graph.add_node(
+        "evidence_calibration",
+        evidence_calibration_node,
+    )
+    graph.add_node(
         "summarize",
         partial(
             summarize_node,
@@ -96,7 +101,8 @@ def create_workflow_graph(
     graph.add_edge("executive", "feasibility")
     graph.add_edge("feasibility", "quantitative")
     graph.add_edge("feasibility", "qualitative")
-    graph.add_edge(["quantitative", "qualitative"], "summarize")
+    graph.add_edge(["quantitative", "qualitative"], "evidence_calibration")
+    graph.add_edge("evidence_calibration", "summarize")
     graph.add_edge("summarize", END)
 
     return graph

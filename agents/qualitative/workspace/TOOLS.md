@@ -9,14 +9,9 @@ permitted set is:
 
 ```text
 inspect_tool_capabilities
-inspect_dataset
-inspect_metadata
-get_column_distribution
-select_samples
 inspect_sample_metadata
 inspect_sample
 read_artifact
-read_run_trace
 ```
 
 Only the runtime catalogue for the current invocation is authoritative.

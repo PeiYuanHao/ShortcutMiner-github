@@ -236,18 +236,13 @@ class QualitativeFailure(StrictProtocolModel):
 
 
 class QualitativeDraftObservation(StrictProtocolModel):
-    sample_refs: list[NonEmptyText] = Field(min_length=1)
+    sample_ref: NonEmptyText
     observation: NonEmptyText
     inspection_quality: InspectionQuality
 
-    @field_validator("sample_refs")
-    @classmethod
-    def validate_unique_samples(cls, values: list[str]) -> list[str]:
-        return _reject_duplicates(values, "sample_refs")
-
 
 class QualitativeDraftComparison(StrictProtocolModel):
-    sample_refs: list[NonEmptyText] = Field(min_length=1)
+    sample_refs: list[NonEmptyText] = Field(min_length=2)
     comparison: NonEmptyText
     inspection_quality: InspectionQuality
 
@@ -306,6 +301,19 @@ class QualitativeAgentDraft(StrictProtocolModel):
     @classmethod
     def validate_unique_lists(cls, values: list[str], info) -> list[str]:
         return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_internal_references(self):
+        for interpretation in self.interpretations:
+            if any(index >= len(self.observations) for index in interpretation.supporting_observation_indexes):
+                raise ValueError("interpretation references an unknown observation index")
+            if any(index >= len(self.comparisons) for index in interpretation.supporting_comparison_indexes):
+                raise ValueError("interpretation references an unknown comparison index")
+        if self.evidence_status in {"supported", "partially_supported", "contradicted"} and not (
+            self.observations or self.comparisons or self.metadata_evidence or self.counterevidence
+        ):
+            raise ValueError("substantive evidence status requires direct evidence")
+        return self
 
 
 class QualitativeResultPayload(StrictProtocolModel):

@@ -27,7 +27,10 @@ from shortcutminer.storage.qualitative_artifacts import (
     save_qualitative_raw_output,
     save_qualitative_result,
 )
-from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.agent_loop import (
+    ProviderContractValidationError,
+    invoke_agent_with_tools,
+)
 from shortcutminer.tooling.runtime import ToolRuntime
 
 
@@ -224,18 +227,10 @@ def validate_qualitative_draft(
                 "Qualitative draft references unavailable or uninspected evidence.",
             )
     for observation_index, observation in enumerate(draft.observations):
-        if not set(observation.sample_refs).issubset(sampled_ids):
+        if observation.sample_ref not in sampled_ids:
             raise QualitativeDraftValidationError(
                 "unknown_sample_reference",
                 "Qualitative observation references an unselected draft sample.",
-            )
-        groups = {selected_by_id[item].group for item in observation.sample_refs}
-        if len(groups) != 1:
-            raise QualitativeDraftValidationError(
-                "observation_crosses_groups",
-                "Qualitative observation sample references cross groups.",
-                observation_index=observation_index,
-                referenced_group_count=len(groups),
             )
     for comparison in draft.comparisons:
         if not set(comparison.sample_refs).issubset(sampled_ids):
@@ -320,6 +315,19 @@ def validate_qualitative_draft(
         )
 
 
+def validate_qualitative_provider_contract(
+    output: dict,
+    request: QualitativeRequest,
+    context: QualitativeEvidenceContext,
+) -> None:
+    """Reject bounded scientific choices within the generic schema retry loop."""
+    draft = QualitativeAgentDraft.model_validate(output)
+    try:
+        finalize_qualitative_draft(draft, request, context)
+    except QualitativeDraftValidationError as exc:
+        raise ProviderContractValidationError(exc.category) from None
+
+
 def finalize_qualitative_draft(
     draft: QualitativeAgentDraft,
     request: QualitativeRequest,
@@ -343,8 +351,8 @@ def finalize_qualitative_draft(
     observations = [
         QualitativeObservation(
             observation_id=observation_ids[index],
-            group=selected_by_id[item.sample_refs[0]].group,
-            sample_refs=item.sample_refs,
+            group=selected_by_id[item.sample_ref].group,
+            sample_refs=[item.sample_ref],
             observation=item.observation,
             inspection_quality=item.inspection_quality,
         )
@@ -774,6 +782,9 @@ def execute_qualitative(
                 payload,
                 system_prompt=system_prompt,
                 tool_runtime=tool_runtime,
+                provider_contract_validator=lambda output: validate_qualitative_provider_contract(
+                    output, request, context
+                ),
             )
             raw_output = invocation.output
         except Exception as exc:

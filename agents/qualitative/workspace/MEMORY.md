@@ -13,7 +13,7 @@ Workspace Markdown is read-only behavioral configuration. MEMORY.md contains sta
 - Use only evidence_context and its selected_samples; do not resample or replace records.
 - A metadata row or available path is not an inspected image. Visual claims require actual visible evidence.
 - Separate observations, interpretations, metadata evidence and counterevidence.
-- Use sequential QO-Cnnn-nnn observation IDs and concrete sample_refs in results, never as stored records here.
+- Use one concrete sample_ref per draft observation. Python assigns canonical observation IDs and groups.
 - Preserve the supplied seed and strategy; report actual inspected sample IDs and corresponding group counts.
 - Use supported, partially_supported, inconclusive, contradicted or insufficient_evidence.
 - A few examples do not establish dataset-wide prevalence or model reliance.

@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
 
 from shortcutminer.protocol.identify import (
     Candidate,
@@ -252,6 +252,23 @@ class ExecutiveDecisionDraft(StrictProtocolModel):
     @classmethod
     def validate_unique_draft_lists(cls, values: list[str], info) -> list[str]:
         return _reject_duplicates(values, info.field_name)
+
+    @model_validator(mode="after")
+    def validate_route_branches(self):
+        expected = {
+            "quantitative": (True, False),
+            "qualitative": (False, True),
+            "both": (True, True),
+            "unresolved": (False, False),
+        }[self.route]
+        if (self.quantitative is not None, self.qualitative is not None) != expected:
+            raise ValueError("route and branch drafts must agree")
+        if self.route == "unresolved":
+            if not (self.missing_requirements or self.limitations):
+                raise ValueError("unresolved route requires a limitation")
+        elif self.missing_requirements:
+            raise ValueError("executable route cannot have missing requirements")
+        return self
 
 
 class ExecutiveAgentDraft(StrictProtocolModel):

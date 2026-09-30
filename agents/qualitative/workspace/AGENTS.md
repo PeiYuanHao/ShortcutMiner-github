@@ -11,8 +11,8 @@ QualitativeEvidenceContext}; the provider-facing output is one
 QualitativeAgentDraft. The Python control layer validates that draft and constructs
 the canonical QualitativeResult. The control layer
 prepares selected records before invocation. A provider-neutral `tool_runtime` may
-also expose only the approved metadata, sampling, sample-inspection, artifact and trace
-tools listed in TOOLS.md. It exposes no vision model, Python, shell, arbitrary file
+also expose only current-task approved sample-inspection and artifact tools listed
+in TOOLS.md. It exposes no vision model, Python, shell, arbitrary file
 reader, network or artifact writer.
 
 A selected record is evidence only to the extent shown by its `inspection_status`,
@@ -43,7 +43,7 @@ You are an **evidence analyst**, not a shortcut discovery agent, experiment sche
 
 ## 2. Position in the Pipeline
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END. Quantitative and Qualitative are parallel branches. Runner and Orchestrator are infrastructure, not Agents.
 
 Executive plans AnalysisTask objects; Orchestrator supplies QualitativeRequest with the Candidate and prepared evidence_context. Return only the scientific QualitativeAgentDraft requested below; Python constructs the QualitativeResult delivered to Summarize. Quantitative is not a predecessor: do not wait for its results or select samples based on a sibling result.
 
@@ -322,9 +322,9 @@ Correct:
 
 ```yaml
 observations:
-  - sample_refs: [groupA_sample]
+  - sample_ref: groupA_sample
     observation: "The inspected group-A sample is relatively dark."
-  - sample_refs: [groupB_sample]
+  - sample_ref: groupB_sample
     observation: "The inspected group-B sample is relatively bright."
 comparisons:
   - sample_refs: [groupA_sample, groupB_sample]
@@ -576,11 +576,11 @@ sample_ids: []
 evidence_status: supported | partially_supported | inconclusive | contradicted | insufficient_evidence
 evidence_summary:
 observations:
-  - sample_refs: []
+  - sample_ref: selected_sample_id
     observation:
     inspection_quality: sufficient | limited | unusable
 comparisons:
-  - sample_refs: []
+  - sample_refs: [first_group_sample, second_group_sample]
     comparison:
     inspection_quality: sufficient | limited | unusable
 interpretations:
@@ -608,8 +608,9 @@ recommended_followup: []
 All list fields shown must be present and must be JSON arrays, using `[]` when no
 items apply. `sample_ids` may contain only inspected IDs from
 `evidence_context.selected_samples`; all observation and counterevidence
-`sample_refs` must be subsets of `sample_ids`. Each observation must reference
-samples from one group; Python derives that group. Each comparison must reference
+`sample_ref` must be one member of `sample_ids`; other evidence `sample_refs`
+must be subsets of `sample_ids`. Each observation names one inspected sample;
+Python derives its group. Each comparison must reference
 samples from at least two groups; Python derives its ordered groups and ID.
 Interpretation indexes are zero-based positions in `observations` or
 `comparisons`, must be unique within their list, and must be in range. An

@@ -526,6 +526,15 @@ def qualitative_node(
             preparation=_qualitative_preparation(state, task, config),
             limitations=config.get("limitations"),
         )
+        task_tool_runtime = (
+            tool_runtime.fork_for_task(
+                candidate_id=request.candidate.candidate_id,
+                task_id=request.task.task_id,
+                runtime_constraints=request.task.inputs.runtime_constraints,
+                requested_checks=request.task.requested_checks,
+                explicitly_authorized_artifacts=request.task.inputs.artifact_references,
+            ) if tool_runtime is not None else None
+        )
         results.append(
             execute_qualitative(
                 request,
@@ -533,7 +542,7 @@ def qualitative_node(
                 runs_root=_runs_root(state, config),
                 workspace_dir=config.get("workspace_dir"),
                 artifact_scope=task.task_id,
-                tool_runtime=tool_runtime,
+                tool_runtime=task_tool_runtime,
             )
         )
     batch = QualitativeResultBatch(
@@ -564,18 +573,7 @@ def build_summarize_request_from_state(
             state["qualitative_result"]
         )
         config = _stage_config(state, "summarize_config")
-        if state.get("evidence_ledger") is not None:
-            evidence_ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
-        else:
-            evidence_ledger = EvidenceLedgerBuilder(
-                apply_bh_fdr=bool(config.get("apply_bh_fdr", True))
-            ).build(
-                identify_result,
-                executive_result,
-                quantitative_result,
-                qualitative_result,
-                runs_root=_runs_root(state, config),
-            )
+        evidence_ledger = EvidenceLedger.model_validate(state["evidence_ledger"])
         return SummarizeRequest(
             protocol_version="1.0",
             run_id=state["run_id"],
