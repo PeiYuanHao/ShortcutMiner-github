@@ -32,6 +32,7 @@ EvidenceKind = Literal[
     "qualitative_visual",
     "qualitative_spatial",
     "qualitative_group_comparison",
+    "qualitative_assessment",
     "qualitative_counterevidence",
     "qualitative_failure",
 ]
@@ -102,6 +103,12 @@ class EvidenceProvenance(StrictProtocolModel):
     task_id: TaskId | None = None
     result_id: NonEmptyText | None = None
     experiment_id: NonEmptyText | None = None
+    measurement_id: NonEmptyText | None = None
+    plan_step_id: NonEmptyText | None = None
+    planning_check: NonEmptyText | None = None
+    experiment_type: NonEmptyText | None = None
+    tool_call_id: NonEmptyText | None = None
+    backend_identity: NonEmptyText | None = None
     inspection_id: NonEmptyText | None = None
     dataset_reference: NonEmptyText | None = None
     input_family: NonEmptyText | None = None

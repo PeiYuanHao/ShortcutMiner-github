@@ -2,10 +2,12 @@
 
 ## Caller and Runtime Boundary
 
-The current validated QualitativeRequest and evidence_context define scope.
+The current validated `QualitativeRequest`, `QualitativeEvidenceContext`, and
+optional current-task `ToolRuntime` define scope.
 User preferences affect interpretation and presentation only within that contract.
 Do not edit context, resample, add tools or begin a live clarification/retry loop.
-Return the exact QualitativeResult; missing visual content or tools require explicit
+Return the exact `QualitativeAgentDraft`; Python constructs the canonical
+`QualitativeResult`. Missing visual content or tools require explicit
 insufficient_evidence, not descriptions inferred from a path. Any desired broader
 work belongs in recommended_followup, not execution.
 
@@ -472,14 +474,9 @@ Scientific accuracy takes priority over requested rhetorical strength.
 
 If the user asks for statistical significance, effect sizes, large-scale correlation, or model-performance analysis, recognize that these tasks generally belong to the Quantitative Agent.
 
-You may:
-
-```text
-inspect the corresponding quantitative artifact
-explain how it relates to qualitative observations
-```
-
-but do not silently replace quantitative analysis with subjective evidence.
+Do not inspect sibling Quantitative artifacts or results. Record the need for a
+later numerical analysis in `recommended_followup`; EvidenceCalibration and
+Summarize perform cross-branch synthesis after both branches complete.
 
 ---
 
@@ -743,7 +740,7 @@ counterexamples
 failed inspections
 missing groups
 inconsistent metadata
-conflicts with quantitative results
+conflicting qualitative observations within the authorized evidence
 ```
 
 These findings may be important for improving the research design.

@@ -95,29 +95,17 @@ class WorkflowAgentClient(FakeAgentClient):
         if agent_name == "summarize":
             candidate = request["identify_result"]["candidates"][0]
             return {
-                "protocol_version": "1.0",
-                "run_id": request["run_id"],
-                "message_id": "identify_workflow_run:summarize:report",
-                "source": "summarize",
-                "target": "orchestrator",
-                "message_type": "summary_report",
-                "in_reply_to": request["message_id"],
-                "payload": {
-                    "overview": "Candidate validation remains unresolved.",
-                    "findings": [
+                "overview": "Candidate validation remains unresolved.",
+                "findings": [
                         {
-                            "candidate_id": candidate["candidate_id"],
+                            "candidate_ref": candidate["candidate_id"],
                             "assessment": "insufficient_evidence",
                             "summary": "No validation task was planned.",
-                            "quantitative_result_ids": [],
-                            "qualitative_result_ids": [],
-                            "limitations": ["No downstream capabilities."],
+                            "additional_limitations": ["No downstream capabilities."],
                             "recommendations": ["Configure validation capabilities."],
                         }
                     ],
-                    "limitations": ["No downstream capabilities."],
-                    "artifact_references": [],
-                },
+                "additional_limitations": ["No downstream capabilities."],
             }
         raise AssertionError(f"Unexpected agent call: {agent_name}")
 
@@ -172,35 +160,19 @@ def _state(tmp_path: Path) -> ShortcutMinerState:
 
 def _agent_output() -> dict:
     return {
-        "protocol_version": "1.0",
-        "run_id": "identify_workflow_run",
-        "message_id": "identify_workflow_run:identify:report",
-        "source": "identify",
-        "target": "executive",
-        "message_type": "candidate_report",
-        "in_reply_to": "identify_workflow_run:identify:request",
-        "artifact_references": [],
-        "dataset_summary": {
-            "dataset": "workflow_dataset",
-            "samples_inspected": 0,
-            "metadata_used": True,
-        },
         "candidates": [
             {
-                "candidate_id": "C001",
                 "cue": {"family": "metadata", "name": "site"},
                 "description": "Collection site may be an unintended cue.",
                 "observation": "Prepared metadata contains multiple sites.",
                 "hypothesis": "Site may be spuriously associated with label.",
                 "evidence_sources": ["metadata"],
                 "priority": "medium",
-                "status": "unverified",
+                "metadata_field_ref": "site",
+                "additional_limitations": [],
             }
         ],
-        "limitations": [
-            "Selected records are metadata rows only; no dataset sample "
-            "content was inspected."
-        ],
+        "additional_limitations": [],
     }
 
 
@@ -326,7 +298,7 @@ def test_identify_node_passes_workspace_prompt_to_agent_client(tmp_path: Path):
 
     prompt = client.calls[0]["system_prompt"]
     assert "Identify Agent Operational Specification" in prompt
-    assert "# Identify Agent Identity" in prompt
+    assert "# Identity" in prompt
 
 
 def test_identify_node_has_no_retired_platform_dependency():

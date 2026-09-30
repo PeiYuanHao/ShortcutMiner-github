@@ -61,7 +61,7 @@ available qualitative_checks and bounded sample access from routing_context.
 
 # 7. Parallel Routing
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
 
 For both routes, construct independent QT and QL tasks with empty dependencies.
 Do not introduce cross-branch waits, serialize the branches or dispatch them yourself.

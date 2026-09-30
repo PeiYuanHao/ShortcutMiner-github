@@ -469,7 +469,7 @@ def test_scientific_runner_rejects_non_network_transport(tmp_path: Path):
         runner._assert_real()
 
 
-def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monkeypatch):
+def test_canary_gate_is_required_and_saved_canary_rejects_retry(tmp_path: Path, monkeypatch):
     config = _config(tmp_path)
     runner = PilotRunner(config)
     runner.dry_run()
@@ -517,7 +517,8 @@ def test_canary_gate_is_required_and_saved_canary_is_reused(tmp_path: Path, monk
     )
     (runner.pilot_root / "canary.json").write_text(saved.model_dump_json(), encoding="utf-8")
     monkeypatch.setattr(runner, "_execute", lambda *args, **kwargs: pytest.fail("completed canary was repeated"))
-    assert runner.canary() == saved
+    with pytest.raises(PilotRunnerError, match="already completed"):
+        runner.canary()
 
 
 def test_canary_quantitative_audit_records_only_safe_execution_metadata(tmp_path: Path):

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from shortcutminer.experiment.identify_context import build_identify_context
+from shortcutminer.experiment.candidate_binding import resolve_candidate_binding
 from shortcutminer.experiment.identify_executor import (
     IdentifyExecutionError,
     execute_identify,
@@ -142,6 +143,23 @@ def _valid_output() -> dict:
     }
 
 
+def _valid_draft() -> dict:
+    candidate = _valid_output()["candidates"][0]
+    return {
+        "candidates": [{
+            "cue": candidate["cue"],
+            "description": candidate["description"],
+            "observation": candidate["observation"],
+            "hypothesis": candidate["hypothesis"],
+            "evidence_sources": candidate["evidence_sources"],
+            "priority": candidate["priority"],
+            "metadata_field_ref": "site",
+            "additional_limitations": [],
+        }],
+        "additional_limitations": ["The candidate has not been validated."],
+    }
+
+
 def test_execute_identify(
     tmp_path: Path,
 ):
@@ -149,9 +167,7 @@ def test_execute_identify(
 
     request = _create_request(tmp_path)
 
-    client = MockIdentifyClient(
-        _valid_output()
-    )
+    client = MockIdentifyClient(_valid_draft())
 
     report = execute_identify(
         request=request,
@@ -164,6 +180,38 @@ def test_execute_identify(
     assert report.candidates[0].status == "unverified"
 
 
+def test_exact_metadata_selector_survives_finalization_and_binding(tmp_path: Path):
+    _create_test_dataset(tmp_path)
+    draft = _valid_draft()
+    draft["candidates"][0]["cue"]["name"] = "collection site"
+    report = execute_identify(
+        request=_create_request(tmp_path), seed=42,
+        client=MockIdentifyClient(draft),
+    )
+    candidate = report.candidates[0]
+    assert candidate.cue.name == "collection site"
+    assert candidate.metadata_field_ref == "site"
+    binding = resolve_candidate_binding(
+        candidate, available_metadata_fields=["id", "label", "site"],
+        label_column="label", addressing_fields=["id"],
+    )
+    assert binding.status == "resolved"
+    assert binding.metadata_fields == ["site"]
+    assert binding.source == "exact_metadata_field_ref"
+
+    historical = candidate.model_dump(mode="json", exclude={"metadata_field_ref"})
+    historical["cue"]["name"] = "site_device_batch"
+    from shortcutminer.protocol.identify import Candidate
+    old_candidate = Candidate.model_validate(historical)
+    assert old_candidate.metadata_field_ref is None
+    unresolved = resolve_candidate_binding(
+        old_candidate, available_metadata_fields=["site", "device", "batch"],
+        label_column="label",
+    )
+    assert unresolved.status == "unresolved"
+    assert unresolved.metadata_fields == []
+
+
 def test_executor_sends_structured_payload(
     tmp_path: Path,
 ):
@@ -171,9 +219,7 @@ def test_executor_sends_structured_payload(
 
     request = _create_request(tmp_path)
 
-    client = MockIdentifyClient(
-        _valid_output()
-    )
+    client = MockIdentifyClient(_valid_draft())
 
     execute_identify(
         request=request,
@@ -242,7 +288,7 @@ def test_wrong_run_id(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="run_id",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -261,7 +307,7 @@ def test_wrong_reply_message_id(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="in_reply_to",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -280,7 +326,7 @@ def test_samples_inspected_must_match_context(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="samples_inspected",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -301,7 +347,7 @@ def test_context_limitations_must_be_preserved(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="omitted deterministic context limitations",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -320,7 +366,7 @@ def test_candidate_ids_must_be_sequential(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="sequential",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -334,14 +380,14 @@ def test_unavailable_evidence_source_is_rejected(
 ):
     _create_test_dataset(tmp_path)
     request = _create_request(tmp_path)
-    output = _valid_output()
+    output = _valid_draft()
     output["candidates"][0]["evidence_sources"] = [
         "sample_inspection"
     ]
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="no sample content was inspected",
+        match="sample_inspection_unavailable",
     ):
         execute_identify(
             request=request,
@@ -360,7 +406,7 @@ def test_unsupplied_artifact_reference_is_rejected(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="not supplied authoritatively",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -374,7 +420,7 @@ def test_duplicate_evidence_sources_are_rejected(
 ):
     _create_test_dataset(tmp_path)
     request = _create_request(tmp_path)
-    output = _valid_output()
+    output = _valid_draft()
     output["candidates"][0]["evidence_sources"] = [
         "metadata",
         "metadata",
@@ -382,7 +428,7 @@ def test_duplicate_evidence_sources_are_rejected(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="duplicate evidence sources",
+        match="required draft schema",
     ):
         execute_identify(
             request=request,
@@ -443,22 +489,22 @@ def test_candidate_budget_enforced(
 
     request = _create_request(tmp_path)
 
-    output = _valid_output()
+    output = _valid_draft()
 
     candidate = output["candidates"][0]
 
     output["candidates"] = [
         {
             **candidate,
-            "candidate_id": "C001",
+            "metadata_field_ref": "site_a",
         },
         {
             **candidate,
-            "candidate_id": "C002",
+            "metadata_field_ref": "site_b",
         },
         {
             **candidate,
-            "candidate_id": "C003",
+            "metadata_field_ref": "site_c",
         },
     ]
 
@@ -466,7 +512,7 @@ def test_candidate_budget_enforced(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="max_candidates",
+        match="candidate_budget_exceeded",
     ):
         execute_identify(
             request=request,
@@ -482,7 +528,7 @@ def test_duplicate_candidate_ids(
 
     request = _create_request(tmp_path)
 
-    output = _valid_output()
+    output = _valid_draft()
 
     candidate = output["candidates"][0]
 
@@ -495,7 +541,7 @@ def test_duplicate_candidate_ids(
 
     with pytest.raises(
         IdentifyExecutionError,
-        match="duplicate candidate IDs",
+        match="duplicate_metadata_field_selector",
     ):
         execute_identify(
             request=request,
@@ -516,9 +562,7 @@ def test_execute_identify_persists_artifacts(
         dataset_root
     )
 
-    client = MockIdentifyClient(
-        _valid_output()
-    )
+    client = MockIdentifyClient(_valid_draft())
 
     runs_root = tmp_path / "runs"
 
@@ -582,7 +626,7 @@ def test_execute_identify_persists_artifacts(
         input_data["discovery_context"]["samples_inspected"]
         == 0
     )
-    assert raw_output_data == _valid_output()
+    assert raw_output_data == _valid_draft()
 
     assert (
         output_data["run_id"]
@@ -641,7 +685,7 @@ def test_failed_identify_does_not_persist_output(
         / "output.json"
     ).exists()
 
-    assert (
+    assert not (
         identify_dir
         / "raw_output.json"
     ).exists()
@@ -661,9 +705,7 @@ def test_success_events_are_persisted(
         dataset_root
     )
 
-    client = MockIdentifyClient(
-        _valid_output()
-    )
+    client = MockIdentifyClient(_valid_draft())
 
     runs_root = tmp_path / "runs"
 

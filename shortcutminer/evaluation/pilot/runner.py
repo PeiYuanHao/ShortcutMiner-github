@@ -6,9 +6,11 @@ from collections import Counter
 import csv
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
+from uuid import uuid4
 
 from pydantic import ValidationError
 
@@ -19,7 +21,7 @@ from shortcutminer.evaluation.pilot.budget import PilotBudgetAccount, PilotBudge
 from shortcutminer.evaluation.pilot.preflight import RealProviderPreflight
 from shortcutminer.evaluation.pilot.readiness import real_provider_configuration_blockers
 from shortcutminer.evaluation.pilot.protocol import (
-    PilotAggregate, PilotChallengeResult, PilotConfig, PilotPreflightResult,
+    CanaryAttemptRecord, PilotAggregate, PilotChallengeResult, PilotConfig, PilotPreflightResult,
     PilotResult, PilotRunRecord, PilotSnapshot,
 )
 from shortcutminer.evaluation.pilot.realness import (
@@ -101,7 +103,8 @@ from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.protocol.run import RunRequest
 from shortcutminer.runner import build_local_tool_runtimes, run
 from shortcutminer.runtime.openai_compatible import (
-    OpenAICompatibleClient, UrllibJsonTransport, canonical_json_hash,
+    OpenAICompatibleClient, PilotInvocationBudgetState, UrllibJsonTransport,
+    canonical_json_hash,
 )
 from shortcutminer.storage.json_artifacts import atomic_write_json
 from shortcutminer.storage.model_calls import load_run_model_telemetry
@@ -374,22 +377,48 @@ class PilotRunner:
             raise PilotRealnessError(
                 "scientific OpenAI-compatible execution requires the real HTTP transport"
             )
+        if any(
+            isinstance(client, OpenAICompatibleClient)
+            and getattr(client, "_runs_root", None) != self.runs_root
+            for client in clients if client is not None
+        ):
+            raise PilotRealnessError("scientific provider telemetry must persist under this Pilot")
 
     def _seed_global_call_caps(self, aggregate: PilotAggregate) -> None:
-        """Make frozen runtime attempt counters enforce the stricter pilot caps."""
+        """Restore exact issued calls, submitted images, and usage from telemetry."""
         assert self.text_client is not None and self.semantic_inspector is not None
         semantic_client = getattr(self.semantic_inspector, "client", None)
-        pairs = (
-            (self.text_client, self.config.budget.max_total_text_model_calls, aggregate.total_text_calls),
-            (semantic_client, self.config.budget.max_total_vlm_calls, aggregate.total_vlm_calls),
+        budget = self.config.budget
+        state = PilotInvocationBudgetState(
+            max_text_calls=budget.max_total_text_model_calls,
+            max_vlm_calls=budget.max_total_vlm_calls,
+            max_vlm_images=budget.max_total_vlm_images,
+            max_text_per_run=budget.max_text_calls_per_run,
+            max_vlm_per_run=budget.max_vlm_calls_per_run,
+            max_vlm_images_per_run=min(
+                budget.max_total_vlm_images,
+                self.config.semantic_sample_budget * budget.max_vlm_calls_per_run,
+            ),
+            max_tokens=budget.max_total_tokens,
         )
-        for client, pilot_limit, already_used in pairs:
-            if not isinstance(client, OpenAICompatibleClient):
+        records: list[ModelInvocationRecord] = []
+        for run_root in sorted(self.runs_root.iterdir()) if self.runs_root.is_dir() else []:
+            directory = run_root / "model_calls"
+            for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
+                if path.name == "telemetry.json" or path.name.startswith("runtime_snapshot-"):
+                    continue
+                records.append(ModelInvocationRecord.model_validate_json(path.read_text(encoding="utf-8")))
+        for record in records:
+            if record.status == "budget_exceeded":
                 continue
-            runtime_limit = client.config.model_call_budget.max_total_calls
-            offset = max(0, runtime_limit - pilot_limit)
-            with client._budget_state.lock:
-                client._budget_state.calls_total = offset + already_used
+            if not state.reserve(
+                record.run_id, record.runtime_kind, len(record.image_inputs), restore=True
+            ):
+                raise PilotRunnerError("persisted model telemetry exceeds frozen pilot budget")
+            state.observe_usage(record.usage)
+        for client in (self.text_client, semantic_client):
+            if isinstance(client, OpenAICompatibleClient):
+                client._pilot_budget_state = state
 
     def _request(self, generated, *, run_id: str, seed: int) -> RunRequest:
         challenge = generated.challenge
@@ -424,7 +453,7 @@ class PilotRunner:
             executive_config={
                 "audit_options": {
                     "validation_depth": self.config.validation_depth,
-                    "max_tasks": self.config.budget.max_tool_calls_per_run,
+                    "max_tasks": self.config.budget.max_tasks_per_run,
                     "max_samples_per_task": max_rows,
                     "allowed_targets": ["quantitative", "qualitative"],
                     "runtime_constraints": ["no_external_services"],
@@ -475,6 +504,7 @@ class PilotRunner:
         runtimes = build_local_tool_runtimes(
             run_id=run_id, dataset_root=generated.public_dataset_root,
             runs_root=self.runs_root,
+            max_tool_calls_per_run=self.config.budget.max_tool_calls_per_run,
         )
         execution = run(
             request, agent_client=self.text_client, tool_runtimes=runtimes,
@@ -1777,10 +1807,8 @@ class PilotRunner:
         quantitative_draft = QuantitativeAgentDraft(
             status="completed",
             analysis_type="offline_engineering_contract_verification",
-            evidence_level="Q1",
             evidence_direction="inconclusive",
             evidence_summary="The real local backend completed the engineering fixture.",
-            evidence_tool_call_ids=[result.tool_call_id for result in results],
             additional_limitations=[limitation],
             recommended_followup=[],
         )
@@ -1967,6 +1995,39 @@ class PilotRunner:
         atomic_write_json(path, payload, error_type=PilotRunnerError)
         return path
 
+    def _write_canary_attempt(self, record: CanaryAttemptRecord) -> Path:
+        directory = self.pilot_root / "canary_attempts"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{record.attempt_id}.{record.status}.json"
+        try:
+            with path.open("x", encoding="utf-8") as stream:
+                json.dump(record.model_dump(mode="json"), stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except FileExistsError as exc:
+            raise PilotRunnerError("immutable canary attempt already exists") from exc
+        return path
+
+    def _canary_usage(self, run_id: str) -> dict[str, Any]:
+        records: dict[str, ModelInvocationRecord] = {}
+        directory = self.runs_root / run_id / "model_calls"
+        for path in directory.glob("*.json") if directory.is_dir() else []:
+            if path.name == "telemetry.json" or path.name.startswith("runtime_snapshot-"):
+                continue
+            record = ModelInvocationRecord.model_validate_json(path.read_text(encoding="utf-8"))
+            records[record.invocation_id] = record
+        for client in (self.text_client, getattr(self.semantic_inspector, "client", None)):
+            if isinstance(client, OpenAICompatibleClient):
+                records.update({record.invocation_id: record for record in client.invocations if record.run_id == run_id})
+        issued = [record for record in records.values() if record.status != "budget_exceeded"]
+        return {
+            "text_calls": sum(record.runtime_kind == "text_agent" for record in issued),
+            "vlm_calls": sum(record.runtime_kind == "semantic_vlm" for record in issued),
+            "vlm_images": sum(len(record.image_inputs) for record in issued if record.runtime_kind == "semantic_vlm"),
+            "known_tokens": sum(record.usage.total_tokens or 0 for record in issued),
+            "usage_complete": all(record.usage.available for record in issued),
+        }
+
     def canary(self) -> PilotRunRecord:
         self._require_complete_real_configuration()
         self.dry_run()
@@ -2004,14 +2065,49 @@ class PilotRunner:
         generated = build_suite(self.config, self.pilot_root)[0]
         path = self.pilot_root / "canary.json"
         if path.is_file():
-            return PilotRunRecord.model_validate_json(path.read_text(encoding="utf-8"))
-        record = self._execute(
-            generated, run_id=f"{self.config.pilot_id}-canary",
-            seed=self.config.runtime_seeds[0],
-            bootstrap_seed=self.config.bootstrap_seeds[0], snapshot=snapshot,
+            raise PilotRunnerError("Full Real Canary already completed for this snapshot")
+        attempt_directory = self.pilot_root / "canary_attempts"
+        for attempt_path in attempt_directory.glob("*.json") if attempt_directory.is_dir() else []:
+            previous = CanaryAttemptRecord.model_validate_json(attempt_path.read_text(encoding="utf-8"))
+            if previous.pilot_id == self.config.pilot_id and previous.snapshot_id == snapshot.snapshot_id:
+                raise PilotRunnerError("Full Real Canary already attempted for this snapshot")
+        if snapshot.repository_dirty:
+            raise PilotRunnerError("Full Real Canary requires a clean frozen repository")
+        if self.text_client is not None and self.semantic_inspector is not None:
+            self._seed_global_call_caps(_empty_aggregate(self.config))
+        run_id = f"{self.config.pilot_id}-canary"
+        started = CanaryAttemptRecord(
+            attempt_id=f"canary-{uuid4().hex}", pilot_id=self.config.pilot_id,
+            snapshot_id=snapshot.snapshot_id, git_commit=snapshot.git_commit,
+            run_id=run_id, started_at=_now(), status="running",
         )
-        self._save_canary_quantitative_audit(record.run_id)
-        atomic_write_json(path, record.model_dump(mode="json"), error_type=PilotRunnerError)
+        self._write_canary_attempt(started)
+        stage = "execution"
+        try:
+            record = self._execute(
+                generated, run_id=run_id, seed=self.config.runtime_seeds[0],
+                bootstrap_seed=self.config.bootstrap_seeds[0], snapshot=snapshot,
+            )
+            if record.status != "completed":
+                raise PilotRunnerError("Full Real Canary did not complete")
+            stage = "quantitative_audit"
+            self._save_canary_quantitative_audit(record.run_id)
+            stage = "readiness_gate"
+            with path.open("x", encoding="utf-8") as stream:
+                json.dump(record.model_dump(mode="json"), stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+        except Exception as exc:
+            self._write_canary_attempt(started.model_copy(update={
+                "status": "failed", "completed_at": _now(),
+                "failure_stage": stage, "failure_category": type(exc).__name__,
+                **self._canary_usage(run_id),
+            }))
+            raise
+        self._write_canary_attempt(started.model_copy(update={
+            "status": "completed", "completed_at": _now(),
+            **self._canary_usage(run_id),
+        }))
         return record
 
     def identify_diagnostic(self) -> dict[str, Any]:
@@ -2174,20 +2270,23 @@ class PilotRunner:
         )
         failures.update(item.failure_category or "unknown_failure" for item in failed)
         telemetry = [
-            value for item in records
-            if (value := load_run_model_telemetry(self.runs_root, item.run_id)) is not None
-        ]
+            value for run_root in self.runs_root.iterdir()
+            if run_root.is_dir()
+            if (value := load_run_model_telemetry(self.runs_root, run_root.name)) is not None
+        ] if self.runs_root.is_dir() else []
         invocation_records = []
-        for item in records:
-            directory = self.runs_root / item.run_id / "model_calls"
+        for run_root in self.runs_root.iterdir() if self.runs_root.is_dir() else []:
+            directory = run_root / "model_calls"
             for path in directory.glob("*.json") if directory.is_dir() else []:
                 if path.name == "telemetry.json" or path.name.startswith("runtime_snapshot-"):
                     continue
                 try:
-                    invocation_records.append(json.loads(path.read_text(encoding="utf-8")))
+                    record = ModelInvocationRecord.model_validate_json(path.read_text(encoding="utf-8"))
+                    if record.status != "budget_exceeded":
+                        invocation_records.append(record.model_dump(mode="json"))
                 except Exception:
-                    pass
-        usage_complete = bool(telemetry) and all(item.usage_complete for item in telemetry)
+                    raise PilotRunnerError("persisted Pilot model telemetry is invalid")
+        usage_complete = all(record["usage"]["available"] for record in invocation_records)
         recall_1 = [
             value for item in positive
             if (value := item.evaluation.discovery_metrics.recall_at_k.get("1")) is not None
@@ -2210,6 +2309,10 @@ class PilotRunner:
             final_assessment_distribution=dict(assessments), failure_taxonomy=dict(failures),
             total_text_calls=sum(record.get("runtime_kind") == "text_agent" for record in invocation_records),
             total_vlm_calls=sum(record.get("runtime_kind") == "semantic_vlm" for record in invocation_records),
+            total_vlm_images=sum(
+                len(record.get("image_inputs", [])) for record in invocation_records
+                if record.get("runtime_kind") == "semantic_vlm"
+            ),
             retry_calls=sum(item.retry_calls for item in telemetry),
             schema_retries=sum(item.schema_retry_calls for item in telemetry),
             prompt_tokens=sum(item.prompt_tokens or 0 for item in telemetry) if usage_complete else None,
@@ -2285,6 +2388,11 @@ class PilotRunner:
         account = PilotBudgetAccount(
             self.config.budget, text_calls=aggregate.total_text_calls,
             vlm_calls=aggregate.total_vlm_calls,
+            vlm_images=aggregate.total_vlm_images,
+            total_tokens=aggregate.total_tokens or 0,
+            usage_complete=(aggregate.usage_complete or not (
+                aggregate.total_text_calls or aggregate.total_vlm_calls
+            )),
         )
         self._seed_global_call_caps(aggregate)
         result_path = self.pilot_root / "result.json"
@@ -2363,6 +2471,11 @@ class PilotRunner:
                 account = PilotBudgetAccount(
                     self.config.budget, text_calls=aggregate.total_text_calls,
                     vlm_calls=aggregate.total_vlm_calls,
+                    vlm_images=aggregate.total_vlm_images,
+                    total_tokens=aggregate.total_tokens or 0,
+                    usage_complete=(aggregate.usage_complete or not (
+                        aggregate.total_text_calls or aggregate.total_vlm_calls
+                    )),
                 )
         result = self._result(records, started_at=started_at)
         findings = audit_scientific_artifacts(self.runs_root)

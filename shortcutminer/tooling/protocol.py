@@ -78,6 +78,9 @@ class ToolCall(StrictProtocolModel):
     run_id: SafeRunId
     candidate_id: CandidateId | None = None
     task_id: TaskId | None = None
+    plan_step_id: NonEmptyText | None = None
+    planning_check: NonEmptyText | None = None
+    experiment_type: NonEmptyText | None = None
     arguments: dict[str, Any]
 
     @model_validator(mode="after")
@@ -106,6 +109,9 @@ class ToolResult(StrictProtocolModel):
     run_id: SafeRunId
     candidate_id: CandidateId | None = None
     task_id: TaskId | None = None
+    plan_step_id: NonEmptyText | None = None
+    planning_check: NonEmptyText | None = None
+    experiment_type: NonEmptyText | None = None
     status: ToolStatus
     output: dict[str, Any] | None = None
     error: ToolErrorInfo | None = None

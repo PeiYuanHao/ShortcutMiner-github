@@ -13,6 +13,9 @@ from shortcutminer.experiment.quantitative_plan import (
     primary_mandatory_steps,
 )
 from shortcutminer.experiment.real_executor import RealExperimentExecutor
+from shortcutminer.experiment.quantitative_executor import (
+    QuantitativeDraftInvariantError, finalize_quantitative_result,
+)
 from shortcutminer.experiment.tool_executor import ExperimentType, MockExperimentExecutor
 from shortcutminer.protocol.quantitative import QuantitativeExecutionRequirement
 from shortcutminer.protocol.quantitative_plan import (
@@ -22,7 +25,25 @@ from shortcutminer.protocol.quantitative_plan import (
 from shortcutminer.tooling.agent_loop import finalize_tool_call_draft
 from shortcutminer.tooling.builtins import build_default_tool_registry
 from shortcutminer.tooling.runtime import ToolBudget, ToolRuntime
-from test_quantitative_finalizer import _request
+from test_quantitative_finalizer import _draft, _request, _tool_result
+
+
+def test_wrong_plan_step_and_skipped_required_step_are_rejected(tmp_path: Path):
+    request = _request(tmp_path)
+    plan = compile_quantitative_experiment_plan(
+        request, _requirement(["statistical_check"]), _runtime(request),
+    )
+    step = next(item for item in plan.steps if item.required)
+    matching = _tool_result().model_copy(update={"plan_step_id": step.step_id})
+    wrong = matching.model_copy(update={"plan_step_id": "QSTEP-forged"})
+    with pytest.raises(QuantitativeDraftInvariantError, match="plan provenance"):
+        finalize_quantitative_result(
+            _draft(), request, tool_results=(wrong,), experiment_plan=plan,
+        )
+    with pytest.raises(QuantitativeDraftInvariantError, match="required plan step is unhandled"):
+        finalize_quantitative_result(
+            _draft(), request, tool_results=(matching,), experiment_plan=plan,
+        )
 
 
 ALL_TYPES = list(get_args(ExperimentType))

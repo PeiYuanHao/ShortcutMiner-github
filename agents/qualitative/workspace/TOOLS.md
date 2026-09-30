@@ -3,20 +3,17 @@
 ## Current boundary
 
 The Qualitative Agent receives a read-only `QualitativeRequest` and
-`QualitativeEvidenceContext`. The control layer has already selected samples and
-computed bounded evidence. If `payload.tool_runtime` is present, the maximum
+`QualitativeEvidenceContext`, plus an optional current-task `ToolRuntime`. It
+returns `QualitativeAgentDraft`; Python constructs canonical `QualitativeResult`.
+The control layer has already selected samples and computed bounded evidence.
+If `payload.tool_runtime` is present, the maximum
 permitted set is:
 
 ```text
 inspect_tool_capabilities
-inspect_dataset
-inspect_metadata
-get_column_distribution
-select_samples
 inspect_sample_metadata
 inspect_sample
 read_artifact
-read_run_trace
 ```
 
 Only the runtime catalogue for the current invocation is authoritative.
@@ -45,8 +42,9 @@ label—not an expected shortcut answer.
 
 ## Required tool behavior
 
-Use only selected samples and approved artifacts. Preserve the supplied sampling
-strategy, seed, sample IDs, groups, warnings, failures, and limitations. Do not
+Use only selected samples and approved current-task artifacts. Follow the supplied
+sampling strategy and seed; Python owns canonical sample/group counts, IDs,
+and artifact bookkeeping. Do not
 resample until a persuasive example appears. Every observation must cite concrete
 sample IDs, and only samples with actual inspection evidence may be claimed as
 inspected. Explicitly retain counterexamples and ambiguous samples.
@@ -89,12 +87,13 @@ The Agent may interpret descriptor and metadata evidence into the canonical
 qualitative evidence status, but must record alternative explanations,
 counterevidence, corrupt/unavailable samples, and coverage limits. Quantitative
 experiments remain the Quantitative Agent's role, and final cross-branch synthesis
-remains Summarize's role.
+belongs to EvidenceCalibration and Summarize after the parallel branches join.
 
 ## Reproducibility
 
-Before returning, verify run/candidate/task identity, deterministic sampling
-parameters, group coverage, sample-to-row alignment, descriptor definitions,
-artifact references, and failure counts. Reused inspection artifacts are valid only
+Before returning, verify scientific claims against current-task sample coverage,
+sample-to-row alignment, descriptor definitions, authorized artifact references,
+and failures. Python validates run/candidate/task identity and canonical bookkeeping.
+Reused inspection artifacts are valid only
 after the control layer verifies schema, task identity, preparation parameters, and
 referenced files. Do not silently use evidence from another task, candidate, or run.

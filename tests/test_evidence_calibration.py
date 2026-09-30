@@ -45,6 +45,27 @@ def _replace_quantitative(batch, **payload_updates):
         if payload_updates.get("evidence_direction") is None:
             payload_updates["evidence_direction"] = "inconclusive"
     data["results"][0]["payload"].update(payload_updates)
+    payload = data["results"][0]["payload"]
+    if payload["status"] == "completed":
+        payload["measurements"] = [{
+            "measurement_id": "M-calibration-fixture",
+            "run_id": data["results"][0]["run_id"],
+            "candidate_id": payload["candidate_id"],
+            "task_id": payload["task_id"],
+            "plan_step_id": "STEP-calibration-fixture",
+            "planning_check": "association_test",
+            "experiment_type": "statistical_check",
+            "tool_call_id": "TC-calibration-fixture",
+            "backend_identity": "fixture",
+            "execution_outcome": "completed",
+            "metrics": payload["metrics"],
+            "artifact_references": payload["artifact_references"],
+            "model_lineage": {},
+            "design_strength": "observational",
+            "uncertainty_metadata": [],
+        }]
+    else:
+        payload["measurements"] = []
     return QuantitativeResultBatch.model_validate(data)
 
 
@@ -137,6 +158,7 @@ def test_ledger_retains_observation_comparison_and_counterevidence(tmp_path: Pat
         "qualitative_visual",
         "qualitative_group_comparison",
         "qualitative_counterevidence",
+        "qualitative_assessment",
     ]
     comparison = records[1]
     assert comparison.metrics == {
@@ -146,7 +168,8 @@ def test_ledger_retains_observation_comparison_and_counterevidence(tmp_path: Pat
         "inspection_quality": "limited",
     }
     assert comparison.execution_state == "usable"
-    assert comparison.direction == "mixed"
+    assert comparison.direction == "inconclusive"
+    assert records[-1].direction == "mixed"
 
 
 def test_unusable_comparison_is_scientifically_inconclusive(tmp_path: Path):

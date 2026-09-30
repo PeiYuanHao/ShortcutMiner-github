@@ -35,9 +35,9 @@ Your conclusions must always remain traceable to the evidence you actually inspe
 
 ## System Position
 
-START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
+START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END. Quantitative and Qualitative are parallel branches; Summarize runs after their join. Runner and Orchestrator are infrastructure, not Agents.
 
-Consume QualitativeRequest plus prepared evidence_context and return QualitativeResult. File paths are not visible samples; current invocation has no inspection tools. Describe only evidence actually supplied. The executor owns persistence; Summarize owns cross-branch synthesis.
+Consume `QualitativeRequest` plus `QualitativeEvidenceContext` and, when supplied, the current-task `ToolRuntime`. Return only `QualitativeAgentDraft`; Python constructs the canonical `QualitativeResult` and owns identity, groups, observation and comparison IDs, sampling bookkeeping, and artifacts. The optional runtime may expose `inspect_tool_capabilities`, `inspect_sample_metadata`, `inspect_sample`, and `read_artifact` for authorized current-task inputs. File paths alone are not visible samples. Do not read sibling Quantitative results or artifacts; EvidenceCalibration and Summarize own cross-branch synthesis.
 
 ---
 

@@ -4,11 +4,12 @@ from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
-from typing import Any
+from typing import Any, Callable
+from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient, invoke_agent_client
 from shortcutminer.protocol.executive import ExecutiveAgentDraft
-from shortcutminer.protocol.identify import CandidateReport
+from shortcutminer.protocol.identify import IdentifyAgentDraft
 from shortcutminer.protocol.qualitative import QualitativeAgentDraft
 from shortcutminer.protocol.quantitative import (
     QuantitativeAgentDraft,
@@ -19,7 +20,7 @@ from shortcutminer.protocol.quantitative_plan import (
     QuantitativeExperimentPlan,
     RunExperimentPlanStepDraft,
 )
-from shortcutminer.protocol.summarize import SummaryReport
+from shortcutminer.protocol.summarize import SummarizeAgentDraft
 from shortcutminer.tooling.errors import ToolBudgetExceeded, ToolNotFound
 from shortcutminer.tooling.errors import ToolInputValidationError, ToolPermissionError
 from shortcutminer.tooling.protocol import ToolCall, ToolCallDraft, ToolResult
@@ -60,12 +61,22 @@ class RequiredExperimentNotAttempted(RuntimeError):
         self.retry_count = retry_count
 
 
+class ProviderContractValidationError(ValueError):
+    """Safe, bounded description of a rejected provider choice."""
+
+    def __init__(self, category: str, field_path: str = "", index: int | None = None):
+        self.category = category
+        self.field_path = field_path
+        self.index = index
+        super().__init__(f"{category}:{field_path}" + (f":{index}" if index is not None else ""))
+
+
 _FINAL_SCHEMAS = {
-    "identify": CandidateReport,
+    "identify": IdentifyAgentDraft,
     "executive": ExecutiveAgentDraft,
     "quantitative": QuantitativeAgentDraft,
     "qualitative": QualitativeAgentDraft,
-    "summarize": SummaryReport,
+    "summarize": SummarizeAgentDraft,
 }
 
 
@@ -90,21 +101,34 @@ def _invoke(
     payload: dict[str, Any],
     *,
     system_prompt: str | None,
+    provider_contract_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> object:
+    def validate(output: dict[str, Any]) -> None:
+        _validate_provider_output(agent_name, output)
+        if "tool_calls" not in output and provider_contract_validator is not None:
+            provider_contract_validator(output)
+
     validated = getattr(client, "invoke_agent_validated", None)
     if callable(validated):
         return validated(
             agent_name,
             payload,
             system_prompt=system_prompt,
-            validator=lambda output: _validate_provider_output(agent_name, output),
+            validator=validate,
         )
-    return invoke_agent_client(
+    output = invoke_agent_client(
         client,
         agent_name,
         payload,
         system_prompt=system_prompt,
     )
+    if not isinstance(output, dict):
+        raise ValueError("Provider output was a non-object response")
+    try:
+        validate(output)
+    except ValidationError as exc:
+        raise ValueError("Provider output failed the required draft schema") from exc
+    return output
 
 
 def _authoritative_correlation(
@@ -154,6 +178,7 @@ def finalize_tool_call_draft(
         )
     candidate_id, task_id = _authoritative_correlation(base_payload, tool_runtime)
     arguments = parsed.arguments
+    selected_step = None
     if parsed.name == "run_experiment":
         if candidate_id is None or task_id is None:
             raise AuthoritativeResourceMissing(
@@ -168,6 +193,7 @@ def finalize_tool_call_draft(
             if not matches:
                 raise UnknownPlanStep("provider selected an unknown plan step")
             step = matches[0]
+            selected_step = step
             if step.execution_state == "completed":
                 raise PlanStepAlreadyCompleted("provider selected a completed plan step")
             if step.execution_state != "ready" or step.canonical_input is None:
@@ -252,6 +278,9 @@ def finalize_tool_call_draft(
         "run_id": tool_runtime.run_id,
         "candidate_id": candidate_id,
         "task_id": task_id,
+        "plan_step_id": selected_step.step_id if selected_step is not None else None,
+        "planning_check": selected_step.planning_check if selected_step is not None else None,
+        "experiment_type": selected_step.experiment_type if selected_step is not None else None,
         "arguments": arguments,
     })
 
@@ -265,6 +294,7 @@ def invoke_agent_with_tools(
     tool_runtime: ToolRuntime | None,
     experiment_plan: QuantitativeExperimentPlan | None = None,
     quantitative_request=None,
+    provider_contract_validator: Callable[[dict[str, Any]], None] | None = None,
 ) -> AgentToolInvocation:
     """Invoke once normally, or service bounded ToolCall batches until final output."""
     requirement = None
@@ -280,7 +310,8 @@ def invoke_agent_with_tools(
             raise RequiredExperimentNotAttempted(retry_count=0)
         return AgentToolInvocation(
             output=_invoke(
-                client, agent_name, payload, system_prompt=system_prompt
+                client, agent_name, payload, system_prompt=system_prompt,
+                provider_contract_validator=provider_contract_validator,
             ),
             tool_results=(),
         )
@@ -371,6 +402,7 @@ def invoke_agent_with_tools(
             agent_name,
             invocation_payload,
             system_prompt=system_prompt,
+            provider_contract_validator=provider_contract_validator,
         )
         if not isinstance(response, dict) or "tool_calls" not in response:
             if not required_attempt_exists():

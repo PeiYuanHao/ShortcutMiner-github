@@ -64,7 +64,7 @@ class RealEvidenceClient(DemoAgentClient):
             "evidence_summary": "Local descriptors differ across sampled groups, with counterevidence retained.",
             "observations": [
                 {
-                    "sample_refs": [samples[0]["sample_id"]],
+                    "sample_ref": samples[0]["sample_id"],
                     "observation": "The bounded intensity descriptor was computed from the selected image.",
                     "inspection_quality": "sufficient",
                 }

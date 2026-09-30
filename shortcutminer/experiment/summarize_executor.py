@@ -6,15 +6,78 @@ from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
-from shortcutminer.protocol.summarize import SummarizeRequest, SummaryReport
+from shortcutminer.protocol.summarize import (
+    SummarizeAgentDraft, SummarizeRequest, SummaryFinding, SummaryReport,
+    SummaryReportPayload,
+)
 from shortcutminer.storage.events import append_event
 from shortcutminer.storage.stage_artifacts import save_stage_json
-from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.agent_loop import ProviderContractValidationError, invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
 
 
 class SummarizeExecutionError(RuntimeError):
     """Raised when Summarize cannot produce a valid final report."""
+
+
+def allowed_assessments(consistency: str) -> set[str]:
+    return {
+        "no_usable_evidence": {"insufficient_evidence"},
+        "inconclusive": {"inconclusive", "insufficient_evidence"},
+        "mixed": {"partially_supported", "inconclusive"},
+        "consistent_support": {"supported", "partially_supported", "inconclusive"},
+        "consistent_contradiction": {"contradicted", "inconclusive"},
+    }[consistency]
+
+
+def validate_summarize_draft(draft: SummarizeAgentDraft, request: SummarizeRequest) -> None:
+    expected = [item.candidate_id for item in request.identify_result.candidates]
+    actual = [item.candidate_ref for item in draft.findings]
+    if actual != expected:
+        raise ProviderContractValidationError("candidate_coverage_mismatch", "findings")
+    entries = {item.candidate_id: item for item in request.evidence_ledger.candidates}
+    for index, finding in enumerate(draft.findings):
+        if finding.assessment not in allowed_assessments(entries[finding.candidate_ref].profile.consistency):
+            raise ProviderContractValidationError("assessment_overclaim", f"findings.{index}.assessment")
+
+
+def finalize_summarize_draft(draft: SummarizeAgentDraft, request: SummarizeRequest) -> SummaryReport:
+    validate_summarize_draft(draft, request)
+    quant = {item.payload.candidate_id: item.message_id for item in request.quantitative_result.results}
+    qual = {item.payload.candidate_id: item.message_id for item in request.qualitative_result.results}
+    entries = {item.candidate_id: item for item in request.evidence_ledger.candidates}
+    artifacts = list(dict.fromkeys([
+        *request.identify_result.artifact_references,
+        *request.executive_result.artifact_references,
+        *(ref for item in request.quantitative_result.results for ref in item.payload.artifact_references),
+        *(ref for item in request.qualitative_result.results for ref in item.payload.artifact_references),
+        request.evidence_ledger.artifact_reference,
+    ]))
+    report = SummaryReport(
+        protocol_version=request.protocol_version,
+        run_id=request.run_id,
+        message_id=f"{request.run_id}:summarize:report",
+        source="summarize", target="orchestrator", message_type="summary_report",
+        in_reply_to=request.message_id,
+        payload=SummaryReportPayload(
+            overview=draft.overview,
+            findings=[SummaryFinding(
+                candidate_id=item.candidate_ref,
+                assessment=item.assessment,
+                summary=item.summary,
+                quantitative_result_ids=([quant[item.candidate_ref]] if item.candidate_ref in quant else []),
+                qualitative_result_ids=([qual[item.candidate_ref]] if item.candidate_ref in qual else []),
+                evidence_record_ids=entries[item.candidate_ref].record_ids,
+                limitations=list(dict.fromkeys([*entries[item.candidate_ref].profile.limitations, *item.additional_limitations])),
+                recommendations=item.recommendations,
+            ) for item in draft.findings],
+            limitations=list(dict.fromkeys([*request.evidence_ledger.limitations, *draft.additional_limitations])),
+            artifact_references=artifacts,
+            evidence_ledger_reference=request.evidence_ledger.artifact_reference,
+        ),
+    )
+    validate_summary_report(report, request)
+    return report
 
 
 def build_summarize_agent_payload(request: SummarizeRequest) -> dict:
@@ -252,6 +315,9 @@ def execute_summarize(
                 payload,
                 system_prompt=prompt,
                 tool_runtime=tool_runtime,
+                provider_contract_validator=lambda output: finalize_summarize_draft(
+                    SummarizeAgentDraft.model_validate(output), request
+                ),
             )
             raw_output = invocation.output
         except Exception as exc:
@@ -262,22 +328,18 @@ def execute_summarize(
             raise SummarizeExecutionError(
                 "Summarize agent returned a non-object response."
             )
-        if runs_root is not None:
-            save_stage_json(
-                runs_root,
-                run_id=request.run_id,
-                stage="summarize",
-                filename="raw_output.json",
-                payload=raw_output,
-            )
         try:
-            report = SummaryReport.model_validate(raw_output)
+            draft = SummarizeAgentDraft.model_validate(raw_output)
+            report = finalize_summarize_draft(draft, request)
         except ValidationError as exc:
             raise SummarizeExecutionError(
-                "Summarize agent returned an invalid SummaryReport."
+                "Summarize agent returned an invalid SummarizeAgentDraft."
             ) from exc
-        validate_summary_report(report, request)
         if runs_root is not None:
+            save_stage_json(
+                runs_root, run_id=request.run_id, stage="summarize",
+                filename="draft.json", payload=draft,
+            )
             save_stage_json(
                 runs_root,
                 run_id=report.run_id,

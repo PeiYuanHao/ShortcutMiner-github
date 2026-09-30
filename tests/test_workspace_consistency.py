@@ -18,7 +18,8 @@ from shortcutminer.experiment.agent_workspace import (
     load_agent_workspace_prompt,
 )
 from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
-from shortcutminer.protocol.summarize import SummaryReport
+from shortcutminer.protocol.qualitative import QualitativeAgentDraft
+from shortcutminer.protocol.summarize import SummarizeAgentDraft
 
 
 AGENTS = ("identify", "executive", "quantitative", "qualitative", "summarize")
@@ -98,11 +99,11 @@ def test_real_workspace_loading_needs_no_network_or_environment(agent, monkeypat
 @pytest.mark.parametrize(
     ("agent", "protocol"),
     [
-        ("identify", "CandidateReport"),
+        ("identify", "IdentifyAgentDraft"),
         ("executive", "RoutingPlan"),
         ("quantitative", "QuantitativeAgentDraft"),
-        ("qualitative", "QualitativeResult"),
-        ("summarize", "SummaryReport"),
+        ("qualitative", "QualitativeAgentDraft"),
+        ("summarize", "SummarizeAgentDraft"),
     ],
 )
 def test_workspace_prompt_ends_with_strict_json_output_rule(agent, protocol):
@@ -141,7 +142,7 @@ def test_operational_docs_name_actual_contracts_and_parallel_workflow(
     text = (default_agent_workspace_dir(agent) / "AGENTS.md").read_text("utf-8")
     assert request_name in text
     assert result_name in text
-    assert "START → Identify → Executive → (Quantitative ∥ Qualitative) → Summarize → END" in text
+    assert "START → Identify → Executive → Feasibility → (Quantitative ∥ Qualitative) → EvidenceCalibration → Summarize → END" in text
     assert "parallel branches" in text
 
 
@@ -161,15 +162,17 @@ def test_invalid_required_document_fails_clearly(filename, invalid_content, tmp_
 
 @pytest.mark.parametrize("agent,schema,message_type", [
     ("quantitative", QuantitativeAgentDraft, None),
-    ("summarize", SummaryReport, "summary_report"),
+    ("summarize", SummarizeAgentDraft, None),
 ])
 def test_documented_output_templates_match_real_pydantic_schema(
     agent, schema, message_type,
 ):
     text = (default_agent_workspace_dir(agent) / "AGENTS.md").read_text("utf-8")
     examples = [json.loads(block) for block in re.findall(r"```json\n(.*?)\n```", text, re.S)]
-    if message_type is None:
-        example, = [item for item in examples if "evidence_tool_call_ids" in item]
+    if agent == "quantitative":
+        example, = [item for item in examples if "analysis_type" in item and "evidence_direction" in item]
+    elif message_type is None:
+        example, = [item for item in examples if "findings" in item and "overview" in item]
     else:
         example, = [item for item in examples if item.get("message_type") == message_type]
 
@@ -188,3 +191,45 @@ def test_documented_output_templates_match_real_pydantic_schema(
 
     result = schema.model_validate(substitute(example))
     assert result.model_dump(mode="json") == substitute(example)
+
+
+def test_full_quantitative_prompt_respects_provider_draft_ownership():
+    prompt = load_agent_workspace_prompt("quantitative")
+    assert "Return exactly one valid JSON object matching `QuantitativeAgentDraft`" in prompt
+    assert "Python deterministically derives evidence maturity and design strength" in prompt
+    assert set(QuantitativeAgentDraft.model_fields) == {
+        "status", "analysis_type", "evidence_direction", "evidence_summary",
+        "additional_limitations", "recommended_followup",
+    }
+    assert not re.search(r"\bQ[0-4]\b|evidence_level|evidence_tool_call_ids", prompt)
+    for line in prompt.splitlines():
+        if re.search(r"(?:choose|select|emit|return|justify|self-check).{0,45}evidence level", line, re.I):
+            assert "do not" in line.lower() or "python" in line.lower()
+    for owned in ("measurement_id", "plan_step_id", "tool_call_id", "artifact_references"):
+        assert owned not in QuantitativeAgentDraft.model_fields
+
+
+def test_full_qualitative_prompt_respects_parallel_draft_and_tool_boundary():
+    prompt = load_agent_workspace_prompt("qualitative")
+    assert "QualitativeAgentDraft" in prompt
+    assert "Python constructs" in prompt and "QualitativeResult" in prompt
+    assert set(QualitativeAgentDraft.model_fields).isdisjoint({
+        "task_id", "candidate_id", "run_id", "message_id", "sampling",
+        "observation_id", "comparison_id", "groups", "group",
+    })
+    for tool in (
+        "inspect_tool_capabilities", "inspect_sample_metadata",
+        "inspect_sample", "read_artifact",
+    ):
+        assert tool in prompt
+    forbidden_output = (
+        "return QualitativeResult", "return the exact QualitativeResult",
+        "return the full QualitativeResult", "check exact QualitativeResult fields",
+        "current invocation has no inspection tools",
+        "preserve task_id, candidate_id",
+    )
+    assert not any(phrase.lower() in prompt.lower() for phrase in forbidden_output)
+    for line in prompt.splitlines():
+        lower = line.lower()
+        if re.search(r"\b(?:inspect|read|fetch|use)\b.*\bquantitative\b.*\b(?:result|artifact)", lower):
+            assert "do not" in lower or "unavailable" in lower

@@ -674,12 +674,21 @@ def execute_executive(
             )
 
         try:
+            def validate_provider_draft(raw: dict) -> None:
+                draft = ExecutiveAgentDraft.model_validate(raw)
+                try:
+                    finalize_executive_draft(request, candidate_contexts, draft)
+                except (ExecutiveDraftSemanticError, ExecutiveExecutionError, ValidationError) as exc:
+                    from shortcutminer.tooling.agent_loop import ProviderContractValidationError
+                    raise ProviderContractValidationError("executive_context_invalid") from exc
+
             invocation = invoke_agent_with_tools(
                 client,
                 "executive",
                 payload,
                 system_prompt=system_prompt,
                 tool_runtime=tool_runtime,
+                provider_contract_validator=validate_provider_draft,
             )
             raw_output = invocation.output
         except Exception as exc:

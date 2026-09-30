@@ -488,7 +488,7 @@ def build_default_tool_registry(
         DatasetInspectionInput,
         DatasetInspectionOutput,
         _inspect_dataset,
-        {"identify", "quantitative", "qualitative"},
+        {"identify"},
     )
     add(
         "inspect_metadata",
@@ -496,7 +496,7 @@ def build_default_tool_registry(
         MetadataInspectionInput,
         MetadataInspectionOutput,
         _inspect_metadata,
-        {"identify", "quantitative", "qualitative"},
+        {"identify"},
     )
     add(
         "select_samples",
@@ -504,7 +504,7 @@ def build_default_tool_registry(
         SampleSelectionInput,
         SampleSelectionOutput,
         _select_samples,
-        {"identify", "quantitative", "qualitative"},
+        {"identify"},
     )
     add(
         "get_column_distribution",
@@ -512,7 +512,7 @@ def build_default_tool_registry(
         ColumnDistributionInput,
         ColumnDistributionOutput,
         _column_distribution,
-        {"identify", "quantitative", "qualitative"},
+        {"identify"},
     )
     add(
         "read_artifact",
@@ -528,7 +528,7 @@ def build_default_tool_registry(
         SampleMetadataInput,
         SampleMetadataOutput,
         _inspect_sample_metadata,
-        {"identify", "quantitative", "qualitative"},
+        {"identify", "qualitative"},
     )
     add(
         "inspect_sample",
@@ -544,7 +544,7 @@ def build_default_tool_registry(
         TraceReadInput,
         TraceReadOutput,
         _read_trace,
-        {"executive", "quantitative", "qualitative", "summarize"},
+        {"executive", "summarize"},
     )
     add(
         "run_experiment",

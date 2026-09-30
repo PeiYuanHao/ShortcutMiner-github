@@ -32,7 +32,7 @@ def _valid_draft(request, context) -> dict:
         "evidence_status": "partially_supported",
         "evidence_summary": "The inspected samples contain mixed evidence.",
         "observations": [{
-            "sample_refs": [samples[0].sample_id],
+            "sample_ref": samples[0].sample_id,
             "observation": "A border is visible in this inspected sample.",
             "inspection_quality": "sufficient",
         }],
@@ -150,7 +150,7 @@ def test_invalid_raw_output_is_not_persisted_and_failure_is_logged(tmp_path: Pat
     request = _request(dataset_root)
     runs_root = tmp_path / "runs"
 
-    with pytest.raises(QualitativeExecutionError, match="invalid QualitativeAgentDraft"):
+    with pytest.raises(QualitativeExecutionError, match="required draft schema"):
         execute_qualitative(
             request,
             MockQualitativeClient({"invalid": "output"}),

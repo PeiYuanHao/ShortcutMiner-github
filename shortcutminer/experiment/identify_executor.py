@@ -11,7 +11,10 @@ from shortcutminer.experiment.identify_workspace import (
     load_identify_workspace_prompt,
 )
 from shortcutminer.protocol.identify import (
+    Candidate,
     CandidateReport,
+    DatasetInspectionSummary,
+    IdentifyAgentDraft,
     IdentifyRequest,
 )
 from shortcutminer.storage.events import append_event
@@ -20,10 +23,91 @@ from shortcutminer.storage.identify_artifacts import (
     save_identify_output,
     save_identify_raw_output,
 )
-from shortcutminer.tooling.agent_loop import invoke_agent_with_tools
+from shortcutminer.tooling.agent_loop import ProviderContractValidationError, invoke_agent_with_tools
 from shortcutminer.tooling.runtime import ToolRuntime
 class IdentifyExecutionError(RuntimeError):
     """Raised when Identify execution cannot produce a valid report."""
+
+
+def _public_metadata_fields(request: IdentifyRequest, context: IdentifyDiscoveryContext) -> set[str]:
+    columns = (context.metadata_profile or {}).get("columns", [])
+    names = {item.get("name") for item in columns if isinstance(item, dict)}
+    control = {request.task.label_column, "id", "sample_id", "path", "sample_path", "split"}
+    return {name for name in names if isinstance(name, str) and name not in control}
+
+
+def validate_identify_draft(
+    draft: IdentifyAgentDraft,
+    request: IdentifyRequest,
+    context: IdentifyDiscoveryContext,
+) -> None:
+    if len(draft.candidates) > request.budget.max_candidates:
+        raise ProviderContractValidationError("candidate_budget_exceeded", "candidates")
+    public_fields = _public_metadata_fields(request, context)
+    selectors = [item.metadata_field_ref for item in draft.candidates if item.metadata_field_ref is not None]
+    if len(selectors) != len(set(selectors)):
+        raise ProviderContractValidationError("duplicate_metadata_field_selector", "candidates")
+    visual = context.visual_discovery
+    has_samples = bool(visual is not None and visual.coverage.decoded_samples > 0)
+    has_stats = bool(has_samples and any(
+        item.descriptors is not None and bool(item.descriptors.values)
+        for item in visual.sample_observations
+    ))
+    for index, candidate in enumerate(draft.candidates):
+        sources = set(candidate.evidence_sources)
+        if "metadata" in sources and not context.metadata_available:
+            raise ProviderContractValidationError("metadata_unavailable", f"candidates.{index}.evidence_sources")
+        if "sample_inspection" in sources and not has_samples:
+            raise ProviderContractValidationError("sample_inspection_unavailable", f"candidates.{index}.evidence_sources")
+        if "image_statistics" in sources and not has_stats:
+            raise ProviderContractValidationError("image_statistics_unavailable", f"candidates.{index}.evidence_sources")
+        if candidate.metadata_field_ref is not None:
+            if candidate.metadata_field_ref not in public_fields:
+                raise ProviderContractValidationError("invalid_metadata_field_selector", f"candidates.{index}.metadata_field_ref")
+            if "metadata" not in sources:
+                raise ProviderContractValidationError("metadata_selector_without_source", f"candidates.{index}.metadata_field_ref")
+
+
+def finalize_identify_draft(
+    draft: IdentifyAgentDraft,
+    request: IdentifyRequest,
+    context: IdentifyDiscoveryContext,
+) -> CandidateReport:
+    validate_identify_draft(draft, request, context)
+    limitations = list(dict.fromkeys([
+        *context.limitations,
+        *draft.additional_limitations,
+        *(item for candidate in draft.candidates for item in candidate.additional_limitations),
+    ]))
+    report = CandidateReport(
+        protocol_version=request.protocol_version,
+        run_id=request.run_id,
+        message_id=f"{request.run_id}:identify:report",
+        source="identify",
+        target="executive",
+        message_type="candidate_report",
+        in_reply_to=request.message_id,
+        artifact_references=[],
+        dataset_summary=DatasetInspectionSummary(
+            dataset=request.dataset.name,
+            samples_inspected=context.samples_inspected,
+            metadata_used=any("metadata" in item.evidence_sources for item in draft.candidates),
+        ),
+        candidates=[Candidate(
+            candidate_id=f"C{index:03d}",
+            cue=item.cue,
+            metadata_field_ref=item.metadata_field_ref,
+            description=item.description,
+            observation=item.observation,
+            hypothesis=item.hypothesis,
+            evidence_sources=item.evidence_sources,
+            priority=item.priority,
+            status="unverified",
+        ) for index, item in enumerate(draft.candidates, 1)],
+        limitations=limitations,
+    )
+    validate_candidate_report(report, request, context)
+    return report
 
 
 def build_identify_agent_payload(
@@ -356,6 +440,9 @@ def execute_identify(
                 payload,
                 system_prompt=system_prompt,
                 tool_runtime=tool_runtime,
+                provider_contract_validator=lambda output: finalize_identify_draft(
+                    IdentifyAgentDraft.model_validate(output), request, context
+                ),
             )
             raw_output = invocation.output
 
@@ -369,29 +456,22 @@ def execute_identify(
                 "Identify agent returned a non-object response."
             )
 
-        if runs_root is not None:
-            save_identify_raw_output(
-                runs_root=runs_root,
-                run_id=request.run_id,
-                raw_output=raw_output,
-            )
-
         try:
-            report = CandidateReport.model_validate(
-                raw_output
-            )
+            draft = IdentifyAgentDraft.model_validate(raw_output)
+            report = finalize_identify_draft(draft, request, context)
 
         except ValidationError as exc:
             raise IdentifyExecutionError(
                 "Identify agent returned an invalid "
-                "CandidateReport."
+                "IdentifyAgentDraft."
             ) from exc
 
-        validate_candidate_report(
-            report=report,
-            request=request,
-            context=context,
-        )
+        if runs_root is not None:
+            save_identify_raw_output(
+                runs_root=runs_root,
+                run_id=request.run_id,
+                raw_output=draft.model_dump(mode="json"),
+            )
 
         if runs_root is not None:
             save_identify_output(

@@ -95,6 +95,62 @@ class ModelBudgetState:
         self.unknown_usage_seen = False
 
 
+class PilotInvocationBudgetState:
+    """Shared live pilot limits, including retries and submitted images."""
+
+    def __init__(self, *, max_text_calls: int, max_vlm_calls: int,
+                 max_vlm_images: int, max_text_per_run: int,
+                 max_vlm_per_run: int, max_vlm_images_per_run: int,
+                 max_tokens: int | None = None) -> None:
+        self.lock = Lock()
+        self.max_text_calls = max_text_calls
+        self.max_vlm_calls = max_vlm_calls
+        self.max_vlm_images = max_vlm_images
+        self.max_text_per_run = max_text_per_run
+        self.max_vlm_per_run = max_vlm_per_run
+        self.max_vlm_images_per_run = max_vlm_images_per_run
+        self.max_tokens = max_tokens
+        self.text_calls = 0
+        self.vlm_calls = 0
+        self.vlm_images = 0
+        self.by_run: dict[str, dict[str, int]] = {}
+        self.known_tokens = 0
+        self.usage_incomplete = False
+
+    def reserve(self, run_id: str, runtime_kind: str, images: int,
+                *, restore: bool = False) -> bool:
+        with self.lock:
+            counts = self.by_run.setdefault(run_id, {"text": 0, "vlm": 0, "images": 0})
+            if not restore and self.max_tokens is not None and (
+                self.usage_incomplete or self.known_tokens >= self.max_tokens
+            ):
+                return False
+            if runtime_kind == "semantic_vlm":
+                if (self.vlm_calls >= self.max_vlm_calls
+                    or counts["vlm"] >= self.max_vlm_per_run
+                    or self.vlm_images + images > self.max_vlm_images
+                    or counts["images"] + images > self.max_vlm_images_per_run):
+                    return False
+                self.vlm_calls += 1
+                self.vlm_images += images
+                counts["vlm"] += 1
+                counts["images"] += images
+            else:
+                if (self.text_calls >= self.max_text_calls
+                    or counts["text"] >= self.max_text_per_run):
+                    return False
+                self.text_calls += 1
+                counts["text"] += 1
+            return True
+
+    def observe_usage(self, usage: ModelUsage) -> None:
+        with self.lock:
+            if usage.available:
+                self.known_tokens += usage.total_tokens or 0
+            else:
+                self.usage_incomplete = True
+
+
 def canonical_json_hash(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(
@@ -416,6 +472,7 @@ class OpenAICompatibleClient:
         self._wall_clock = wall_clock or (lambda: datetime.now(timezone.utc))
         self._lock = Lock()
         self._budget_state = budget_state or ModelBudgetState()
+        self._pilot_budget_state: PilotInvocationBudgetState | None = None
         self.invocations: list[ModelInvocationRecord] = []
         self.runtime_snapshot = build_runtime_snapshot(config)
 
@@ -445,7 +502,8 @@ class OpenAICompatibleClient:
         )
         return value if isinstance(value, str) and value else "untracked-model-run"
 
-    def _reserve_call(self, agent_name: str) -> ModelFailure | None:
+    def _reserve_call(self, agent_name: str, *, run_id: str,
+                      runtime_kind: str, image_count: int) -> ModelFailure | None:
         state = self._budget_state
         with state.lock:
             budget = self.config.model_call_budget
@@ -461,12 +519,20 @@ class OpenAICompatibleClient:
                 )
             if (
                 budget.max_total_tokens is not None
-                and not state.unknown_usage_seen
-                and state.known_total_tokens >= budget.max_total_tokens
+                and (state.unknown_usage_seen
+                     or state.known_total_tokens >= budget.max_total_tokens)
             ):
                 return ModelFailure(
                     category="budget_exceeded",
                     message="Known model token budget was exhausted.",
+                    retryable=False,
+                )
+            if self._pilot_budget_state is not None and not self._pilot_budget_state.reserve(
+                run_id, runtime_kind, image_count
+            ):
+                return ModelFailure(
+                    category="budget_exceeded",
+                    message="Pilot live model budget was exhausted before provider invocation.",
                     retryable=False,
                 )
             state.calls_total += 1
@@ -558,11 +624,14 @@ class OpenAICompatibleClient:
         with self._lock:
             self.invocations.append(record)
         state = self._budget_state
-        with state.lock:
-            if usage.available:
-                state.known_total_tokens += usage.total_tokens or 0
-            else:
-                state.unknown_usage_seen = True
+        if status != "budget_exceeded":
+            with state.lock:
+                if usage.available:
+                    state.known_total_tokens += usage.total_tokens or 0
+                else:
+                    state.unknown_usage_seen = True
+        if self._pilot_budget_state is not None and status != "budget_exceeded":
+            self._pilot_budget_state.observe_usage(usage)
         if self._runs_root is not None:
             save_runtime_snapshot(self._runs_root, run_id, self.runtime_snapshot)
             record = save_model_invocation(
@@ -677,7 +746,12 @@ class OpenAICompatibleClient:
             ):
                 body["seed"] = self.config.model_seed
             request_digest = canonical_json_hash(body)
-            budget_failure = self._reserve_call(agent_name)
+            budget_failure = self._reserve_call(
+                agent_name,
+                run_id=run_id,
+                runtime_kind=runtime_kind,
+                image_count=len(image_inputs or []),
+            )
             started = self._wall_clock().isoformat()
             start_tick = self._monotonic()
             if budget_failure is not None:
@@ -942,6 +1016,11 @@ class OpenAICompatibleClient:
                 retryable=False,
             )
             raise ModelRuntimeError(failure.message, failure=failure)
+        submitted_images = sum(part.get("type") == "image_url" for part in content_parts)
+        if submitted_images != len(image_inputs or []):
+            raise ModelRuntimeError(
+                "Submitted image count differs from safe image telemetry."
+            )
         return self._invoke_structured(
             agent_name="semantic_visual",
             runtime_kind="semantic_vlm",

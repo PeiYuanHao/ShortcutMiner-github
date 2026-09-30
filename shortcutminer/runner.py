@@ -17,7 +17,7 @@ from shortcutminer.orchestrator import (
 from shortcutminer.protocol.run import RunExecutionResult, RunRequest
 from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.builtins import build_default_tool_registry
-from shortcutminer.tooling.runtime import ToolRuntime
+from shortcutminer.tooling.runtime import RunToolBudgetState, ToolBudget, ToolRuntime
 from shortcutminer.workflow.state import ShortcutMinerState
 
 
@@ -51,11 +51,18 @@ def build_local_tool_runtimes(
     runs_root: str | Path,
     approved_artifacts: set[str] | None = None,
     restore_persisted_task_results: bool = False,
+    max_tool_calls_per_run: int = 100,
+    max_tool_calls_per_task: int = 20,
 ) -> dict[AgentName, ToolRuntime]:
     """Create least-privilege local runtimes with the real CPU backend."""
     registry = build_default_tool_registry(
         experiment_executor=RealExperimentExecutor()
     )
+    persisted_count = 0
+    if restore_persisted_task_results:
+        tool_root = Path(runs_root) / run_id / "tools"
+        persisted_count = sum(1 for path in tool_root.glob("*/*.json") if path.is_file())
+    run_budget = RunToolBudgetState(max_tool_calls_per_run, used=persisted_count)
     return {
         agent: ToolRuntime(
             registry,
@@ -69,6 +76,8 @@ def build_local_tool_runtimes(
                 "intervention_inference",
             },
             restore_persisted_task_results=restore_persisted_task_results,
+            budget=ToolBudget(max_tool_calls=max_tool_calls_per_task),
+            run_budget_state=run_budget,
         )
         for agent in (
             "identify",

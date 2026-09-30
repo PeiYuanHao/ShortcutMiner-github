@@ -17,7 +17,7 @@ from shortcutminer.protocol.summarize import SummaryReport
 from shortcutminer.runner import run_workflow
 from shortcutminer.runtime.demo import DemoAgentClient
 from shortcutminer.tooling.base import StructuredTool
-from shortcutminer.tooling.builtins import build_default_tool_registry
+from shortcutminer.tooling.builtins import ExperimentToolInput, ExperimentToolOutput, build_default_tool_registry
 from shortcutminer.tooling.errors import (
     ToolBudgetExceeded,
     ToolInputValidationError,
@@ -95,28 +95,28 @@ def test_permission_matrix_is_least_privilege(registry):
         "get_column_distribution": {
             "identify": True,
             "executive": False,
-            "quantitative": True,
-            "qualitative": True,
+            "quantitative": False,
+            "qualitative": False,
             "summarize": False,
         },
         "inspect_dataset": {
             "identify": True,
             "executive": False,
-            "quantitative": True,
-            "qualitative": True,
+            "quantitative": False,
+            "qualitative": False,
             "summarize": False,
         },
         "inspect_metadata": {
             "identify": True,
             "executive": False,
-            "quantitative": True,
-            "qualitative": True,
+            "quantitative": False,
+            "qualitative": False,
             "summarize": False,
         },
         "inspect_sample_metadata": {
             "identify": True,
             "executive": False,
-            "quantitative": True,
+            "quantitative": False,
             "qualitative": True,
             "summarize": False,
         },
@@ -144,8 +144,8 @@ def test_permission_matrix_is_least_privilege(registry):
         "read_run_trace": {
             "identify": False,
             "executive": True,
-            "quantitative": True,
-            "qualitative": True,
+            "quantitative": False,
+            "qualitative": False,
             "summarize": True,
         },
         "run_experiment": {
@@ -158,8 +158,8 @@ def test_permission_matrix_is_least_privilege(registry):
         "select_samples": {
             "identify": True,
             "executive": False,
-            "quantitative": True,
-            "qualitative": True,
+            "quantitative": False,
+            "qualitative": False,
             "summarize": False,
         },
     }
@@ -461,6 +461,99 @@ def test_tool_exception_and_timeout_return_structured_failures(tmp_path: Path):
     assert timed_out.error.error_type == "ToolTimeoutError"
 
 
+def test_timed_out_experiment_cannot_publish_late_or_restore_authority(tmp_path: Path):
+    runs_root = tmp_path / "runs"
+    reference = "experiments/TASK-C001-QT/late.json"
+
+    def late_writer(_arguments, context):
+        sleep(0.12)
+        path = context.runs_root / context.run_id / reference
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"late":true}', encoding="utf-8")
+        return ExperimentToolOutput(
+            outcome="completed", metrics={"score": 1}, summary="late",
+            artifact_references=[reference], metadata={"backend": "slow_fixture"},
+        )
+
+    registry = ToolRegistry()
+    registry.register(StructuredTool(
+        "run_experiment", "Slow isolated experiment.", ExperimentToolInput,
+        ExperimentToolOutput, late_writer,
+    ), agents={"quantitative"})
+    parent = ToolRuntime(
+        registry, run_id="tool_test_run", agent_name="quantitative",
+        runs_root=runs_root,
+        budget=ToolBudget(max_tool_calls=2, timeout_seconds=0.01),
+        restore_persisted_task_results=True,
+    )
+    runtime = parent.fork_for_task(
+        candidate_id="C001", task_id="TASK-C001-QT",
+        runtime_constraints=[], requested_checks=["association_test"],
+        explicitly_authorized_artifacts=[],
+    )
+    call = ToolCall(
+        tool_call_id="TC-slow", tool_name="run_experiment",
+        agent_name="quantitative", run_id="tool_test_run",
+        candidate_id="C001", task_id="TASK-C001-QT",
+        plan_step_id="STEP-slow", planning_check="association_test",
+        experiment_type="statistical_check",
+        arguments={"candidate_id": "C001", "task_id": "TASK-C001-QT",
+                   "experiment_type": "statistical_check"},
+    )
+    result = runtime.execute(call)
+    assert result.status == "failed"
+    assert result.error.error_type == "ToolTimeoutError"
+    sleep(0.2)
+    assert not (runs_root / "tool_test_run" / reference).exists()
+    assert reference not in runtime.context.approved_artifacts
+    restored = parent.fork_for_task(
+        candidate_id="C001", task_id="TASK-C001-QT",
+        runtime_constraints=[], requested_checks=["association_test"],
+        explicitly_authorized_artifacts=[],
+    )
+    assert len(restored.history) == 1
+    assert restored.history[0].status == "failed"
+    assert reference not in restored.context.approved_artifacts
+
+
+def test_experiment_cannot_claim_an_artifact_it_did_not_write(tmp_path: Path):
+    reference = "experiments/TASK-C001-QT/invented.json"
+
+    def forged_output(_arguments, _context):
+        return ExperimentToolOutput(
+            outcome="completed", metrics={"score": 1}, summary="claimed",
+            artifact_references=[reference], metadata={"backend": "fixture"},
+        )
+
+    registry = ToolRegistry()
+    registry.register(StructuredTool(
+        "run_experiment", "Fixture experiment.", ExperimentToolInput,
+        ExperimentToolOutput, forged_output,
+    ), agents={"quantitative"})
+    runtime = ToolRuntime(
+        registry, run_id="tool_test_run", agent_name="quantitative",
+        runs_root=tmp_path / "runs",
+        budget=ToolBudget(max_tool_calls=1, timeout_seconds=1),
+    ).fork_for_task(
+        candidate_id="C001", task_id="TASK-C001-QT",
+        runtime_constraints=[], requested_checks=["association_test"],
+        explicitly_authorized_artifacts=[],
+    )
+    result = runtime.execute(ToolCall(
+        tool_call_id="TC-invented", tool_name="run_experiment",
+        agent_name="quantitative", run_id="tool_test_run",
+        candidate_id="C001", task_id="TASK-C001-QT",
+        plan_step_id="STEP-invented", planning_check="association_test",
+        experiment_type="statistical_check",
+        arguments={"candidate_id": "C001", "task_id": "TASK-C001-QT",
+                   "experiment_type": "statistical_check"},
+    ))
+    assert result.status == "failed"
+    assert reference not in result.artifacts
+    assert reference not in runtime.context.approved_artifacts
+    assert not (tmp_path / "runs" / "tool_test_run" / reference).exists()
+
+
 def test_invalid_tool_output_is_structured_and_budget_is_bounded(tmp_path: Path):
     def invalid_output(_arguments, _context):
         return {"value": "not-an-integer"}
@@ -559,11 +652,14 @@ class ToolCallingDemoClient(DemoAgentClient):
                     },
                 }
             elif agent_name == "qualitative":
+                sample = next((item for item in payload["evidence_context"]["selected_samples"] if item["sample_reference"] is not None), None)
+                if sample is None:
+                    return self._qualitative(payload)
                 call = {
                     "name": "inspect_sample_metadata",
                     "arguments": {
-                        "sample_id": "S1",
-                        "sample_reference": "images/one.png",
+                        "sample_id": sample["sample_id"],
+                        "sample_reference": sample["sample_reference"],
                     },
                 }
             else:
@@ -628,12 +724,9 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
     ]
     assert all(item.status == "success" for item in experiment_results)
     assert summary.payload.findings[0].candidate_id == "C001"
-    assert all(
-        runtime.history
-        for name, runtime in runtimes.items()
-        if name != "quantitative"
-    )
+    assert all(runtime.history for name, runtime in runtimes.items() if name in {"identify", "executive", "summarize"})
     assert runtimes["quantitative"].history == []
+    assert runtimes["qualitative"].history == []
     assert [result.tool_name for result in runtimes["identify"].history] == [
         "inspect_dataset",
         "inspect_metadata",
@@ -642,7 +735,7 @@ def test_five_agent_tool_loop_permissions_checkpoint_and_schema_regression(
     assert runtimes["identify"].history[0].candidate_id is None
     assert runtimes["executive"].history[0].task_id is None
     assert experiment_results[0].task_id == "TASK-C001-QT"
-    assert runtimes["qualitative"].history[0].task_id == "TASK-C001-QL"
+    assert runtimes["qualitative"].context.approved_samples == frozenset({"images/one.png"})
     assert runtimes["summarize"].history[0].candidate_id is None
 
     database = checkpoint_path(runs_root, state["run_id"])

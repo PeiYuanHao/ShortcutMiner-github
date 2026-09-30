@@ -7,6 +7,8 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    field_validator,
+    model_validator,
 )
 
 
@@ -177,6 +179,7 @@ class Candidate(StrictProtocolModel):
     candidate_id: CandidateId
 
     cue: Cue
+    metadata_field_ref: NonEmptyText | None = None
 
     description: NonEmptyText
     observation: NonEmptyText
@@ -186,6 +189,50 @@ class Candidate(StrictProtocolModel):
 
     priority: CandidatePriority
     status: CandidateStatus
+
+    @model_validator(mode="after")
+    def metadata_selector_requires_metadata_family(self):
+        if self.cue.family != "metadata" and self.metadata_field_ref is not None:
+            raise ValueError("non-metadata candidate cannot select a metadata field")
+        return self
+
+
+class IdentifyCandidateDraft(StrictProtocolModel):
+    """Provider-owned scientific candidate without protocol bookkeeping."""
+
+    cue: Cue
+    description: NonEmptyText
+    observation: NonEmptyText
+    hypothesis: NonEmptyText
+    evidence_sources: list[EvidenceSource] = Field(min_length=1)
+    priority: CandidatePriority
+    metadata_field_ref: NonEmptyText | None = None
+    additional_limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def metadata_selector_requires_metadata_family(self):
+        if self.cue.family != "metadata" and self.metadata_field_ref is not None:
+            raise ValueError("non-metadata candidate cannot select a metadata field")
+        return self
+
+    @field_validator("evidence_sources", "additional_limitations")
+    @classmethod
+    def unique_lists(cls, values: list[str], info):
+        if len(values) != len(set(values)):
+            raise ValueError(f"{info.field_name} must not contain duplicates")
+        return values
+
+
+class IdentifyAgentDraft(StrictProtocolModel):
+    candidates: list[IdentifyCandidateDraft]
+    additional_limitations: list[NonEmptyText] = Field(default_factory=list)
+
+    @field_validator("additional_limitations")
+    @classmethod
+    def unique_limitations(cls, values: list[str]):
+        if len(values) != len(set(values)):
+            raise ValueError("additional_limitations must not contain duplicates")
+        return values
 
 
 class DatasetInspectionSummary(StrictProtocolModel):

@@ -35,7 +35,7 @@ class _Client:
         if inspected and inspected[0]["media_type"] != "tabular":
             observations = [
                 {
-                    "sample_refs": [inspected[0]["sample_id"]],
+                    "sample_ref": inspected[0]["sample_id"],
                     "observation": "The local descriptor artifact contains bounded sample facts.",
                     "inspection_quality": (
                         "sufficient"

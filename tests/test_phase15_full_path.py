@@ -41,6 +41,7 @@ class Phase15Reasoning:
                 "observation": "Public visual descriptors and semantic observations identify a top-left appearance difference.",
                 "hypothesis": "The task model may rely on the top-left pattern instead of the central shape.",
                 "evidence_sources": ["sample_inspection", "image_statistics"],
+                "metadata_field_ref": None,
             })
             return output
         if agent_name == "executive":
@@ -83,10 +84,8 @@ class Phase15Reasoning:
         return {
             "status": "completed",
             "analysis_type": "task_model_training_and_evaluation",
-            "evidence_level": "Q3",
             "evidence_direction": "mixed",
             "evidence_summary": "The frozen reference model was trained and evaluated; transformation-dependent work remains explicitly unmaterialized.",
-            "evidence_tool_call_ids": [item["tool_call_id"] for item in results],
             "additional_limitations": ["OOD and counterfactual steps require an explicit deterministic transformation specification."],
             "recommended_followup": ["Define a bounded transformation policy before intervention execution."],
         }
