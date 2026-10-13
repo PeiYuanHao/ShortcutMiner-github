@@ -6,7 +6,14 @@ from pydantic import ValidationError
 
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.experiment.executive_context import build_executive_request
+from shortcutminer.experiment.audit_capabilities import load_or_build_audit_capabilities
+from shortcutminer.protocol.audit import AuditRequest
 from shortcutminer.experiment.executive_executor import execute_executive
+from shortcutminer.experiment.executive_executor import finalize_executive_draft
+from shortcutminer.experiment.candidate_screening import load_or_screen_candidates, validate_screening_report
+from shortcutminer.protocol.screening import (
+    CandidateScreeningPolicy, CandidateScreeningReport, CandidateScreeningSignals,
+)
 from shortcutminer.experiment.identify_context import (
     IdentifyDiscoveryContext,
     build_identify_context_from_profile,
@@ -34,6 +41,7 @@ from shortcutminer.protocol.executive import (
     ExecutiveAuditOptions,
     ExecutiveCapabilities,
     ExecutiveRequest,
+    ExecutiveAgentDraft,
     RoutingPlan,
 )
 from shortcutminer.protocol.identify import (
@@ -50,6 +58,7 @@ from shortcutminer.storage.dataset_profiles import (
     load_dataset_profile,
     save_dataset_profile,
 )
+from shortcutminer.storage.events import append_event
 from shortcutminer.protocol.qualitative import QualitativePreparationOptions
 from shortcutminer.protocol.quantitative import (
     QuantitativeExecutionRequirement,
@@ -60,6 +69,7 @@ from shortcutminer.protocol.evidence import EvidenceLedger
 from shortcutminer.evaluation.evidence_ledger import EvidenceLedgerBuilder
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.state import ShortcutMinerState
+from shortcutminer.workflow.observability import lifecycle, observe_task
 
 
 class WorkflowNodeError(RuntimeError):
@@ -189,15 +199,18 @@ def identify_node(
     except ValidationError as exc:
         raise IdentifyNodeError(f"Invalid visual discovery options: {exc}") from exc
     visual_discovery = None
-    if profile.structure.modality in {"image", "mixed"} and visual_options.enabled:
-        visual_discovery = VisualDiscoveryProfiler().profile(
-            request,
-            profile,
-            seed=config["seed"],
-            options=visual_options,
-            runs_root=runs_root,
-            semantic_inspector=semantic_inspector,
-        )
+    visual_enabled = profile.structure.modality in {"image", "mixed"} and visual_options.enabled
+    observation_root = runs_root if state.get("metadata", {}).get("entrypoint") == "audit" else None
+    with lifecycle(observation_root, request.run_id, "visual_discovery", skipped=not visual_enabled):
+        if visual_enabled:
+            visual_discovery = VisualDiscoveryProfiler().profile(
+                request,
+                profile,
+                seed=config["seed"],
+                options=visual_options,
+                runs_root=runs_root,
+                semantic_inspector=semantic_inspector,
+            )
     context = build_identify_context_from_profile(
         request,
         seed=config["seed"],
@@ -212,6 +225,7 @@ def identify_node(
         workspace_dir=config.get("workspace_dir"),
         context=context,
         tool_runtime=tool_runtime,
+        research_policy=config.get('research_policy'),
     )
     output = {
         "identify_request": request.model_dump(mode="json"),
@@ -221,6 +235,70 @@ def identify_node(
         "stage_status": {"identify": "completed"},
     }
     return output
+
+
+def _screening_inputs(state):
+    config = state["identify_config"].get("candidate_screening", {})
+    if not isinstance(config, dict) or set(config) - {"policy", "signals"}:
+        raise WorkflowNodeError("Candidate screening accepts only policy and public initial signals")
+    return (CandidateScreeningPolicy.model_validate(config.get("policy", {})),
+            CandidateScreeningSignals.model_validate(config.get("signals", {})))
+
+
+def candidate_screening_node(state: ShortcutMinerState) -> dict[str, Any]:
+    report = CandidateReport.model_validate(state["identify_result"])
+    profile = DatasetProfile.model_validate(state["dataset_profile"])
+    policy, signals = _screening_inputs(state)
+    runs_root = _runs_root(state, state["identify_config"])
+    if runs_root is not None:
+        append_event(runs_root, report.run_id, "CANDIDATE_SCREENING_STARTED", stage="screening")
+    if state.get("screening_result") is not None:
+        screening = CandidateScreeningReport.model_validate(state["screening_result"])
+        validate_screening_report(screening, report, profile, policy, signals)
+    else:
+        screening = load_or_screen_candidates(report, profile, policy=policy, signals=signals, runs_root=runs_root)
+    if runs_root is not None:
+        append_event(runs_root, report.run_id, "CANDIDATE_SCREENING_COMPLETED", stage="screening",
+                     details={"generated": screening.candidates_generated, "promoted": screening.promoted,
+                              "screened_out": screening.screened_out, "input_hash": screening.input_hash})
+    return {"screening_result": screening.model_dump(mode="json"), "stage_status": {"screening": "completed"}}
+
+
+def audit_capabilities_node(
+    state: ShortcutMinerState, *, quantitative_tool_runtime: ToolRuntime | None = None,
+    qualitative_tool_runtime: ToolRuntime | None = None,
+) -> dict[str, Any]:
+    """A deterministic controller on the existing graph; legacy configurations pass through."""
+    if state.get("metadata", {}).get("entrypoint") != "audit":
+        return {}
+    report = CandidateReport.model_validate(state["identify_result"])
+    profile = DatasetProfile.model_validate(state["dataset_profile"])
+    screening = CandidateScreeningReport.model_validate(state["screening_result"])
+    policy, signals = _screening_inputs(state)
+    validate_screening_report(screening, report, profile, policy, signals)
+    promoted = {item.candidate_id for item in screening.results if item.decision == "promote"}
+    report = report.model_copy(update={"candidates": [item for item in report.candidates if item.candidate_id in promoted]})
+    context = load_or_build_audit_capabilities(
+        AuditRequest.model_validate(state["metadata"]["audit_request"]), profile, report,
+        quantitative_runtime=quantitative_tool_runtime, qualitative_runtime=qualitative_tool_runtime,
+        runs_root=_runs_root(state, state["identify_config"]), persisted=state.get("audit_capabilities"))
+    executive_config = _stage_config(state, "executive_config")
+    quantitative_config = _stage_config(state, "quantitative_config")
+    qualitative_config = _stage_config(state, "qualitative_config")
+    runs_root = _runs_root(state, state["identify_config"])
+    if runs_root is not None and "audit_capabilities" not in state:
+        append_event(runs_root, state["run_id"], "AUDIT_CAPABILITIES_BUILT", stage="capabilities",
+                     details={"input_hash": context.input_hash, "methods": context.capabilities.available_validation_methods})
+    return {"audit_capabilities": context.model_dump(mode="json"),
+            "executive_config": {**executive_config, "capabilities": context.capabilities.model_dump(mode="json"),
+                                 "limitations": list(dict.fromkeys([*executive_config.get("limitations", []),
+                                                                     *context.capabilities.limitations]))},
+            "quantitative_config": {**quantitative_config, "execution_resources": context.execution_resources},
+            "qualitative_config": {**qualitative_config, "preparation": {
+                **context.qualitative_preparation, **qualitative_config.get("preparation", {}),
+                **{k:v for k,v in context.qualitative_preparation.items()
+                   if k in {"sample_id_column", "sample_path_column", "split_column"}}}},
+            "stage_status": {"capabilities": "completed"}}
 
 
 def build_executive_request_from_state(
@@ -233,7 +311,17 @@ def build_executive_request_from_state(
             state["identify_context"]
         )
         identify_result = CandidateReport.model_validate(state["identify_result"])
+        if state.get("screening_result") is not None:
+            screening = CandidateScreeningReport.model_validate(state["screening_result"])
+            policy, signals = _screening_inputs(state)
+            validate_screening_report(screening, identify_result, DatasetProfile.model_validate(state["dataset_profile"]),
+                                      policy, signals)
+            promoted = {item.candidate_id for item in screening.results if item.decision == "promote"}
+            identify_result = identify_result.model_copy(update={"candidates": [
+                item for item in identify_result.candidates if item.candidate_id in promoted]})
         config = _stage_config(state, "executive_config")
+        if state.get("metadata", {}).get("entrypoint") == "audit" and "audit_capabilities" not in state:
+            raise ValueError("Audit Executive requires the deterministic capability builder")
         capability_value = dict(config.get("capabilities", {}))
         visual_options = _stage_config(state, "identify_config").get(
             "visual_discovery", {}
@@ -261,6 +349,8 @@ def build_executive_request_from_state(
             capabilities=ExecutiveCapabilities.model_validate(capability_value),
             artifact_references=config.get("artifact_references"),
             limitations=config.get("limitations"),
+            dataset_profile=(DatasetProfile.model_validate(state["audit_capabilities"]["dataset_profile"])
+                             if "audit_capabilities" in state else None),
         )
     except (KeyError, TypeError, ValidationError, ValueError) as exc:
         raise ExecutiveNodeError(
@@ -273,22 +363,36 @@ def executive_node(
     *,
     client: AgentClient | None,
     tool_runtime: ToolRuntime | None = None,
+    quantitative_tool_runtime: ToolRuntime | None = None,
+    qualitative_tool_runtime: ToolRuntime | None = None,
 ) -> dict[str, Any]:
     """Invoke Executive with validated Identify state."""
-    runtime = _require_client(client, "Executive", ExecutiveNodeError)
+    # Older checkpoints may resume directly at Executive, without the new gate state.
+    gate_state = candidate_screening_node(state) if "screening_result" not in state else {}
+    state = {**state, **gate_state}
+    capability_state = audit_capabilities_node(state, quantitative_tool_runtime=quantitative_tool_runtime,
+                                              qualitative_tool_runtime=qualitative_tool_runtime)
+    state = {**state, **capability_state}
     request = build_executive_request_from_state(state)
     config = _stage_config(state, "executive_config")
-    plan = execute_executive(
-        request=request,
-        client=runtime,
-        runs_root=_runs_root(state, config),
-        workspace_dir=config.get("workspace_dir"),
-        tool_runtime=tool_runtime,
-    )
+    if not request.candidate_report.candidates:
+        plan = finalize_executive_draft(request, [], ExecutiveAgentDraft(decisions=[]))
+    else:
+        runtime = _require_client(client, "Executive", ExecutiveNodeError)
+        plan = execute_executive(
+            request=request,
+            client=runtime,
+            runs_root=_runs_root(state, config),
+            workspace_dir=config.get("workspace_dir"),
+            tool_runtime=tool_runtime,
+        )
     return {
+        **gate_state,
+        **capability_state,
         "executive_request": request.model_dump(mode="json"),
         "executive_result": plan.model_dump(mode="json"),
-        "stage_status": {"executive": "completed"},
+        "stage_status": {**gate_state.get("stage_status", {}),
+                         **capability_state.get("stage_status", {}), "executive": "completed"},
     }
 
 
@@ -330,6 +434,8 @@ def quantitative_node(
     *,
     client: AgentClient | None,
     tool_runtime: ToolRuntime | None = None,
+    validation_phase: str | None = None,
+    selected_task_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Execute every planned task in the quantitative branch."""
     runtime = _require_client(client, "Quantitative", QuantitativeNodeError)
@@ -345,6 +451,11 @@ def quantitative_node(
     for task in plan.tasks:
         if task.target != "quantitative":
             continue
+        if selected_task_ids is not None and task.task_id not in selected_task_ids:
+            continue
+        if validation_phase == "stage2":
+            from shortcutminer.workflow.staged_validation import authorize_stage2
+            authorize_stage2(state, task.candidate_id)
         request = build_quantitative_request(
             executive_request=executive_request,
             routing_plan=plan,
@@ -362,16 +473,49 @@ def quantitative_node(
                 f"Missing validated execution requirement for {task.task_id}: {exc}"
             ) from exc
         task_tool_runtime = _quantitative_task_runtime(tool_runtime, request)
-        results.append(
-            execute_quantitative(
+        allowlist = None
+        if validation_phase == "stage1":
+            allowlist = frozenset(step["step_id"] for step in state.get("quantitative_experiment_plans", {}).get(task.task_id, {}).get("steps", [])
+                if state["validation_stage_plan"]["steps"][step["step_id"]] == "cheap_validation")
+            if state["validation_stage_plan"]["task_checks"][task.task_id]["expensive_validation"]:
+                request = request.model_copy(update={"limitations": list(dict.fromkeys([*request.limitations, "stage1_scope_excludes_expensive_validation"]))})
+        if validation_phase is not None:
+            from shortcutminer.workflow.staged_validation import guard_runtime
+            guard_runtime(task_tool_runtime, phase=validation_phase, step_ids=allowlist)
+            if validation_phase == "stage2" and task_tool_runtime is not None:
+                # Reuse the exact task-local Stage-1 ToolResults; original budget
+                # counters remain shared. The full plan keeps original step IDs.
+                task_tool_runtime.restore_task_history()
+                expected_calls = {measurement["tool_call_id"] for result in state["stage1_quantitative_result"]["results"]
+                    if result["payload"]["task_id"] == task.task_id for measurement in result["payload"]["measurements"]}
+                if not expected_calls.issubset({item.tool_call_id for item in task_tool_runtime.history if item.status == "success"}):
+                    raise QuantitativeNodeError("Stage-1 tool provenance unavailable; refusing duplicate execution")
+        def execute_current_task():
+            if validation_phase == "stage1" and not allowlist:
+                from shortcutminer.experiment.quantitative_executor import finalize_quantitative_result
+                from shortcutminer.protocol.quantitative import QuantitativeAgentDraft
+                from shortcutminer.storage.stage_artifacts import save_stage_json
+                result = finalize_quantitative_result(QuantitativeAgentDraft(status="blocked", analysis_type="stage1_validation",
+                    evidence_direction="not_tested", evidence_summary="No executable cheap validation step was available.",
+                    additional_limitations=["stage1_cheap_validation_unavailable"], recommended_followup=[]), request)
+                save_stage_json(_runs_root(state, config), run_id=request.run_id, stage="quantitative", scope=task.task_id, filename="result.json", payload=result)
+                return result
+            arguments = {"plan_step_allowlist": allowlist} if validation_phase == "stage1" else {}
+            return observe_task(state, task, execute_quantitative,
                 request,
                 runtime,
                 runs_root=_runs_root(state, config),
                 workspace_dir=config.get("workspace_dir"),
                 tool_runtime=task_tool_runtime,
                 execution_requirement=requirement,
+                **arguments,
             )
-        )
+        if validation_phase == "stage1":
+            from shortcutminer.workflow.staged_validation import cached_stage1
+            from shortcutminer.protocol.quantitative import QuantitativeResult
+            results.append(cached_stage1(state, task, "quantitative", execute_current_task, QuantitativeResult))
+        else:
+            results.append(execute_current_task())
     batch = QuantitativeResultBatch(
         protocol_version=plan.protocol_version,
         run_id=plan.run_id,
@@ -509,6 +653,8 @@ def qualitative_node(
     *,
     client: AgentClient | None,
     tool_runtime: ToolRuntime | None = None,
+    validation_phase: str | None = None,
+    selected_task_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     """Execute every planned task in the qualitative branch."""
     runtime = _require_client(client, "Qualitative", QualitativeNodeError)
@@ -518,6 +664,11 @@ def qualitative_node(
     for task in plan.tasks:
         if task.target != "qualitative":
             continue
+        if selected_task_ids is not None and task.task_id not in selected_task_ids:
+            continue
+        if validation_phase == "stage2":
+            from shortcutminer.workflow.staged_validation import authorize_stage2
+            authorize_stage2(state, task.candidate_id)
         request = build_qualitative_request(
             executive_request=executive_request,
             routing_plan=plan,
@@ -526,6 +677,11 @@ def qualitative_node(
             preparation=_qualitative_preparation(state, task, config),
             limitations=config.get("limitations"),
         )
+        if validation_phase is not None:
+            checks = state["validation_stage_plan"]["task_checks"][task.task_id]["cheap_validation" if validation_phase == "stage1" else "expensive_validation"]
+            request = request.model_copy(update={"task": request.task.model_copy(update={"requested_checks": checks})})
+            if validation_phase == "stage2":
+                request = request.model_copy(update={"inspection_scope": "stage2"})
         task_tool_runtime = (
             tool_runtime.fork_for_task(
                 candidate_id=request.candidate.candidate_id,
@@ -535,8 +691,22 @@ def qualitative_node(
                 explicitly_authorized_artifacts=request.task.inputs.artifact_references,
             ) if tool_runtime is not None else None
         )
-        results.append(
-            execute_qualitative(
+        def execute_current_task():
+            if validation_phase == "stage1" and not request.task.requested_checks:
+                from shortcutminer.protocol.qualitative import QualitativeResult, QualitativeResultPayload, QualitativeSampling
+                from shortcutminer.storage.qualitative_artifacts import save_qualitative_result
+                result = QualitativeResult(protocol_version="1.0", run_id=request.run_id,
+                    message_id=f"{request.run_id}:qualitative:{task.task_id}:result", source="qualitative", target="summarize",
+                    message_type="qualitative_analysis_result", in_reply_to=request.message_id,
+                    payload=QualitativeResultPayload(task_id=task.task_id, candidate_id=task.candidate_id,
+                        candidate_name=request.candidate.cue.name, hypothesis=task.hypothesis, evidence_status="insufficient_evidence",
+                        evidence_summary="No bounded cheap qualitative check was planned.",
+                        sampling=QualitativeSampling(strategy="random", seed=state["identify_config"]["seed"], groups={}, sample_count=0, sample_ids=[]),
+                        observations=[], comparisons=[], interpretations=[], counterevidence=[], metadata_evidence=[], failures=[],
+                        limitations=[*request.limitations, "stage1_cheap_validation_unavailable"], artifact_references=[], recommended_followup=[]))
+                save_qualitative_result(_runs_root(state, config), result, scope=task.task_id)
+                return result
+            return observe_task(state, task, execute_qualitative,
                 request,
                 runtime,
                 runs_root=_runs_root(state, config),
@@ -544,7 +714,12 @@ def qualitative_node(
                 artifact_scope=task.task_id,
                 tool_runtime=task_tool_runtime,
             )
-        )
+        if validation_phase == "stage1":
+            from shortcutminer.workflow.staged_validation import cached_stage1
+            from shortcutminer.protocol.qualitative import QualitativeResult
+            results.append(cached_stage1(state, task, "qualitative", execute_current_task, QualitativeResult))
+        else:
+            results.append(execute_current_task())
     batch = QualitativeResultBatch(
         protocol_version=plan.protocol_version,
         run_id=plan.run_id,
@@ -589,6 +764,8 @@ def build_summarize_request_from_state(
             quantitative_result=quantitative_result,
             qualitative_result=qualitative_result,
             evidence_ledger=evidence_ledger,
+            candidate_screening=CandidateScreeningReport.model_validate(state["screening_result"])
+                if state.get("screening_result") is not None else None,
         )
     except (KeyError, TypeError, ValidationError, ValueError) as exc:
         raise SummarizeNodeError(

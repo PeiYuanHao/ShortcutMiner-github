@@ -8,6 +8,7 @@ from shortcutminer.experiment.agent_workspace import (
     default_agent_workspace_dir,
     load_agent_workspace_prompt,
 )
+from shortcutminer.runtime.identify_output_contract import identify_output_contract
 
 
 IDENTIFY_WORKSPACE_FILES = WORKSPACE_FILES
@@ -27,6 +28,7 @@ def load_identify_workspace_prompt(
 ) -> str:
     """Load all Identify workspace documents in their established order."""
     try:
-        return load_agent_workspace_prompt("identify", workspace_dir)
+        workspace = load_agent_workspace_prompt("identify", workspace_dir)
+        return workspace + "\n\n" + identify_output_contract()
     except AgentWorkspaceError as exc:
         raise IdentifyWorkspaceError(str(exc)) from exc

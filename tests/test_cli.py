@@ -16,6 +16,48 @@ def test_cli_help(capsys):
     assert "resume" in capsys.readouterr().out
 
 
+def test_cli_audit_dataset_only_uses_existing_runner(tmp_path, monkeypatch, capsys):
+    from test_audit_entry import audit_client
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    (dataset / "metadata.csv").write_text("id,label\n1,0\n2,1\n", encoding="utf-8")
+    model = tmp_path / "model.json"
+    model.write_text(json.dumps({"model": "offline-test", "base_url": "https://example.test/v1",
+                                 "api_key_env": "SHORTCUTMINER_TEST_KEY"}), encoding="utf-8")
+    monkeypatch.setenv("SHORTCUTMINER_MODEL_CONFIG", str(model))
+    client = audit_client()
+    monkeypatch.setattr(cli, "OpenAICompatibleClient", lambda *args, **kwargs: client)
+    assert cli.main(["audit", str(dataset), "--runs-root", str(tmp_path / "runs"),
+                     "--run-id", "cli-audit"]) == 0
+    output = json.loads(capsys.readouterr().out.splitlines()[-1])
+    saved = json.loads(Path(output["audit_request"]).read_text(encoding="utf-8"))
+    assert saved["dataset_info"]["label_source"]["column"] == "label"
+    assert Path(output["final_result"]).is_file()
+    assert [item["agent_name"] for item in client.calls] == ["identify", "executive", "summarize"]
+
+
+def test_cli_audit_missing_model_or_dataset_does_not_issue_calls(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv("SHORTCUTMINER_MODEL_CONFIG", raising=False)
+    def forbid(*args, **kwargs):
+        pytest.fail("Invalid audit must not construct a provider client")
+    monkeypatch.setattr(cli, "OpenAICompatibleClient", forbid)
+    root = tmp_path / "runs"
+    assert cli.main(["audit", str(tmp_path), "--runs-root", str(root)]) == 1
+    assert "SHORTCUTMINER_MODEL_CONFIG" in capsys.readouterr().err
+    assert not root.exists()
+    assert cli.main(["audit", str(tmp_path / "missing"), "--runs-root", str(root)]) == 1
+    assert "FileNotFoundError" in capsys.readouterr().err
+    assert not root.exists()
+
+
+def test_cli_audit_requires_position_and_rejects_conflicting_labels(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["audit"])
+    assert exc.value.code == 2
+    assert cli.main(["audit", str(tmp_path), "--label-column", "label",
+                     "--label-source", "class_directory"]) == 1
+
+
 def test_cli_mock_and_resume_in_new_client(tmp_path: Path, capsys):
     root = str(tmp_path / "runs")
     assert cli.main(["mock", "--run-id", "cli-failure", "--runs-root", root,

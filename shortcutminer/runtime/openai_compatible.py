@@ -84,6 +84,47 @@ class UrllibJsonTransport:
             ) from exc
 
 
+class UrllibStreamingJsonTransport:
+    """Assemble SSE deltas without accepting an interrupted partial response."""
+
+    def post_json(self, url, *, headers, body, timeout):
+        request = Request(url, data=json.dumps(body, allow_nan=False).encode('utf-8'),
+                          headers=dict(headers), method='POST')
+        choices = {}
+        envelope = {}
+        done = False
+        with urlopen(request, timeout=timeout) as response:
+            if 'text/event-stream' not in response.headers.get('Content-Type', ''):
+                return json.loads(response.read())
+            for line in response:
+                if not line.startswith(b'data:'):
+                    continue
+                data = line[5:].strip()
+                if data == b'[DONE]':
+                    done = True
+                    break
+                chunk = json.loads(data)
+                if chunk.get('error'):
+                    raise ProviderResponseJSONError('Streaming endpoint returned an error envelope')
+                for key in ('id', 'model', 'created', 'system_fingerprint', 'usage'):
+                    if chunk.get(key) is not None:
+                        envelope[key] = chunk[key]
+                for choice in chunk.get('choices', []):
+                    index = choice['index']
+                    item = choices.setdefault(index, {'index': index, 'message': {'role': 'assistant', 'content': ''}, 'finish_reason': None})
+                    delta = choice.get('delta', {})
+                    for field in ('content', 'reasoning_content', 'refusal'):
+                        if delta.get(field) is not None:
+                            item['message'][field] = item['message'].get(field, '') + delta[field]
+                    if delta.get('tool_calls'):
+                        raise ProviderResponseJSONError('Unexpected tool calls in structured streaming response')
+                    if choice.get('finish_reason') is not None:
+                        item['finish_reason'] = choice['finish_reason']
+        if not done or not choices or any(item['finish_reason'] is None for item in choices.values()):
+            raise ProviderResponseJSONError('Streaming response ended before completion')
+        return {**envelope, 'object': 'chat.completion', 'choices': [choices[i] for i in sorted(choices)]}
+
+
 class ModelBudgetState:
     """Run-scoped counters shared by clients with per-Agent configurations."""
 
@@ -368,6 +409,41 @@ def _safe_schema_diagnostics(exc: ValidationError) -> ModelSchemaDiagnostics:
     )
 
 
+_SAFE_CONTRACT_RULES = frozenset({
+    "candidate_budget_exceeded", "duplicate_metadata_field_selector",
+    "metadata_unavailable", "sample_inspection_unavailable", "image_statistics_unavailable",
+    "invalid_metadata_field_selector", "metadata_selector_without_source",
+    "executive_context_invalid", "quantitative_context_invalid",
+    "candidate_coverage_mismatch", "assessment_overclaim",
+    "unknown_sample_reference", "unavailable_sample_reference", "unauthorized_artifact_reference",
+    "comparison_single_group", "unknown_observation_index", "unknown_comparison_index",
+    "unauthorized_metadata_field",
+})
+
+
+def _safe_contract_diagnostics(exc: Exception) -> ModelSchemaDiagnostics | None:
+    """Record typed rule metadata, never exception messages or rejected values."""
+    # Lazy import avoids a runtime/tool-loop import cycle during initialization.
+    from shortcutminer.tooling.agent_loop import ProviderContractValidationError
+    if isinstance(exc, ProviderContractValidationError):
+        rule = (exc.category if isinstance(exc.category, str) and exc.category in _SAFE_CONTRACT_RULES
+                else "provider_contract_rejected")
+        path = exc.field_path or "<root>"
+        if not isinstance(path, str) or re.fullmatch(
+            r"(?:candidates|findings)(?:\.[0-9]{1,6})?(?:\.(?:metadata_field_ref|evidence_sources|assessment))?",
+            path,
+        ) is None:
+            path = "<root>" if not exc.field_path else "<field>"
+    elif isinstance(exc, TypeError):
+        rule, path = "validator_type_error", "<root>"
+    elif isinstance(exc, ValueError):
+        rule, path = "validator_value_error", "<root>"
+    else:
+        return None
+    return ModelSchemaDiagnostics(total_schema_issue_count=1,
+                                  issues=[ModelSchemaIssue(field_path=path, error_type=rule)])
+
+
 def _schema_correction(diagnostics: ModelSchemaDiagnostics | None) -> str:
     if diagnostics is None or not diagnostics.issues:
         return _SCHEMA_CORRECTION
@@ -386,6 +462,24 @@ def _schema_correction(diagnostics: ModelSchemaDiagnostics | None) -> str:
         "Return exactly one valid JSON object.",
     ])
     return "\n".join(lines)
+
+
+def _agent_schema_correction(agent_name: str, diagnostics: ModelSchemaDiagnostics | None) -> str:
+    correction = _schema_correction(diagnostics)
+    if agent_name == "qualitative":
+        correction += ("\nEvery counterevidence and metadata_evidence item must cite at least one actual "
+            "selected sample ID. General caveats without a sample belong in additional_limitations. "
+            "Preserve genuine counterevidence. Do not invent sample references or change scientific "
+            "interpretation to satisfy the protocol. Comparisons require different authoritative groups.")
+    if agent_name == "identify":
+        from shortcutminer.runtime.identify_output_contract import identify_output_contract
+        correction += (
+            "\n\nCorrect only protocol conformance.\n"
+            "Do not change the scientific interpretation merely to satisfy validation.\n"
+            "Follow the authoritative Identify contract in the original system message and repeated below.\n"
+            + identify_output_contract()
+        )
+    return correction
 
 
 def _http_failure(status: int) -> ModelFailure:
@@ -660,6 +754,8 @@ class OpenAICompatibleClient:
                     "invocation_id": record.invocation_id,
                     "status": record.status,
                     "retryable": record.retryable,
+                    **({"schema_diagnostics": schema_diagnostics.model_dump(mode="json")}
+                       if schema_diagnostics is not None else {}),
                 },
             )
         return record
@@ -726,7 +822,7 @@ class OpenAICompatibleClient:
             if schema_retries:
                 attempt_messages.append({
                     "role": "user",
-                    "content": _schema_correction(previous_schema_diagnostics),
+                    "content": _agent_schema_correction(agent_name, previous_schema_diagnostics),
                 })
             body: dict[str, Any] = {
                 "model": self.config.model,
@@ -734,10 +830,15 @@ class OpenAICompatibleClient:
                 "temperature": self.config.temperature,
                 "max_tokens": self.config.max_tokens,
             }
+            if isinstance(self._transport, UrllibStreamingJsonTransport):
+                body.update(stream=True, stream_options={"include_usage": True})
             if self.config.capabilities.supports_json_object:
                 body["response_format"] = {"type": "json_object"}
             if self.config.reasoning is not None:
-                body["thinking"] = {"type": self.config.reasoning.mode}
+                if self.config.reasoning.wire_format == "enable_thinking":
+                    body["enable_thinking"] = self.config.reasoning.mode == "enabled"
+                else:
+                    body["thinking"] = {"type": self.config.reasoning.mode}
                 if self.config.reasoning.effort is not None:
                     body["reasoning_effort"] = self.config.reasoning.effort
             if (
@@ -846,18 +947,22 @@ class OpenAICompatibleClient:
                 if validator is not None:
                     validator(result)
             except (ModelRuntimeError, ValidationError, ValueError, TypeError) as exc:
-                schema_diagnostics = (
+                pydantic_diagnostics = (
                     _safe_schema_diagnostics(exc)
                     if isinstance(exc, ValidationError) else None
                 )
+                schema_diagnostics = (pydantic_diagnostics if pydantic_diagnostics is not None
+                                      else _safe_contract_diagnostics(exc))
                 if isinstance(exc, ModelRuntimeError) and exc.failure is not None:
                     failure = exc.failure
                 else:
+                    message = "Model JSON did not satisfy the required protocol schema."
+                    if pydantic_diagnostics is None and schema_diagnostics is not None:
+                        issue = schema_diagnostics.issues[0]
+                        message += f" Rule: {issue.error_type}; field: {issue.field_path}."
                     failure = ModelFailure(
                         category="protocol_schema_failed",
-                        message=(
-                            "Model JSON did not satisfy the required protocol schema."
-                        ),
+                        message=message,
                         retryable=False,
                     )
                 can_schema_retry = (
@@ -891,7 +996,9 @@ class OpenAICompatibleClient:
                 )
                 if can_schema_retry:
                     schema_retries += 1
-                    previous_schema_diagnostics = schema_diagnostics
+                    # New contract diagnostics are observability only: preserve the
+                    # existing retry prompt, budgets, and scientific validation.
+                    previous_schema_diagnostics = schema_diagnostics if agent_name == "identify" else pydantic_diagnostics
                     if self._runs_root is not None:
                         append_event(
                             self._runs_root,
@@ -1008,6 +1115,7 @@ class OpenAICompatibleClient:
         content_parts: list[dict[str, Any]],
         validator: Callable[[dict[str, Any]], None],
         image_inputs: list[ModelImageInput] | None = None,
+        agent_name: str = "semantic_visual",
     ) -> dict[str, Any]:
         if not self.config.capabilities.supports_image_input:
             failure = ModelFailure(
@@ -1022,7 +1130,7 @@ class OpenAICompatibleClient:
                 "Submitted image count differs from safe image telemetry."
             )
         return self._invoke_structured(
-            agent_name="semantic_visual",
+            agent_name=agent_name,
             runtime_kind="semantic_vlm",
             run_id=run_id,
             payload_for_hash=payload_for_hash,

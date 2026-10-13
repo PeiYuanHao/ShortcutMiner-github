@@ -23,6 +23,11 @@ not visual evidence. Corrupt, unavailable, budget-limited, and unsupported sampl
 must remain visible as failures or limitations. Missing content is not negative
 scientific evidence, and insufficient evidence is not contradiction.
 
+When this invocation includes actual image attachments labeled with selected
+sample IDs, inspect those pixels directly in addition to the local descriptors.
+Semantic observations must reference those submitted samples and retain ambiguity.
+Attachments do not authorize unseen images or causal/model-reliance conclusions.
+
 The runtime catalogue is the authoritative permission boundary. ToolResult data may
 extend the explicit evidence supplied to this invocation. Descriptor differences
 are descriptive, indirect evidence—not causality, model reliance, or automatic
@@ -582,12 +587,12 @@ interpretations:
     supporting_comparison_indexes: []
     confidence: high | medium | low
 counterevidence:
-  - sample_refs: []
+  - sample_refs: [selected_sample_id]
     description:
 metadata_evidence:
   - field:
     observation:
-    sample_refs: []
+    sample_refs: [selected_sample_id]
 failures:
   - category: missing_samples | missing_metadata | invalid_artifact_reference | unsupported_file_format | insufficient_group_coverage | ambiguous_candidate_definition | inspection_failure | tool_failure
     description:
@@ -599,7 +604,11 @@ recommended_followup: []
 ```
 
 All list fields shown must be present and must be JSON arrays, using `[]` when no
-items apply. `sample_ids` may contain only inspected IDs from
+items apply. Each counterevidence or metadata_evidence item requires at least
+one actual selected sample reference. A general caveat with no sample belongs in
+additional_limitations, never in an evidence item with empty sample_refs. Keep
+genuine sample-based counterevidence; do not invent or suppress it to pass validation.
+`sample_ids` may contain only inspected IDs from
 `evidence_context.selected_samples`; all observation and counterevidence
 `sample_ref` must be one member of `sample_ids`; other evidence `sample_refs`
 must be subsets of `sample_ids`. Each observation names one inspected sample;
@@ -773,3 +782,8 @@ inspection artifact shares an input source and must not be described as fully
 independent corroboration. Do not create numeric confidence, risk, probability,
 or weighted shortcut scores, and never use descriptor differences as a magic
 shortcut threshold.
+
+
+## Construction visual review
+
+In `construction_visual_review` mode return only the supplied schema. Inspect actual original/changed training pairs, not just operation prose. Describe cue change, remaining task content, clipping, borders and uncertainty, citing only supplied pair IDs. Many changed pixels do not themselves mean destroyed semantics. Visual judgment cannot certify labels, causality or model dependence. Never inspect held-out/private data.

@@ -9,6 +9,8 @@ from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.tooling.protocol import AgentName
 from shortcutminer.tooling.runtime import ToolRuntime
 from shortcutminer.workflow.nodes import (
+    audit_capabilities_node,
+    candidate_screening_node,
     evidence_calibration_node,
     executive_node,
     feasibility_node,
@@ -18,6 +20,8 @@ from shortcutminer.workflow.nodes import (
     summarize_node,
 )
 from shortcutminer.workflow.state import ShortcutMinerState
+from shortcutminer.workflow.observability import observe_node
+from shortcutminer.workflow.staged_validation import stage_plan_node, stage1_node, promotion_node, stage2_node
 
 
 def create_workflow_graph(
@@ -43,7 +47,10 @@ def create_workflow_graph(
 
     graph = StateGraph(ShortcutMinerState)
 
-    graph.add_node(
+    def add_node(stage, function):
+        graph.add_node(stage, observe_node(stage, function))
+
+    add_node(
         "identify",
         partial(
             identify_node,
@@ -52,42 +59,53 @@ def create_workflow_graph(
             semantic_inspector=semantic_inspector,
         ),
     )
-    graph.add_node(
+    add_node(
         "executive",
         partial(
             executive_node,
             client=select_client(executive_client),
             tool_runtime=runtimes.get("executive"),
+            quantitative_tool_runtime=runtimes.get("quantitative"),
+            qualitative_tool_runtime=runtimes.get("qualitative"),
         ),
     )
-    graph.add_node(
+    add_node("screening", candidate_screening_node)
+    add_node("capabilities", partial(audit_capabilities_node,
+                   quantitative_tool_runtime=runtimes.get("quantitative"),
+                   qualitative_tool_runtime=runtimes.get("qualitative")))
+    add_node(
         "quantitative",
         partial(
-            quantitative_node,
+            stage1_node, function=quantitative_node,
             client=select_client(quantitative_client),
             tool_runtime=runtimes.get("quantitative"),
         ),
     )
-    graph.add_node(
+    add_node(
         "feasibility",
         partial(
             feasibility_node,
             quantitative_tool_runtime=runtimes.get("quantitative"),
         ),
     )
-    graph.add_node(
+    add_node(
         "qualitative",
         partial(
-            qualitative_node,
+            stage1_node, function=qualitative_node,
             client=select_client(qualitative_client),
             tool_runtime=runtimes.get("qualitative"),
         ),
     )
-    graph.add_node(
+    add_node(
         "evidence_calibration",
         evidence_calibration_node,
     )
-    graph.add_node(
+    add_node("validation_stage_plan", stage_plan_node)
+    add_node("evidence_promotion", promotion_node)
+    graph.add_node("stage2_validation", partial(stage2_node,
+        quantitative_client=select_client(quantitative_client), qualitative_client=select_client(qualitative_client),
+        quantitative_runtime=runtimes.get("quantitative"), qualitative_runtime=runtimes.get("qualitative")))
+    add_node(
         "summarize",
         partial(
             summarize_node,
@@ -97,11 +115,16 @@ def create_workflow_graph(
     )
 
     graph.add_edge(START, "identify")
-    graph.add_edge("identify", "executive")
+    graph.add_edge("identify", "screening")
+    graph.add_edge("screening", "capabilities")
+    graph.add_edge("capabilities", "executive")
     graph.add_edge("executive", "feasibility")
-    graph.add_edge("feasibility", "quantitative")
-    graph.add_edge("feasibility", "qualitative")
-    graph.add_edge(["quantitative", "qualitative"], "evidence_calibration")
+    graph.add_edge("feasibility", "validation_stage_plan")
+    graph.add_edge("validation_stage_plan", "quantitative")
+    graph.add_edge("validation_stage_plan", "qualitative")
+    graph.add_edge(["quantitative", "qualitative"], "evidence_promotion")
+    graph.add_edge("evidence_promotion", "stage2_validation")
+    graph.add_edge("stage2_validation", "evidence_calibration")
     graph.add_edge("evidence_calibration", "summarize")
     graph.add_edge("summarize", END)
 

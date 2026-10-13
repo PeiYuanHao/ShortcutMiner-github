@@ -1,0 +1,113 @@
+{
+  "catalog_version": "ood-memory-v2",
+  "recipes": [
+    {
+      "recipe_id": "foreground-red-green-swap-v1",
+      "angle": "foreground color",
+      "status": "executable",
+      "prerequisite": "canonical red/green foreground on black; nonzero digit intensity preserved",
+      "operation": {
+        "type": "global_color",
+        "mode": "swap_red_green"
+      },
+      "purpose": "Test response when foreground color is exchanged without changing digit intensity or shape."
+    },
+    {
+      "recipe_id": "foreground-color-remove-v1",
+      "angle": "foreground color",
+      "status": "executable",
+      "prerequisite": "canonical red/green foreground on black; nonzero digit intensity preserved",
+      "operation": {
+        "type": "global_color",
+        "mode": "grayscale_max"
+      },
+      "purpose": "Remove foreground chromatic information by copying maximum RGB intensity to all channels; retain digit shape and intensity."
+    },
+    {
+      "recipe_id": "saturated-background-channel-cycle-v1",
+      "angle": "background color",
+      "status": "executable",
+      "prerequisite": "one fully saturated channel and two identical grayscale channels per image; recovered min(RGB) intensity preserved",
+      "operation": {
+        "type": "global_color",
+        "mode": "cycle_rgb"
+      },
+      "purpose": "Cycle the saturated palette while preserving recovered grayscale content."
+    },
+    {
+      "recipe_id": "masked-background-neutralize-v1",
+      "angle": "natural background",
+      "status": "executable",
+      "purpose": "Agent chooses DINO/SAM/optional ViTMatte, binds a task foreground prompt, and neutralizes background. No oracle mask and no downloads; report mask failures and semantic uncertainty.",
+      "operation": {
+        "type": "background_replace",
+        "mode": "constant"
+      },
+      "prerequisite": "Caller-authorized hashed local foreground tools; Agent supplies foreground object prompt. Training-only mask preview and per-image coverage/protected pixel checks."
+    },
+    {
+      "recipe_id": "masked-foreground-color-transfer-v1",
+      "angle": "foreground color on natural images",
+      "status": "not_implemented",
+      "purpose": "Masked LAB/Reinhard color transfer with luminance and boundary controls, as described in the paper. Never substitute a whole-image channel swap."
+    },
+    {
+      "recipe_id": "localized-patch-remove-v1",
+      "angle": "local patch",
+      "status": "executable",
+      "operation": {
+        "type": "corner_patch",
+        "mode": "remove"
+      },
+      "prerequisite": "Training-only pixels verify exactly one constant corner block, shared size and RGB color. Preserve pixels outside corner regions.",
+      "purpose": "Neutralize the detected patch using constant gray 127; retain all pixels outside the patch. Original content underneath the patch is unavailable, so label preservation remains scoped and not a causal guarantee.",
+      "quality_warning": "Source-only fill can leave the original patch location visible. Strict memory construction-quality review rejects these legacy recipes; choose a matched-processing repair or defer."
+    },
+    {
+      "recipe_id": "localized-patch-randomize-v1",
+      "angle": "local patch position",
+      "status": "executable",
+      "operation": {
+        "type": "corner_patch",
+        "mode": "randomize_position"
+      },
+      "prerequisite": "Training-only pixels verify exactly one constant corner block, shared size and RGB color. Preserve pixels outside corner regions.",
+      "purpose": "Assign patch position using a frozen seed and protected-content hash, independent of labels; neutralize the original patch. Target can equal source. Preserve patch size/color and image center; log overwritten corner content limitation.",
+      "quality_warning": "Source-only fill can leave the original patch location visible. Strict memory construction-quality review rejects these legacy recipes; choose a matched-processing repair or defer."
+    },
+    {
+      "recipe_id": "texture-perturbation-v1",
+      "angle": "texture",
+      "status": "requires_binding",
+      "purpose": "Bounded texture/blur intervention with semantic preservation and processing controls; automatic catalog binding is not yet available."
+    },
+    {
+      "recipe_id": "encoding-quality-control-v1",
+      "angle": "compression and resolution",
+      "status": "requires_binding",
+      "purpose": "Matched re-encoding or resampling controls with explicit quality constraints; automatic catalog binding is not yet available."
+    },
+    {
+      "recipe_id": "localized-patch-canonical-remove-v2",
+      "angle": "local patch presence",
+      "status": "executable",
+      "operation": {
+        "type": "corner_patch",
+        "mode": "canonical_remove"
+      },
+      "prerequisite": "Verified unique constant corner patch. Replace all four corners on both sides, preserve outside pixels, require source-location independence.",
+      "purpose": "Matched anchor retains original red patch on a shared neutral four-corner substrate; intervention removes it. Report raw-to-anchor processing effects separately. No intact underlying corner content is available."
+    },
+    {
+      "recipe_id": "localized-patch-canonical-randomize-v2",
+      "angle": "local patch position",
+      "status": "executable",
+      "operation": {
+        "type": "corner_patch",
+        "mode": "canonical_randomize_position"
+      },
+      "prerequisite": "Verified unique constant corner patch. Neutralize all four corners before placing a patch; matched anchor retains original position.",
+      "purpose": "Counterfactual red patch position is assigned by frozen seed and protected-content hash, uniform across four positions independent of labels/source position. Target can equal source; finite sample balance is not guaranteed. Compare matched anchor versus counterfactual, separately disclose raw-to-anchor effects."
+    }
+  ]
+}

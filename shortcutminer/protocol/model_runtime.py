@@ -118,6 +118,7 @@ class ModelCapabilities(StrictProtocolModel):
 
 class ModelReasoningConfig(StrictProtocolModel):
     mode: Literal["enabled", "disabled"]
+    wire_format: Literal["thinking", "enable_thinking"] = "thinking"
     effort: Literal["low", "high", "max"] | None = None
 
     @model_validator(mode="after")

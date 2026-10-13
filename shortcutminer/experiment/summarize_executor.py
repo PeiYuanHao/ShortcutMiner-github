@@ -74,6 +74,7 @@ def finalize_summarize_draft(draft: SummarizeAgentDraft, request: SummarizeReque
             limitations=list(dict.fromkeys([*request.evidence_ledger.limitations, *draft.additional_limitations])),
             artifact_references=artifacts,
             evidence_ledger_reference=request.evidence_ledger.artifact_reference,
+            candidate_screening=request.candidate_screening,
         ),
     )
     validate_summary_report(report, request)
@@ -85,6 +86,16 @@ def build_summarize_agent_payload(request: SummarizeRequest) -> dict:
 
 
 def validate_summarize_request(request: SummarizeRequest) -> None:
+    if request.candidate_screening is not None:
+        screening = request.candidate_screening
+        ids = [item.candidate_id for item in request.identify_result.candidates]
+        if screening.run_id != request.run_id or [item.candidate_id for item in screening.results] != ids:
+            raise SummarizeExecutionError("Screening does not cover the original Identify candidates")
+        promoted = [item.candidate_id for item in screening.results if item.decision == "promote"]
+        if [item.candidate.candidate_id for item in request.executive_result.decisions] != promoted:
+            raise SummarizeExecutionError("Executive decisions must cover only promoted candidates")
+        if any(task.candidate_id not in promoted for task in request.executive_result.tasks):
+            raise SummarizeExecutionError("Screened-out candidates cannot own validation tasks")
     if request.in_reply_to != request.executive_result.message_id:
         raise SummarizeExecutionError(
             "SummarizeRequest in_reply_to does not match RoutingPlan."
@@ -279,6 +290,8 @@ def validate_summary_report(
             raise SummarizeExecutionError(
                 "SummaryReport evidence ledger reference does not match its request."
             )
+    if report.payload.candidate_screening != request.candidate_screening:
+        raise SummarizeExecutionError("Summary screening section differs from controller decisions")
 
 
 def execute_summarize(

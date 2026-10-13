@@ -16,12 +16,17 @@ from shortcutminer.intervention.protocol import (
     BlurTransform,
     CompressionTransform,
     FactorTransform,
+    LuminanceTransform,
+    RotationTransform,
+    FrequencyTransform,
     GlobalColorTransform,
     ImageInterventionSpec,
     InterventionQuality,
     ResolutionTransform,
     SpatialRelocateTransform,
     SpatialTransform,
+    CornerPatchTransform,
+    ProvidedPairTransform,
 )
 from shortcutminer.intervention.segmentation import SegmentationProvider
 
@@ -43,7 +48,7 @@ def _clip(array: np.ndarray) -> np.ndarray:
 
 
 def _box(spec, width: int, height: int) -> tuple[int, int, int, int]:
-    if getattr(spec, "region", None) == "custom":
+    if getattr(spec, "region", None) in {"custom", "custom_exterior"}:
         value = spec.custom_box
         assert value is not None
         return (
@@ -70,6 +75,8 @@ def _region_mask(spec: SpatialTransform, width: int, height: int) -> np.ndarray:
         return mask
     x0, y0, x1, y1 = _box(spec, width, height)
     mask[y0:y1, x0:x1] = True
+    if spec.region == 'custom_exterior':
+        mask = ~mask
     return mask
 
 
@@ -79,6 +86,8 @@ def _fill(array: np.ndarray, mask: np.ndarray, spec: SpatialTransform) -> np.nda
         output[mask] = np.asarray(spec.fill_color, dtype=np.uint8)
     elif spec.fill == "mean":
         output[mask] = np.rint(array.reshape(-1, 3).mean(axis=0)).astype(np.uint8)
+    elif spec.fill == 'color_complement':
+        output[mask] = 255 - array[mask]
     else:
         rng = np.random.default_rng(spec.seed)
         values = rng.normal(127.5, spec.noise_std, size=(int(mask.sum()), 3))
@@ -87,12 +96,44 @@ def _fill(array: np.ndarray, mask: np.ndarray, spec: SpatialTransform) -> np.nda
 
 
 def _transform_basic(array: np.ndarray, spec: ImageInterventionSpec) -> np.ndarray:
+    if isinstance(spec, CornerPatchTransform):
+        from shortcutminer.intervention.corner_patch import transform
+        return transform(array, spec)
     image = Image.fromarray(array, mode="RGB")
+    if isinstance(spec, LuminanceTransform):
+        channels = np.asarray(image.convert('YCbCr')).copy()
+        y = channels[:,:,0].astype(np.float64)
+        mean = float(y.mean())
+        desired = spec.target_mean if spec.mode == 'normalize_mean' else (
+            2 * spec.pivot_mean - mean if spec.mode == 'reflect_mean' else mean + spec.offset)
+        channels[:,:,0] = _clip(y + desired - mean)
+        return np.asarray(Image.frombytes('YCbCr', image.size, channels.tobytes()).convert('RGB'))
+    if isinstance(spec, RotationTransform):
+        height,width = array.shape[:2]
+        pad = max(height,width)
+        padded = np.pad(array, ((pad,pad),(pad,pad),(0,0)), mode='reflect')
+        rotated = Image.fromarray(padded).rotate(spec.angle_degrees, Image.Resampling.BICUBIC)
+        return np.asarray(rotated.crop((pad,pad,pad+width,pad+height)))
+    if isinstance(spec, FrequencyTransform):
+        height,width = array.shape[:2]
+        radius = np.hypot(np.fft.fftfreq(height)[:,None], np.fft.fftfreq(width)[None,:])
+        mask = radius <= spec.cutoff
+        if spec.mode == 'high_pass': mask = ~mask
+        spectrum = np.fft.fft2(array.astype(float), axes=(0,1))
+        filtered = np.fft.ifft2(spectrum * mask[:,:,None], axes=(0,1)).real
+        if spec.mode == 'high_pass': filtered += array.mean(axis=(0,1),keepdims=True)
+        return _clip(filtered)
     if isinstance(spec, GlobalColorTransform):
         if spec.mode == "channel_scale":
             return _clip(array.astype(np.float64) * np.asarray(spec.channel_scale))
         if spec.mode == "swap_red_blue":
             return array[:, :, [2, 1, 0]].copy()
+        if spec.mode == "swap_red_green":
+            return array[:, :, [1, 0, 2]].copy()
+        if spec.mode == "cycle_rgb":
+            return array[:, :, [2, 0, 1]].copy()
+        if spec.mode == "grayscale_max":
+            return np.repeat(array.max(axis=2, keepdims=True), 3, axis=2)
         if spec.mode == "grayscale":
             return np.asarray(image.convert("L").convert("RGB"), dtype=np.uint8)
         if spec.mode == "desaturate":
@@ -173,6 +214,7 @@ class InterventionEngine:
         transformation: ImageInterventionSpec,
         mask_path: Path | None = None,
         replacement_path: Path | None = None,
+        dataset_root: Path | None = None,
     ) -> InterventionQuality:
         decoded = load_rgb_image_file(
             source_path,
@@ -181,7 +223,10 @@ class InterventionEngine:
         )
         original = decoded.rgb
         mask = None
-        if isinstance(transformation, BackgroundReplaceTransform):
+        if isinstance(transformation, ProvidedPairTransform):
+            from shortcutminer.intervention.provided_pairs import resolve_pair
+            transformed, _ = resolve_pair(dataset_root, source_path, transformation)
+        elif isinstance(transformation, BackgroundReplaceTransform):
             if self.segmentation_provider is None or not self.segmentation_provider.available:
                 raise InterventionError("Background replacement requires available segmentation.")
             segmented = self.segmentation_provider.segment(

@@ -1,0 +1,44 @@
+{
+  "status": "proposal_not_approved_not_executable",
+  "dataset_root": "E:/ShortcutMiner-Experiments/waterbirds",
+  "metadata_file": "metadata.csv",
+  "metadata_sha256": "2f023b9dc371f6fbb82c7cb810ff0f03e19c54c8055a2e37517ae7bb56644362",
+  "mode": "metadata_assisted",
+  "addressing": {"sample_id_column": "img_id", "sample_path_column": "img_filename", "split_column": "split", "label_column": "y"},
+  "split_values": {"train": "0", "validation": "1", "test": "2"},
+  "discovery_partition": "train",
+  "excluded_scientific_fields": ["img_id", "img_filename", "split", "y", "place_filename"],
+  "promotion_proposal": {
+    "calibration_status": "pending_independent_development_calibration",
+    "minimum_samples": 200,
+    "metric_rules": [{"experiment_type": "statistical_check", "metric": "p_value", "operator": "le", "threshold": 0.01}],
+    "quantitative_rule": "any_rule_satisfied",
+    "qualitative_promotion_rule": "unavailable",
+    "missing_evidence_behavior": "deferred_insufficient_evidence",
+    "scope": "resource_routing_only_not_confirmation"
+  },
+  "model_proposal": {
+    "backend": "resnet_erm_cuda_not_yet_implemented",
+    "models": [
+      {"architecture": "resnet18", "initialization": "torchvision_ResNet18_Weights_IMAGENET1K_V1", "initial_weights_sha256": null},
+      {"architecture": "resnet50", "initialization": "torchvision_ResNet50_Weights_IMAGENET1K_V1", "initial_weights_sha256": null}
+    ],
+    "input_size": 224,
+    "optimizer": "SGD",
+    "momentum": 0.9,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "batch_size": 32,
+    "max_epochs": 100,
+    "checkpoint_selection": "validation_overall_accuracy",
+    "seeds": [42, 43, 44],
+    "seeds_per_model": 3,
+    "total_training_runs": 6
+  },
+  "qualitative_samples_per_task": 8,
+  "bootstrap_iterations": 1000,
+  "confidence_level": 0.95,
+  "background_intervention_assets": "not_available_not_verified",
+  "pending": ["owner_approval", "data_addressing_integration", "partition_isolation", "independent_gate_calibration", "model_backend_implementation", "intervention_assets_and_preservation_validation", "capacity_acceptance", "clean_manual_git_commit", "final_hash_freeze"],
+  "protocol_document": "docs/waterbirds-paper-validation-proposal.md"
+}

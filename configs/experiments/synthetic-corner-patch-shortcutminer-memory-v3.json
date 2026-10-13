@@ -1,0 +1,113 @@
+{
+  "text_model_config": "configs/models/pilot_text.example.yaml",
+  "vlm_model_config": "configs/models/pilot_vlm.example.yaml",
+  "promotion_policy": {
+    "policy_version": "budgeted-paired-probe-v2",
+    "calibration_status": "externally_frozen",
+    "strategy": "budgeted_paired_probe",
+    "max_probe_candidates": 3,
+    "metric_rules": []
+  },
+  "paper_protocol": {
+    "source_pdf": "D:/PeiYuan Hao/桌面/ShortcutMiner.pdf",
+    "source_pdf_sha256": "01627a8713da225f79f6a02356eedc2f18334d141e7fb3dec560edb88cab4b77",
+    "reference_pages": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "data_risk_heuristic": "Cramers V is used only for ordering feasible candidates; at most three paired probes per run. No hard V promotion threshold.",
+    "metadata_assisted": true,
+    "blind_discovery_claim": false,
+    "note": "Quantitative Agent selects and may repair an OOD tool after training-only construction quality feedback, before task model training. Canonical patch recipes require a matched all-corner anchor; raw-to-anchor processing effects are separate diagnostics. Frozen alpha, delta, checkpoints and model protocol are unchanged. A deferred pilot may receive descriptive independent test_ood evaluation without authorizing more training.",
+    "effect_reporting": "Continuous signed paired effects and uncertainty; no universal 30pp shortcut/no-shortcut boundary."
+  },
+  "execution_options": {
+    "sample_id_column": "img_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "model_metadata_file": "model_metadata.csv",
+    "train_split_values": [
+      "train"
+    ],
+    "validation_split_values": [
+      "val"
+    ],
+    "test_split_values": [
+      "id",
+      "test"
+    ],
+    "evaluation_split_values": [
+      "id"
+    ],
+    "model_backend": "torchvision_resnet_matrix",
+    "feature_version": "torchvision_rgb224_v1",
+    "training_options": {
+      "architectures": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "epochs": 100,
+      "minimum_epochs": 10,
+      "early_stopping_patience": 10,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "momentum": 0.9,
+      "weight_decay": 0.0001,
+      "workers": 4,
+      "torch_threads": 24,
+      "amp": true,
+      "checkpoint_interval": 5,
+      "augmentation": "spatial_preserving"
+    },
+    "association_variable_mode": "categorical_categorical",
+    "ood_specs": {
+      "patch_corner": {
+        "id_split_values": [
+          "id"
+        ],
+        "ood_split_values": [
+          "test"
+        ],
+        "pilot_diagnostics_when_deferred": true
+      }
+    },
+    "excluded_scientific_fields": [],
+    "background_ood_specs": {},
+    "adaptive_screening": {
+      "minimum_effect": 0.02,
+      "family_alpha": 0.05,
+      "candidate_budget": 3,
+      "pair_checkpoints": [
+        128,
+        256,
+        512
+      ],
+      "probe_fraction": 0.5,
+      "sensitivity_effects": [
+        0.01,
+        0.02,
+        0.05
+      ]
+    },
+    "ood_recipe_selection": {
+      "catalog_version": "ood-memory-v2",
+      "fields": [
+        "patch_corner"
+      ],
+      "max_quality_revisions": 2,
+      "construction_protocol": "quality-v2"
+    },
+    "max_intervention_samples": 2000
+  },
+  "dataset_root": "E:/datasets/synthetic_corner_patch",
+  "derived_dataset_root": "E:/ShortcutMiner-github/runs/synthetic-corner-patch-input-v1",
+  "dataset_format": "synthetic_corner_patch",
+  "dataset_description": "Four-class natural RGB image classification with observed y as target. Discovery receives training only and public metadata verified against pixels. Original training/validation/held-out ID/OOD partitions are isolated by protected image content. Quantitative must choose an eligible deterministic recipe from versioned memory using training-only facts and successful cheap evidence before training. Construction truth and expected verdicts are not supplied. Preserve labels, log image changes and disclose any unavailable pristine pixels."
+}

@@ -1,0 +1,106 @@
+{
+  "text_model_config": "configs/models/pilot_text.example.yaml",
+  "vlm_model_config": "configs/models/pilot_vlm.example.yaml",
+  "promotion_policy": {
+    "policy_version": "budgeted-paired-probe-v2",
+    "calibration_status": "externally_frozen",
+    "strategy": "budgeted_paired_probe",
+    "max_probe_candidates": 3,
+    "metric_rules": []
+  },
+  "paper_protocol": {
+    "source_pdf": "D:\\PeiYuan Hao\\妗岄潰\\ShortcutMiner.pdf",
+    "source_pdf_sha256": "01627a8713da225f79f6a02356eedc2f18334d141e7fb3dec560edb88cab4b77",
+    "reference_pages": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "data_risk_heuristic": "Cramers V is used only for ordering feasible candidates; at most three paired probes per run. No hard V promotion threshold.",
+    "metadata_assisted": true,
+    "blind_discovery_claim": false,
+    "note": "Adaptive v2: one validation-selected ResNet18 seed42 pilot, held-out paired screening with simultaneous bounds; expand to full frozen model matrix only on positive effect evidence. Stop/defer outcomes are not no-shortcut verdicts. Probe samples are excluded from final confirmation.",
+    "effect_reporting": "Continuous signed paired effects and uncertainty; no universal 30pp shortcut/no-shortcut boundary."
+  },
+  "execution_options": {
+    "sample_id_column": "img_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "model_metadata_file": "model_metadata.csv",
+    "train_split_values": [
+      "train"
+    ],
+    "validation_split_values": [
+      "val"
+    ],
+    "test_split_values": [
+      "id",
+      "test"
+    ],
+    "evaluation_split_values": [
+      "id"
+    ],
+    "model_backend": "torchvision_resnet_matrix",
+    "feature_version": "torchvision_rgb224_v1",
+    "training_options": {
+      "architectures": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "epochs": 100,
+      "minimum_epochs": 10,
+      "early_stopping_patience": 10,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "momentum": 0.9,
+      "weight_decay": 0.0001,
+      "workers": 4,
+      "torch_threads": 24,
+      "amp": true,
+      "checkpoint_interval": 5,
+      "augmentation": "digit_preserving"
+    },
+    "association_variable_mode": "categorical_categorical",
+    "ood_specs": {},
+    "excluded_scientific_fields": [],
+    "background_ood_specs": {},
+    "color_ood_specs": {
+      "color": {
+        "type": "global_color",
+        "mode": "cycle_rgb"
+      }
+    },
+    "adaptive_screening": {
+      "minimum_effect": 0.02,
+      "family_alpha": 0.05,
+      "candidate_budget": 3,
+      "pair_checkpoints": [
+        128,
+        256,
+        512
+      ],
+      "probe_fraction": 0.5,
+      "sensitivity_effects": [
+        0.01,
+        0.02,
+        0.05
+      ]
+    }
+  },
+  "dataset_root": "E:/小龙虾/colorized-MNIST-master",
+  "derived_dataset_root": "E:/ShortcutMiner-github/runs/colorized-mnist-shortcutminer-input-v1",
+  "expected_source_inventory_sha256": "5f4aa7201fce68cda1df5cb94d6c5ddd3068ddda58e8fd2a86818830909d8ef0",
+  "split_protocol": {
+    "seed": 42,
+    "id_fraction": 0.1,
+    "validation_fraction_of_remaining": 0.2,
+    "isolation": "grouped exact recovered digit intensity; exclude training content overlapping original test",
+    "original_test_role": "independent held-out test retained; paired color evaluation uses ID"
+  }
+}

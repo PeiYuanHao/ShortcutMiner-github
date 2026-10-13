@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator, model_serializer
 
 from shortcutminer.protocol.identify import (
     NonEmptyText,
@@ -22,7 +22,78 @@ TaskModelId = Annotated[
         pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
     ),
 ]
-TaskModelKind = Literal["reference_image_linear", "prediction_artifact", "external"]
+TaskModelKind = Literal["reference_image_linear", "prediction_artifact", "external", "torchvision_resnet_matrix"]
+
+
+class AdaptivePairedScreeningOptions(StrictProtocolModel):
+    """Caller-frozen budget decisions, never a shortcut verdict."""
+    minimum_effect: float = Field(gt=0, lt=1)
+    family_alpha: float = Field(gt=0, lt=1)
+    candidate_budget: int = Field(ge=1, le=100)
+    pair_checkpoints: list[int]
+    probe_fraction: float = Field(gt=0, le=0.75)
+    confidence_method: Literal["legacy-exact-v1", "paired-betting-cs-v1"] = "legacy-exact-v1"
+    sensitivity_effects: list[float]
+
+    @model_serializer(mode='wrap')
+    def preserve_legacy_serialization(self, handler):
+        result = handler(self)
+        if 'confidence_method' not in self.model_fields_set:
+            result.pop('confidence_method', None)
+        return result
+
+    @model_validator(mode='after')
+    def valid_schedule(self):
+        if self.confidence_method == 'legacy-exact-v1' and self.probe_fraction > .5:
+            raise ValueError('legacy probe fraction must not exceed 0.5')
+        if not self.pair_checkpoints or self.pair_checkpoints != sorted(set(self.pair_checkpoints)) or min(self.pair_checkpoints) < 2:
+            raise ValueError('pair checkpoints must be increasing positive counts')
+        if not self.sensitivity_effects or any(not 0 < x < 1 for x in self.sensitivity_effects):
+            raise ValueError('sensitivity effects must lie in (0,1)')
+        return self
+
+
+class TorchvisionTrainingOptions(StrictProtocolModel):
+    """Caller-frozen training template; providers cannot supply these fields."""
+    architectures: list[Literal["resnet18", "resnet50"]] = Field(default_factory=lambda: ["resnet18", "resnet50"])
+    seeds: list[int] = Field(default_factory=lambda: [42, 43, 44])
+    epochs: int = Field(default=100, ge=1, le=1000)
+    early_stopping_patience: int = Field(default=10, ge=1)
+    minimum_epochs: int = Field(default=10, ge=1)
+    batch_size: int = Field(default=32, ge=1, le=512)
+    learning_rate: float = Field(default=0.001, gt=0)
+    momentum: float = Field(default=0.9, ge=0, lt=1)
+    weight_decay: float = Field(default=0.0001, ge=0)
+    workers: int = Field(default=4, ge=0, le=32)
+    torch_threads: int = Field(default=24, ge=1, le=128)
+    amp: bool = True
+    checkpoint_interval: int = Field(default=5, ge=1)
+    augmentation: Literal['natural_image', 'digit_preserving', 'spatial_preserving'] = 'natural_image'
+
+    @model_validator(mode="after")
+    def frozen_profiles(self):
+        if not self.architectures or len(set(self.architectures)) != len(self.architectures):
+            raise ValueError("architectures must be nonempty and unique")
+        if not self.seeds or len(set(self.seeds)) != len(self.seeds):
+            raise ValueError("seeds must be nonempty and unique")
+        if self.minimum_epochs > self.epochs:
+            raise ValueError("minimum_epochs exceeds epochs")
+        return self
+
+
+class DatasetShiftSpec(StrictProtocolModel):
+    """Different held-out samples, explicitly independent rather than paired."""
+    id_split_values: list[NonEmptyText]
+    ood_split_values: list[NonEmptyText]
+    pilot_diagnostics_when_deferred: bool = False
+
+    @model_validator(mode="after")
+    def isolated(self):
+        if not self.id_split_values or not self.ood_split_values:
+            raise ValueError("ID and OOD splits must be explicit")
+        if set(self.id_split_values) & set(self.ood_split_values):
+            raise ValueError("ID and OOD splits overlap")
+        return self
 
 
 class TaskModelCapabilities(StrictProtocolModel):

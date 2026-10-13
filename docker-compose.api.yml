@@ -1,5 +1,0 @@
-services:
-  shortcutminer:
-    env_file:
-      - .env.phase16
-    network_mode: bridge

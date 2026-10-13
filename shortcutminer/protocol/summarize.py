@@ -10,6 +10,7 @@ from shortcutminer.protocol.batches import (
 )
 from shortcutminer.protocol.executive import RoutingPlan
 from shortcutminer.protocol.evidence import EvidenceLedger
+from shortcutminer.protocol.screening import CandidateScreeningReport
 from shortcutminer.protocol.identify import (
     CandidateId,
     CandidateReport,
@@ -49,6 +50,7 @@ class SummarizeRequest(StrictProtocolModel):
     quantitative_result: QuantitativeResultBatch
     qualitative_result: QualitativeResultBatch
     evidence_ledger: EvidenceLedger
+    candidate_screening: CandidateScreeningReport | None = None
 
 
 class SummaryFinding(StrictProtocolModel):
@@ -79,6 +81,7 @@ class SummaryReportPayload(StrictProtocolModel):
     limitations: list[NonEmptyText]
     artifact_references: list[SafeRelativePath]
     evidence_ledger_reference: SafeRelativePath | None = None
+    candidate_screening: CandidateScreeningReport | None = None
 
     @field_validator("limitations", "artifact_references")
     @classmethod

@@ -21,19 +21,15 @@ knowledge base, fine-tune a model, run an ablation, or compare providers.
 
 ## Workflow
 
-All real API commands run inside Docker with the explicit override. On Windows PowerShell, use
-this single-line prefix:
+Use the native Windows conda environment `shortcutminer` from the repository root.
+This historical development pilot is separate from formal E1–E5. Credentials for local
+runs are read at runtime from Git-ignored `.env.formal` by API CLI commands. The
+acceptance helper disables loading. Keep credentials out of
+configuration, source, logs, and command arguments. Presence-only inspection:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.api.yml run --rm shortcutminer
-```
-
-The override loads `.env.phase16` and enables bridge networking. The base Compose file does
-neither. Create `.env.phase16` locally from `.env.phase16.example`; never commit it. Check only
-credential presence before any provider call:
-
-```powershell
-docker compose -f docker-compose.yml -f docker-compose.api.yml run --rm shortcutminer python -m shortcutminer pilot credentials --config /config/experiments/real_blind_pilot.example.yaml
+conda activate shortcutminer
+python -m shortcutminer pilot credentials --config configs/experiments/real_blind_pilot.example.yaml
 ```
 
 The result contains only `SET` or `MISSING`; it never includes credential content, fragments,
@@ -158,11 +154,11 @@ performance.
 
 ## Credential security and limitations
 
-Put credentials only in the local Git-ignored `.env.phase16` file under the environment variable
+Put credentials only in the local Git-ignored `.env.formal` file under the environment variable
 names selected by `api_key_env`; do not paste them into configuration, prompts, CLI arguments, or
 shell history. The first configuration uses `SHORTCUTMINER_TEXT_API_KEY` and
-`SHORTCUTMINER_VLM_API_KEY`. Docker Compose injects them only when `docker-compose.api.yml` is
-explicitly selected. Pilot artifacts are local and ignored by Git.
+`SHORTCUTMINER_VLM_API_KEY`. The API CLI loads them into its process only while the command runs;
+no automatic credential loading occurs in acceptance. Pilot artifacts are local and ignored by Git.
 
 This small synthetic suite measures harness behavior and early discovery reliability. Future
 semantic backends may include local VLMs and retrieval-augmented domain knowledge, but those are

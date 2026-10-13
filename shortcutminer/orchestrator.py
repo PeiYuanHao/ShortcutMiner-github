@@ -6,6 +6,7 @@ from typing import Any
 from shortcutminer.agent_client import AgentClient
 from shortcutminer.inspection.semantic import SemanticVisualInspector
 from shortcutminer.experiment.dataset_profiler import build_dataset_profile
+from shortcutminer.experiment.audit_report import export_audit_report
 from shortcutminer.experiment.run_manager import initialize_run, transition_run
 from shortcutminer.protocol.dataset_profile import DatasetProfile
 from shortcutminer.protocol.identify import IdentifyBudget, IdentifyRequest
@@ -16,6 +17,7 @@ from shortcutminer.protocol.run import (
     RunRequest,
 )
 from shortcutminer.storage.events import append_event
+from shortcutminer.workflow.observability import lifecycle
 from shortcutminer.storage.dataset_profiles import save_dataset_profile
 from shortcutminer.storage.run_store import (
     load_final_result,
@@ -116,6 +118,8 @@ def _completed_result(
     run_id: str,
 ) -> RunExecutionResult:
     """Return an already completed run without re-invoking any graph node."""
+    if load_run_manifest(runs_root, run_id).metadata.get("entrypoint") == "audit":
+        export_audit_report(runs_root, run_id)
     return RunExecutionResult(
         run_id=run_id,
         status="COMPLETED",
@@ -173,6 +177,7 @@ def execute_workflow_state(
 
     config = checkpoint_config(run_id)
     workflow = None
+    audit_scientific_completion = False
     client_arguments = _client_arguments(
         agent_client=agent_client,
         identify_client=identify_client,
@@ -209,13 +214,24 @@ def execute_workflow_state(
                 "Completed workflow state does not contain final_result."
             )
         save_workflow_state(runs_root, run_id, result_state)
-        save_final_result(runs_root, run_id, final_result)
+        observation_root = runs_root if result_state.get("metadata", {}).get("entrypoint") == "audit" else None
+        with lifecycle(observation_root, run_id, "audit_report"):
+            save_final_result(runs_root, run_id, final_result)
+            if observation_root is not None:
+                _, manifest = transition_run(runs_root, run_id, status="COMPLETED")
+                audit_scientific_completion = True
+                export_audit_report(runs_root, run_id)
         append_event(runs_root, run_id, "RUN_COMPLETED", stage="run")
-        _, manifest = transition_run(
-            runs_root,
-            run_id,
-            status="COMPLETED",
-        )
+        if observation_root is None:
+            _, manifest = transition_run(runs_root, run_id, status="COMPLETED")
+        learning_policy=result_state.get('metadata',{}).get('knowledge_policy')
+        if learning_policy is not None:
+            # Post-run memory cannot change this run's evidence, report or graph.
+            try:
+                from shortcutminer.experiment.learned_shortcuts import learn_after_completion
+                learn_after_completion(result_state,identify_client or agent_client,runs_root,run_id,learning_policy)
+            except Exception as learning_error:
+                append_event(runs_root,run_id,'KNOWLEDGE_LEARNING_DEFERRED',stage='knowledge',details={'reason':type(learning_error).__name__})
         return RunExecutionResult(
             run_id=run_id,
             status="COMPLETED",
@@ -224,6 +240,10 @@ def execute_workflow_state(
             manifest=manifest,
         )
     except Exception as exc:
+        if audit_scientific_completion:
+            # Export failure must not undo durable scientific completion or
+            # cause a later resume to execute the graph again.
+            raise
         if workflow is not None and database_path.is_file():
             try:
                 with open_sqlite_checkpointer(database_path) as checkpointer:
@@ -284,7 +304,9 @@ def execute_run(
     if request.run_id is None:
         raise OrchestrationError("Formal RunRequest requires a generated run_id.")
     state = build_initial_workflow_state(request, request.run_id)
-    profile = build_dataset_profile_for_run(request, request.run_id)
+    observation_root = request.runs_root if request.metadata.get("entrypoint") == "audit" else None
+    with lifecycle(observation_root, request.run_id, "dataset_profiling"):
+        profile = build_dataset_profile_for_run(request, request.run_id)
     state["dataset_profile"] = profile.model_dump(mode="json")
     return execute_workflow_state(
         state,

@@ -24,6 +24,7 @@ from shortcutminer.intervention.protocol import (
     BackgroundReplaceTransform,
     CompressionTransform,
     CounterfactualPair,
+    CornerPatchTransform,
     InterventionFailure,
     InterventionManifest,
 )
@@ -108,7 +109,7 @@ def _base_rows(parameters, access) -> pd.DataFrame:
     if parameters.split_column:
         columns.append(parameters.split_column)
     transformation = getattr(parameters, "transformation", None)
-    if isinstance(transformation, BackgroundReplaceTransform):
+    if isinstance(transformation, BackgroundReplaceTransform) and transformation.mask_column is not None:
         columns.append(transformation.mask_column)
     _required_columns(frame, columns)
     rows = frame.dropna(subset=columns).copy()
@@ -127,6 +128,8 @@ def _filter_evaluation_rows(parameters, access, artifact=None) -> pd.DataFrame:
         try:
             payload = json.loads(access.run_file(parameters.model_reference).read_text(encoding="utf-8"))
             training_ids = set(str(value) for value in payload["training"]["train_sample_ids"])
+            reserved_ids = set(map(str, payload['training'].get('adaptive_probe_sample_ids', [])))
+            rows = rows[~rows[parameters.sample_id_column].isin(reserved_ids)]
         except Exception as exc:
             raise TaskModelError("Model artifact has no valid frozen training partition.") from exc
     if parameters.evaluation_partition == "training_manifest_test":
@@ -197,6 +200,9 @@ def _split_training_rows(parameters: TaskModelTrainingParameters, access):
 
 
 def task_model_training_backend(parameters: TaskModelTrainingParameters, access) -> ModelRelianceEvidence:
+    if parameters.model_backend == "torchvision_resnet_matrix":
+        from shortcutminer.experiment.torchvision_backend import train_matrix
+        return train_matrix(parameters, access)
     if parameters.model_backend not in TASK_MODEL_REGISTRY:
         raise TaskModelError("Task-model backend is not statically allowlisted.")
     train, validation, test, generated = _split_training_rows(parameters, access)
@@ -316,7 +322,10 @@ def task_model_training_backend(parameters: TaskModelTrainingParameters, access)
 
 def _load_model(parameters, access):
     model_path = access.run_file(parameters.model_reference)
-    return ReferenceImageLinearClassifier.load_safe_artifact(
+    backend = json.loads(model_path.read_text(encoding="utf-8")).get("backend")
+    if backend not in TASK_MODEL_REGISTRY:
+        raise TaskModelError("Task-model backend is not statically allowlisted")
+    return TASK_MODEL_REGISTRY[backend].load_safe_artifact(
         model_path, run_root=_run_root(access), expected_run_id=access.context.run_id
     )
 
@@ -382,7 +391,8 @@ def task_model_evaluation_backend(parameters: TaskModelEvaluationParameters, acc
             "model_id": artifact.model_id, "model_hash": artifact.model_hash,
         },
         summary="The safe task model was evaluated on the requested ID split; no shortcut verdict was inferred.",
-        details={"model_id": artifact.model_id, "model_hash": artifact.model_hash},
+        details={"model_id": artifact.model_id, "model_hash": artifact.model_hash,
+                 "execution_backend": artifact.backend_version},
         warnings=warnings, limitations=list(artifact.limitations),
         input_references=[parameters.model_reference, parameters.metadata_file],
         uncertainty=uncertainty, artifact_references=[reference],
@@ -391,16 +401,69 @@ def task_model_evaluation_backend(parameters: TaskModelEvaluationParameters, acc
 
 def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRelianceEvidence:
     model, artifact = _load_model(parameters, access)
+    probe = getattr(model, 'adaptive_report', None)
+    if probe is not None and probe['decision'] != 'expand_models':
+        reference = str(Path(parameters.model_reference).parent / 'adaptive_screening.json').replace('\\', '/')
+        if json.loads(access.run_file(reference).read_text(encoding='utf-8')) != probe:
+            raise TaskModelError('Adaptive probe artifact changed')
+        training = json.loads(access.run_file(parameters.model_reference).read_text(encoding='utf-8'))['training']
+        frozen = training['screening_transformation']
+        if frozen != parameters.transformation.model_dump(mode='json'):
+            raise TaskModelError('Adaptive probe cannot authorize another transformation')
+        for item in probe['pixel_evidence']:
+            if _file_hash(access.dataset_file(item['source_reference'])) != item['source_sha256']:
+                raise TaskModelError('Adaptive source image changed')
+            for prefix in (('changed', 'control', 'anchor') if probe.get('comparison_baseline')=='matched_all_corner_anchor' else ('changed', 'control')):
+                relative = (Path(reference).parent / item[prefix+'_reference']).as_posix()
+                path = (_run_root(access) / relative).resolve(strict=True)
+                path.relative_to(_run_root(access).resolve())
+                if _file_hash(path) != item[prefix+'_sha256']:
+                    raise TaskModelError('Adaptive probe image changed')
+        looks = probe['looks']
+        if not looks or probe['decision'].startswith('deferred_processing'):
+            return ModelRelianceEvidence(outcome='inconclusive', metrics={'adaptive_probe_decision':probe['decision']},
+                summary='Adaptive budget stopped without interpretable model-dependence evidence.',
+                details={'adaptive_screening':probe}, artifact_references=[reference], limitations=probe['limitations'])
+        last = looks[-1]
+        labels = np.asarray([str(value) for value in _base_rows(parameters, access).set_index(parameters.sample_id_column).loc[last['sample_ids'], parameters.label_column]])
+        original = np.asarray(last['predictions_original']); modified = np.asarray(last['predictions_intervention'])
+        score_diagnostics={}
+        snapshots=probe.get('inference_snapshots',[])
+        if snapshots:
+            snapshot=snapshots[-1]
+            if snapshot['sample_ids']!=last['sample_ids']:
+                raise TaskModelError('Paired score snapshot does not match probe samples')
+            from shortcutminer.experiment.prediction_diagnostics import paired_score_diagnostics
+            score_diagnostics=paired_score_diagnostics(snapshot['logits_original'],snapshot['logits_intervention'],labels,snapshot['classes'])
+        uncertainty = UncertaintyEstimate(metric='accuracy_drop', method=last['method'],
+            confidence_level=1-last['alpha_at_look'], lower=last['lower'], upper=last['upper'],
+            resampling_unit='counterfactual_pair', available=True)
+        return ModelRelianceEvidence(outcome='completed', metrics={'sample_count':last['sample_count'],
+            'pair_count':last['sample_count'], 'accuracy_drop':last['accuracy_drop'], 'evaluated_model_count':1,
+            'original_accuracy':float(np.mean(original==labels)), 'counterfactual_accuracy':float(np.mean(modified==labels)),
+            'prediction_flip_rate':float(np.mean(original!=modified)),
+            'adaptive_probe_decision':probe['decision'], 'final_confirmation_executed':False,**score_diagnostics},
+            summary='Bounded paired pilot evidence reused from the current authorized training dependency; further model/confirmation budget stopped.',
+            details={'comparison_mode':'paired', 'adaptive_screening':probe, 'model_hash':artifact.model_hash,
+                     'comparison_baseline':probe.get('comparison_baseline','raw_source')},
+            uncertainty=[uncertainty], artifact_references=[parameters.model_reference,reference],
+            limitations=[*probe['limitations'], 'Screening evidence only; independent final confirmation was not executed.',
+                'Paired score diagnostics are descriptive sensitivity, not probability-calibrated confidence or additional certification.'])
     selected = _filter_evaluation_rows(parameters, access, artifact).iloc[: parameters.max_intervention_samples].copy()
     root = _run_root(access)
     provider = ProvidedMaskSegmentationProvider() if isinstance(parameters.transformation, BackgroundReplaceTransform) else None
-    engine = InterventionEngine(segmentation_provider=provider)
+    local_foreground = isinstance(parameters.transformation, BackgroundReplaceTransform) and parameters.transformation.local_foreground is not None
+    canonical_patch = isinstance(parameters.transformation, CornerPatchTransform) and parameters.transformation.mode.startswith('canonical_')
+    if local_foreground:
+        from shortcutminer.intervention.local_foreground import LocalForegroundSegmentationProvider
+        provider = LocalForegroundSegmentationProvider(parameters.transformation.local_foreground)
+    engine = InterventionEngine(segmentation_provider=ProvidedMaskSegmentationProvider() if local_foreground else provider)
     input_identity = []
     for _, row in selected.iterrows():
         try:
             reference = _safe_reference(row[parameters.sample_path_column])
             input_identity.append((str(row[parameters.sample_id_column]), reference, _file_hash(access.dataset_file(reference))))
-            if isinstance(parameters.transformation, BackgroundReplaceTransform):
+            if isinstance(parameters.transformation, BackgroundReplaceTransform) and not local_foreground:
                 mask_reference = _safe_reference(row[parameters.transformation.mask_column])
                 input_identity.append((str(row[parameters.sample_id_column]) + ":mask", mask_reference, _file_hash(access.dataset_file(mask_reference))))
         except Exception:
@@ -416,6 +479,8 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
     original_paths: list[Path] = []
     modified_paths: list[Path] = []
     usable_rows: list[pd.Series] = []
+    segmentation_records = []
+    generated_mask_references = []
     replacement_path = None
     if isinstance(parameters.transformation, BackgroundReplaceTransform) and parameters.transformation.replacement_sample_reference:
         replacement_path = access.dataset_file(parameters.transformation.replacement_sample_reference)
@@ -433,16 +498,46 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
             mask_reference = None
             mask_path = None
             if isinstance(parameters.transformation, BackgroundReplaceTransform):
-                mask_reference = _safe_reference(row[parameters.transformation.mask_column])
-                mask_path = access.dataset_file(mask_reference)
+                if local_foreground:
+                    from PIL import Image
+                    segmented = provider.segment(image_path=source_path, mask_path=None,
+                        max_file_bytes=engine.max_file_bytes, max_pixels=engine.max_pixels)
+                    mask_reference=f'{base_reference}/masks/{hashlib.sha256(sample_id.encode()).hexdigest()[:16]}.png'
+                    mask_path=_run_output(access,mask_reference)
+                    mask_path.parent.mkdir(parents=True,exist_ok=True)
+                    Image.fromarray(segmented.mask.astype('uint8')*255).save(mask_path,format='PNG')
+                    generated_mask_references.append(mask_reference)
+                    segmentation_records.append({'sample_id':sample_id,'mask_reference':mask_reference,
+                        'mask_sha256':_file_hash(mask_path),'source_sha256':_file_hash(source_path),**provider.last_details})
+                else:
+                    mask_reference = _safe_reference(row[parameters.transformation.mask_column])
+                    mask_path = access.dataset_file(mask_reference)
             quality = engine.apply(
                 source_path=source_path, output_path=output_path,
                 transformation=parameters.transformation, mask_path=mask_path,
                 replacement_path=replacement_path,
+                dataset_root=access.context.dataset_root,
             )
+            if local_foreground and (not quality.same_dimensions or quality.foreground_change_fraction != 0 or quality.background_change_fraction == 0):
+                raise InterventionError('Local background intervention did not preserve protected pixels or change background')
+            comparison_reference = None
+            comparison_path = source_path
+            if canonical_patch:
+                from PIL import Image
+                from shortcutminer.intervention.corner_patch import matched_control, invariant_content
+                rgb = load_rgb_image_file(source_path).rgb
+                control = matched_control(rgb,parameters.transformation)
+                changed = load_rgb_image_file(output_path).rgb
+                if not np.array_equal(invariant_content(control,parameters.transformation.patch_size),invariant_content(changed,parameters.transformation.patch_size)):
+                    raise InterventionError('Matched patch comparison changed protected pixels')
+                comparison_reference = f'{base_reference}/{hashlib.sha256(sample_id.encode()).hexdigest()[:16]}-anchor.png'
+                comparison_path = _run_output(access,comparison_reference)
+                Image.fromarray(control).save(comparison_path,format='PNG')
             pair = CounterfactualPair(
                 pair_id=f"PAIR-{hashlib.sha256((sample_id + fingerprint).encode()).hexdigest()[:16]}",
                 original_sample_id=sample_id, original_reference=reference,
+                comparison_reference=comparison_reference,
+                comparison_sha256=_file_hash(comparison_path) if canonical_patch else None,
                 counterfactual_reference=output_reference,
                 label=str(row[parameters.label_column]), transformation=parameters.transformation,
                 target_cue=parameters.target_cue,
@@ -457,7 +552,7 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
                 ],
             )
             pairs.append(pair)
-            original_paths.append(source_path)
+            original_paths.append(comparison_path)
             modified_paths.append(output_path)
             usable_rows.append(row)
         except Exception as exc:
@@ -465,6 +560,13 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
                 sample_id=sample_id, sample_reference=safe_failure_reference,
                 error_type=type(exc).__name__, message=str(exc) or type(exc).__name__,
             ))
+    segmentation_reference = None
+    if local_foreground:
+        provider.close()
+        segmentation_reference=f'{base_reference}/segmentation.json'
+        atomic_write_json(_run_output(access,segmentation_reference),{
+            'recipe':parameters.transformation.local_foreground.model_dump(mode='json'),
+            'samples':segmentation_records,'oracle_mask_used':False,'failed_count':len(failures)},error_type=InterventionError)
     manifest_reference = f"{base_reference}/intervention_manifest.json"
     ood_id = f"OOD-{fingerprint[:16]}" if artifact_kind == "ood" else None
     manifest = InterventionManifest(
@@ -493,7 +595,7 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
             summary="No usable intervention pairs could be constructed.",
             limitations=["Intervention construction failed or was blocked for every selected sample."],
             input_references=[parameters.model_reference, parameters.metadata_file],
-            artifact_references=[manifest_reference],
+            artifact_references=[manifest_reference, *([segmentation_reference] if segmentation_reference else []), *generated_mask_references],
             details={
                 "model_id": artifact.model_id, "model_hash": artifact.model_hash,
                 "intervention_id": manifest.intervention_id, "ood_id": manifest.ood_id,
@@ -501,12 +603,25 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
         )
     rows = pd.DataFrame(usable_rows).reset_index(drop=True)
     labels = rows[parameters.label_column].astype(str).tolist()
-    original_pred = model.predict(original_paths)
-    modified_pred = model.predict(modified_paths)
-    original_proba = model.predict_proba(original_paths)
-    modified_proba = model.predict_proba(modified_paths)
-    original_logits = model.predict_logits(original_paths)
-    modified_logits = model.predict_logits(modified_paths)
+    member_logits = None
+    if hasattr(model,'member_logits'):
+        # Retain both sides once: avoid repeatedly evicting the adapter's single-set inference cache.
+        member_logits=(model.member_logits(original_paths),model.member_logits(modified_paths))
+        original_logits=np.mean(list(member_logits[0].values()),axis=0)
+        modified_logits=np.mean(list(member_logits[1].values()),axis=0)
+        def softmax(logits):
+            values=np.exp(logits-logits.max(axis=1,keepdims=True))
+            return values/values.sum(axis=1,keepdims=True)
+        original_proba=softmax(original_logits);modified_proba=softmax(modified_logits)
+        original_pred=model.classes_[original_logits.argmax(1)].tolist()
+        modified_pred=model.classes_[modified_logits.argmax(1)].tolist()
+    else:
+        original_pred = model.predict(original_paths)
+        modified_pred = model.predict(modified_paths)
+        original_proba = model.predict_proba(original_paths)
+        modified_proba = model.predict_proba(modified_paths)
+        original_logits = model.predict_logits(original_paths)
+        modified_logits = model.predict_logits(modified_paths)
     class_index = {str(value): index for index, value in enumerate(model.classes_)}
     original_correct = np.asarray([p == y for p, y in zip(original_pred, labels, strict=True)], dtype=float)
     modified_correct = np.asarray([p == y for p, y in zip(modified_pred, labels, strict=True)], dtype=float)
@@ -565,6 +680,13 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
         "uncertainty": [item.model_dump(mode="json") for item in uncertainty],
     }
     atomic_write_json(_run_output(access, measurement_reference), measurement, error_type=TaskModelError)
+    member_evidence = None
+    if hasattr(model, 'member_logits'):
+        from shortcutminer.experiment.paired_evaluation import evaluate_paired_members
+        member_evidence = evaluate_paired_members(model, artifact, original_paths, modified_paths,
+            rows[parameters.sample_id_column].astype(str).tolist(), labels, parameters, member_logits=member_logits)
+        measurement['members'] = member_evidence
+        atomic_write_json(_run_output(access, measurement_reference), measurement, error_type=TaskModelError)
     metrics = {
         "sample_count": len(pairs), "pair_count": len(pairs), "usable_pair_count": len(pairs),
         "failed_pair_count": len(failures), "prediction_flip_count": int(np.sum(flips)),
@@ -584,6 +706,19 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
         "intervention_id": manifest.intervention_id,
         "ood_id": manifest.ood_id,
     }
+    if member_evidence is not None:
+        metrics['evaluated_model_count']=len(member_evidence['profiles'])
+        for architecture,values in member_evidence['summary'].items():
+            for key,stats in values.items():
+                metrics[f'{architecture}_{key}_mean']=stats['mean']
+                metrics[f'{architecture}_{key}_std']=stats['std']
+    limitations=list(manifest.limitations)
+    if canonical_patch:
+        limitations.append('Paired baseline is an all-corner-processed anchor retaining the original patch position; effect is conditional on this preprocessing, not raw ID accuracy.')
+    if local_foreground:
+        limitations.append('Local predicted masks may misidentify foreground. Zero protected-region pixel change does not independently guarantee label preservation.')
+    if failures:
+        limitations.append(f'{len(failures)} selected images failed construction; paired measurements cover only the explicitly recorded usable subset.')
     return ModelRelianceEvidence(
         outcome="completed", metrics=metrics,
         summary="The same task model was measured before and after a deterministic cue intervention; no verdict threshold was applied.",
@@ -591,16 +726,26 @@ def _construct_and_measure(parameters, access, *, artifact_kind: str) -> ModelRe
             "model_id": artifact.model_id, "model_hash": artifact.model_hash,
             "intervention_id": manifest.intervention_id, "ood_id": manifest.ood_id,
             "comparison_mode": manifest.comparison_mode,
+            'comparison_baseline':'matched_all_corner_anchor' if canonical_patch else 'raw_source',
             "pair_coverage": len(pairs) / max(1, len(selected)),
+            'execution_backend':artifact.backend_version,
+            'member_profiles':member_evidence['profiles'] if member_evidence else [],
+            'member_summary':member_evidence['summary'] if member_evidence else {},
         },
-        warnings=[], limitations=list(manifest.limitations),
+        warnings=[], limitations=limitations,
         input_references=[parameters.model_reference, parameters.metadata_file],
         uncertainty=uncertainty,
-        artifact_references=[parameters.model_reference, manifest_reference, measurement_reference, *[pair.counterfactual_reference for pair in pairs]],
+        artifact_references=[parameters.model_reference, manifest_reference, measurement_reference,
+            *([segmentation_reference] if segmentation_reference else []), *generated_mask_references,
+            *[pair.counterfactual_reference for pair in pairs],
+            *[pair.comparison_reference for pair in pairs if pair.comparison_reference]],
     )
 
 
 def ood_evaluation_backend(parameters: OODEvaluationParameters, access) -> ModelRelianceEvidence:
+    if parameters.dataset_shift is not None:
+        from shortcutminer.experiment.torchvision_backend import evaluate_dataset_shift
+        return evaluate_dataset_shift(parameters, access)
     return _construct_and_measure(parameters, access, artifact_kind="ood")
 
 

@@ -28,6 +28,7 @@ class CandidateBinding(StrictProtocolModel):
         "exact_candidate_cue_name",
         "candidate_non_metadata_family",
         "unresolved_candidate_cue",
+        "explicit_visual_measurement_binding",
     ]
     limitation: NonEmptyText | None = None
 
@@ -38,9 +39,16 @@ def resolve_candidate_binding(
     available_metadata_fields: list[str],
     label_column: str,
     addressing_fields: list[str] | tuple[str, ...] | set[str] = (),
+    visual_measurement_bindings: dict[str, str] | None = None,
 ) -> CandidateBinding:
     """Resolve an explicit exact selector, or a historical exact cue name."""
 
+    visual_field = (visual_measurement_bindings or {}).get(candidate.candidate_id)
+    if candidate.cue.family != 'metadata' and visual_field is not None:
+        if visual_field not in available_metadata_fields or visual_field in {label_column, *addressing_fields}:
+            raise ValueError('Visual measurement binding must identify an authorized scientific field')
+        return CandidateBinding(candidate_id=candidate.candidate_id, status='resolved',
+            kind='metadata_field', metadata_fields=[visual_field], source='explicit_visual_measurement_binding')
     if candidate.cue.family != "metadata":
         return CandidateBinding(
             candidate_id=candidate.candidate_id,

@@ -132,6 +132,7 @@ def test_complete_mock_workflow_is_parallel_typed_and_network_free(tmp_path: Pat
     assert result["final_result"]["payload"]["findings"][0]["candidate_id"] == "C001"
     assert result["stage_status"] == {
         "identify": "completed",
+        "screening": "completed",
         "executive": "completed",
         "feasibility": "completed",
         "quantitative": "completed",

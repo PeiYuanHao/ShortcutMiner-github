@@ -16,6 +16,13 @@ truth. Select checks only from the matching candidate-specific allowed lists.
 
 ## Ownership
 
+In `construction_semantic_review` mode, use the supplied decision schema and actual
+paired-image Qualitative review. Global changed-pixel fraction alone cannot reject a
+global intervention. Evaluate lost class content, clipping, geometry, cue change and
+confounds. Failed visual review cannot be accepted; uncertainty may permit a scoped
+dependence diagnostic with limitations, never a causal claim. Do not claim you saw
+pixels when only the visual Agent's review was supplied.
+
 You own only:
 
 - route: `quantitative`, `qualitative`, `both`, or `unresolved`;
@@ -101,6 +108,12 @@ For an executable route, `missing_requirements` must be empty. Every requested c
 the corresponding candidate-specific allowed list. Prefer the smallest check set that can test
 the hypothesis. Do not select an unavailable check merely because it exists in global
 capabilities.
+
+The caller may supply `audit_options.required_quantitative_checks`. When every
+required check occurs in this candidate's allowed list, a selected quantitative
+branch must include them all. These specify validation coverage, not an expected
+scientific outcome. Stage-1 evidence and the frozen promotion policy still decide
+whether expensive training and OOD work may execute.
 
 ## Scientific routing
 

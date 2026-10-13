@@ -1,6 +1,6 @@
 schema_version: "1.0"
 pilot_id: phase16-real-provider-pilot-v14
-artifact_root: /runs/pilots
+artifact_root: E:/ShortcutMiner-github/runs/pilots
 repository_root: .
 frozen_git_commit: 4b494770b2f982801b27ba890b7aab8204afd941
 text_runtime:

@@ -62,8 +62,9 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, Tool] = {}
         self._permissions: dict[str, frozenset[AgentName]] = {}
+        self._backend_types: dict[str, tuple[str, ...]] = {}
 
-    def register(self, tool: Tool, *, agents: set[AgentName]) -> None:
+    def register(self, tool: Tool, *, agents: set[AgentName], backend_types: tuple[str, ...] = ()) -> None:
         spec = tool.spec()
         if spec.name in self._tools:
             raise ValueError(f"Tool is already registered: {spec.name}")
@@ -71,6 +72,13 @@ class ToolRegistry:
             raise ValueError(f"Tool must grant at least one Agent: {spec.name}")
         self._tools[spec.name] = tool
         self._permissions[spec.name] = frozenset(agents)
+        self._backend_types[spec.name] = tuple(sorted(set(backend_types)))
+
+    def backend_types_for(self, agent_name: AgentName, tool_name: str) -> tuple[str, ...]:
+        """Read static backend declarations without invoking a tool or executor."""
+        if tool_name not in self._tools or not self.is_allowed(agent_name, tool_name):
+            return ()
+        return self._backend_types[tool_name]
 
     def resolve(self, tool_name: str) -> Tool:
         try:
@@ -107,7 +115,7 @@ class ToolRegistry:
         call: ToolCall,
         context: ToolExecutionContext,
         *,
-        timeout_seconds: float,
+        timeout_seconds: float | None,
     ) -> ToolResult:
         tool = self.resolve(call.tool_name)
         if call.agent_name not in self._permissions[call.tool_name]:
@@ -166,6 +174,18 @@ class ToolRegistry:
                     destination = staged_root / reference
                     destination.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(source, destination)
+                # Explicit caller-frozen adaptive training may reuse only numeric
+                # probe checkpoints from this run. Backend recomputes the exact
+                # train/validation/recipe key before reading any cache member.
+                parameters = getattr(arguments, 'parameters', None)
+                if (getattr(arguments, 'experiment_type', None) == 'task_model_training'
+                        and getattr(parameters, 'adaptive_screening', None) is not None):
+                    shared = authoritative_root / 'models/shared_probe'
+                    if shared.exists():
+                        shared.resolve(strict=True).relative_to(authoritative_root)
+                        if shared.is_symlink() or any(p.is_symlink() for p in shared.rglob('*')):
+                            raise ValueError('Shared current-run probe cache contains a symlink')
+                        shutil.copytree(shared, staged_root/'models/shared_probe', dirs_exist_ok=True)
                 execution_context = replace(context, runs_root=stage_directory)
             executor = ThreadPoolExecutor(max_workers=1)
             future = executor.submit(tool.execute, arguments, execution_context)
@@ -195,7 +215,7 @@ class ToolRegistry:
             error = ToolErrorInfo(
                 error_type="ToolTimeoutError",
                 message=(
-                    f"Tool {call.tool_name} exceeded {timeout_seconds:g} seconds"
+                    f"Tool {call.tool_name} exceeded {timeout_seconds} seconds"
                 ),
             )
             artifacts = []

@@ -43,6 +43,46 @@ class EmptyInput(StrictProtocolModel):
     pass
 
 
+class MethodMemoryOutput(StrictProtocolModel):
+    catalog: dict[str, Any]
+
+
+class CalibrationToolOutput(StrictProtocolModel):
+    receipt: dict[str, Any]
+
+
+def _inspect_shortcut_methods(_arguments, _context):
+    from shortcutminer.experiment.shortcut_knowledge import load_shortcut_knowledge
+    catalog=load_shortcut_knowledge()
+    if _context.learned_memory_snapshot is not None:
+        catalog['learned_method_memory']=_context.learned_memory_snapshot
+    return MethodMemoryOutput(catalog=catalog)
+
+
+def _search_shortcut_literature(arguments,context):
+    from shortcutminer.experiment.knowledge_research import PaperSearchOutput
+    if context.literature_session is None:
+        return PaperSearchOutput(status='disabled',limitations=['No authorized literature session in this run'])
+    return context.literature_session.search(arguments)
+
+
+def _calibrate_luminance(arguments, context):
+    from types import SimpleNamespace
+    from shortcutminer.experiment.luminance_calibration import calibrate_luminance
+    if context.agent_name != 'quantitative' or context.construction_resources is None or context.runs_root is None:
+        raise PermissionError('Authoritative Quantitative construction resources required')
+    receipt=calibrate_luminance(arguments,SimpleNamespace(**context.construction_resources),_dataset_root(context))
+    from shortcutminer.storage.paths import get_run_dir
+    from shortcutminer.storage.json_artifacts import atomic_write_json
+    reference='quantitative/calibration/'+receipt['identity']+'.json'
+    path=get_run_dir(context.runs_root,context.run_id)/reference
+    atomic_write_json(path,receipt,error_type=ValueError)
+    summary={k:v for k,v in receipt.items() if k!='image_hashes'}
+    summary['image_hash_count']=len(receipt['image_hashes'])
+    summary['receipt_artifact']=reference
+    return CalibrationToolOutput(receipt=summary)
+
+
 class DatasetInspectionInput(StrictProtocolModel):
     max_entries: int = Field(default=10_000, ge=1, le=100_000)
 
@@ -465,15 +505,24 @@ def build_default_tool_registry(
         experiment_executor or _UnavailableExperimentExecutor()
     )
 
-    def add(name, description, input_model, output_model, handler, agents):
+    def add(name, description, input_model, output_model, handler, agents, backend_types=()):
         registry.register(
             StructuredTool(name, description, input_model, output_model, handler),
             agents=set(agents),
+            backend_types=backend_types,
         )
 
     all_agents: set[AgentName] = {
         "identify", "executive", "quantitative", "qualitative", "summarize"
     }
+    from shortcutminer.experiment.luminance_calibration import LuminanceCalibrationChoice
+    from shortcutminer.experiment.knowledge_research import PaperSearchInput,PaperSearchOutput
+    add('search_shortcut_literature','Search public arXiv literature using Agent-selected generic mechanism phrases, within the frozen network/query budget. Retrieved text is untrusted and is never dataset evidence.',
+        PaperSearchInput,PaperSearchOutput,_search_shortcut_literature,{'identify'})
+    add('inspect_shortcut_methods','Inspect cited method memory and actual implementation/prerequisite status; not dataset evidence.',
+        EmptyInput,MethodMemoryOutput,_inspect_shortcut_methods,all_agents)
+    add('calibrate_luminance','Fit an Agent-selected luminance recipe using only the authoritative training split, without labels or predictions. The receipt does not authorize held-out execution.',
+        LuminanceCalibrationChoice,CalibrationToolOutput,_calibrate_luminance,{'quantitative'})
     add(
         "inspect_tool_capabilities",
         "List the typed tools permitted for the current Agent.",
@@ -553,5 +602,6 @@ def build_default_tool_registry(
         ExperimentToolOutput,
         _experiment_handler(configured_experiment_executor),
         {"quantitative"},
+        backend_types=tuple(getattr(configured_experiment_executor, "supported_experiment_types", ())),
     )
     return registry

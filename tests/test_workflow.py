@@ -49,12 +49,18 @@ def test_workflow_graph_has_expected_topology():
     edges = {(edge.source, edge.target) for edge in graph.edges}
 
     assert ("__start__", "identify") in edges
-    assert ("identify", "executive") in edges
+    assert ("identify", "screening") in edges
+    assert ("screening", "capabilities") in edges
+    assert ("capabilities", "executive") in edges
+    assert ("identify", "executive") not in edges
     assert ("executive", "feasibility") in edges
-    assert ("feasibility", "quantitative") in edges
-    assert ("feasibility", "qualitative") in edges
-    assert ("quantitative", "evidence_calibration") in edges
-    assert ("qualitative", "evidence_calibration") in edges
+    assert ("feasibility", "validation_stage_plan") in edges
+    assert ("validation_stage_plan", "quantitative") in edges
+    assert ("validation_stage_plan", "qualitative") in edges
+    assert ("quantitative", "evidence_promotion") in edges
+    assert ("qualitative", "evidence_promotion") in edges
+    assert ("evidence_promotion", "stage2_validation") in edges
+    assert ("stage2_validation", "evidence_calibration") in edges
     assert ("evidence_calibration", "summarize") in edges
     assert ("quantitative", "summarize") not in edges
     assert ("qualitative", "summarize") not in edges

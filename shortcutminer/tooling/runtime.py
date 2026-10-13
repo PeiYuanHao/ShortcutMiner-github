@@ -33,6 +33,7 @@ class ToolBudget(StrictProtocolModel):
     max_tool_calls: int = Field(default=8, ge=1, le=100)
     timeout_seconds: float = Field(default=30.0, gt=0, le=3600)
     max_selected_samples: int = Field(default=100, ge=1, le=100_000)
+    experiment_timeout_seconds: dict[str, float | None] = Field(default_factory=dict)
 
 
 class RunToolBudgetState:
@@ -348,7 +349,8 @@ class ToolRuntime:
             result = self.registry.execute(
                 parsed,
                 context,
-                timeout_seconds=self.budget.timeout_seconds,
+                timeout_seconds=(self.budget.experiment_timeout_seconds.get(parsed.experiment_type, self.budget.timeout_seconds)
+                                 if parsed.tool_name == "run_experiment" else self.budget.timeout_seconds),
             )
         except ToolRuntimeError as exc:
             self._event(
@@ -411,5 +413,7 @@ class ToolRuntime:
             call.run_id,
             name,
             stage=f"tool:{call.agent_name}",
-            details=details,
+            details={**details, "candidate_id": call.candidate_id, "task_id": call.task_id,
+                     "plan_step_id": call.plan_step_id, "planning_check": call.planning_check,
+                     "experiment_type": call.experiment_type},
         )

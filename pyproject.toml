@@ -17,7 +17,12 @@ dependencies = [
     "scipy>=1.16,<2",
     "scikit-learn>=1.7,<2",
     "PyYAML>=6.0,<7",
+    "rich>=13,<15",
+    "transformers==5.14.1",
 ]
+
+[project.scripts]
+shortcutminer = "shortcutminer.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

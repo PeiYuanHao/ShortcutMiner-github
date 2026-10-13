@@ -138,6 +138,7 @@ class QualitativeRequest(StrictProtocolModel):
     metadata_file: SafeRelativePath | None = None
     preparation: QualitativePreparationOptions
     limitations: list[NonEmptyText] = Field(default_factory=list)
+    inspection_scope: Literal["stage2"] | None = None
 
     @field_validator("limitations")
     @classmethod

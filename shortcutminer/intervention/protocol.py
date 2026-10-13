@@ -12,6 +12,7 @@ from shortcutminer.protocol.identify import (
     StrictProtocolModel,
 )
 from shortcutminer.protocol.model_reliance import TaskModelId
+from shortcutminer.protocol.segmentation import LocalForegroundSpec
 
 
 LabelPreservationStatus = Literal[
@@ -23,7 +24,7 @@ LabelPreservationStatus = Literal[
 ]
 ComparisonMode = Literal["paired", "independent"]
 SpatialRegion = Literal[
-    "top_left", "top_right", "bottom_left", "bottom_right", "center", "border", "custom"
+    "top_left", "top_right", "bottom_left", "bottom_right", "center", "border", "custom", "custom_exterior"
 ]
 
 
@@ -43,7 +44,7 @@ class NormalizedBox(StrictProtocolModel):
 class GlobalColorTransform(StrictProtocolModel):
     type: Literal["global_color"]
     mode: Literal[
-        "channel_scale", "swap_red_blue", "grayscale", "desaturate", "color_replace"
+        "channel_scale", "swap_red_blue", "swap_red_green", "cycle_rgb", "grayscale", "grayscale_max", "desaturate", "color_replace"
     ]
     channel_scale: list[float] = Field(default_factory=lambda: [1.0, 1.0, 1.0], min_length=3, max_length=3)
     desaturation_factor: float = Field(default=0.5, ge=0, le=1)
@@ -69,6 +70,35 @@ class GlobalColorTransform(StrictProtocolModel):
 class FactorTransform(StrictProtocolModel):
     type: Literal["brightness", "contrast"]
     factor: float = Field(ge=0.1, le=3.0)
+
+
+class LuminanceTransform(StrictProtocolModel):
+    """Frozen training-calibrated Y adjustment; no labels or hidden states at rendering."""
+    type: Literal['luminance']
+    mode: Literal['normalize_mean', 'reflect_mean', 'offset']
+    target_mean: float | None = Field(default=None, ge=0, le=255)
+    pivot_mean: float | None = Field(default=None, ge=0, le=255)
+    offset: float | None = Field(default=None, ge=-255, le=255)
+
+    @model_validator(mode='after')
+    def explicit_parameters(self):
+        expected = {'normalize_mean':'target_mean', 'reflect_mean':'pivot_mean', 'offset':'offset'}[self.mode]
+        for name in ('target_mean','pivot_mean','offset'):
+            if (getattr(self,name) is not None) != (name == expected):
+                raise ValueError('Supply exactly the parameter required by the luminance mode')
+        return self
+
+
+class RotationTransform(StrictProtocolModel):
+    type: Literal['rotation']
+    angle_degrees: float = Field(ge=-180, le=180)
+    padding: Literal['reflect'] = 'reflect'
+
+
+class FrequencyTransform(StrictProtocolModel):
+    type: Literal['frequency_filter']
+    mode: Literal['low_pass', 'high_pass']
+    cutoff: float = Field(gt=0, le=0.5)
 
 
 class BlurTransform(StrictProtocolModel):
@@ -98,14 +128,14 @@ class SpatialTransform(StrictProtocolModel):
     type: Literal["spatial_mask", "spatial_replace"]
     region: SpatialRegion
     custom_box: NormalizedBox | None = None
-    fill: Literal["constant", "mean", "noise"] = "constant"
+    fill: Literal["constant", "mean", "noise", "color_complement"] = "constant"
     fill_color: list[int] = Field(default_factory=lambda: [127, 127, 127], min_length=3, max_length=3)
     noise_std: float = Field(default=20, gt=0, le=100)
     seed: int = 0
 
     @model_validator(mode="after")
     def custom_region_requires_box(self):
-        if (self.region == "custom") != (self.custom_box is not None):
+        if (self.region in {"custom", "custom_exterior"}) != (self.custom_box is not None):
             raise ValueError("custom region and custom_box must be supplied together")
         return self
 
@@ -135,7 +165,8 @@ class SpatialRelocateTransform(StrictProtocolModel):
 
 class BackgroundReplaceTransform(StrictProtocolModel):
     type: Literal["background_replace"]
-    mask_column: NonEmptyText
+    mask_column: NonEmptyText | None = None
+    local_foreground: LocalForegroundSpec | None = None
     replacement_mode: Literal["constant", "blurred", "sample"] = "constant"
     fill_color: list[int] = Field(default_factory=lambda: [127, 127, 127], min_length=3, max_length=3)
     blur_radius: float = Field(default=8.0, ge=0, le=30)
@@ -143,6 +174,8 @@ class BackgroundReplaceTransform(StrictProtocolModel):
 
     @model_validator(mode="after")
     def sample_mode_requires_reference(self):
+        if (self.mask_column is None) == (self.local_foreground is None):
+            raise ValueError('Background replacement requires exactly one mask column or frozen local foreground recipe')
         if (self.replacement_mode == "sample") != (
             self.replacement_sample_reference is not None
         ):
@@ -157,18 +190,54 @@ class BackgroundReplaceTransform(StrictProtocolModel):
         return values
 
 
+class CornerPatchTransform(StrictProtocolModel):
+    type: Literal['corner_patch']
+    mode: Literal['remove', 'randomize_position', 'canonical_remove', 'canonical_randomize_position']
+    patch_size: int = Field(ge=2, le=8)
+    patch_color: list[int] = Field(min_length=3, max_length=3)
+    fill_color: list[int] = Field(default_factory=lambda: [127,127,127], min_length=3, max_length=3)
+    seed: int = 0
+
+    @field_validator('patch_color', 'fill_color')
+    @classmethod
+    def rgb_values(cls, values):
+        if any(v<0 or v>255 for v in values): raise ValueError('Invalid RGB value')
+        return values
+
+
+class ProvidedPairTransform(StrictProtocolModel):
+    """Read-only external paired images, authorized only after hypothesis freeze."""
+    type: Literal['provided_pair']
+    mode: Literal['provided_pairs'] = 'provided_pairs'
+    pair_index_file: SafeRelativePath
+    pair_index_sha256: NonEmptyText
+    changed_region: NormalizedBox
+
+
 ImageInterventionSpec: TypeAlias = Annotated[
     GlobalColorTransform
     | FactorTransform
+    | LuminanceTransform
+    | RotationTransform
+    | FrequencyTransform
     | BlurTransform
     | NoiseTransform
     | CompressionTransform
     | ResolutionTransform
     | SpatialTransform
     | SpatialRelocateTransform
-    | BackgroundReplaceTransform,
+    | CornerPatchTransform
+    | BackgroundReplaceTransform
+    | ProvidedPairTransform,
     Field(discriminator="type"),
 ]
+
+# Image-only deterministic constructors usable by the autonomous paired path.
+# Segmentation and external-pair recipes retain their separate authority checks.
+AutonomousImageTransform: TypeAlias = (
+    SpatialTransform | FactorTransform | LuminanceTransform | RotationTransform |
+    FrequencyTransform | BlurTransform | NoiseTransform | CompressionTransform | ResolutionTransform
+)
 
 
 class InterventionQuality(StrictProtocolModel):
@@ -188,6 +257,8 @@ class CounterfactualPair(StrictProtocolModel):
     pair_id: NonEmptyText
     original_sample_id: NonEmptyText
     original_reference: SafeRelativePath
+    comparison_reference: SafeRelativePath | None = None
+    comparison_sha256: NonEmptyText | None = None
     counterfactual_reference: SafeRelativePath
     label: str
     transformation: ImageInterventionSpec

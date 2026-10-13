@@ -1,6 +1,6 @@
 schema_version: "1.0"
 pilot_id: phase16-readiness-r2
-artifact_root: /runs/pilots
+artifact_root: E:/ShortcutMiner-github/runs/pilots
 repository_root: .
 frozen_git_commit: null
 text_runtime:

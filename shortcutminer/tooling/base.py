@@ -24,6 +24,9 @@ class ToolExecutionContext:
     allowed_experiment_types: frozenset[str] = field(default_factory=frozenset)
     max_selected_samples: int = 100
     tool_schemas: tuple[dict[str, Any], ...] = ()
+    construction_resources: dict[str, Any] | None = None
+    literature_session: Any | None = None
+    learned_memory_snapshot: dict[str, Any] | None = None
 
 
 class Tool(Protocol):

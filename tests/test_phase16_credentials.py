@@ -1,4 +1,4 @@
-"""Offline regressions for the Phase 16 Docker credential boundary."""
+"""Offline regressions for local deployment and the Phase 16 credential boundary."""
 
 import json
 from pathlib import Path
@@ -16,8 +16,8 @@ from shortcutminer.evaluation.pilot.protocol import PilotConfig
 ROOT = Path(__file__).resolve().parents[1]
 PILOT_CONFIG = ROOT / "configs" / "experiments" / "real_blind_pilot.example.yaml"
 host_repository_only = pytest.mark.skipif(
-    not (ROOT / "docker-compose.yml").is_file(),
-    reason="source-control and Compose files are intentionally absent from the runtime image",
+    not (ROOT / ".git").exists(),
+    reason="requires the source-control checkout",
 )
 
 
@@ -35,54 +35,20 @@ def test_local_phase16_secret_file_is_gitignored_but_public_template_is_tracked(
         ["git", "check-ignore", "--quiet", ".env.phase16.example"], cwd=ROOT,
         check=False,
     )
+    assert subprocess.run(["git", "check-ignore", "--quiet", ".env.formal"], cwd=ROOT, check=False).returncode == 0
     assert ignored.returncode == 0
     assert public.returncode != 0
 
 
 @host_repository_only
-def test_default_compose_is_offline_and_does_not_load_phase16_secrets():
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
-    service = compose["services"]["shortcutminer"]
-    assert service["network_mode"] == "${SHORTCUTMINER_NETWORK_MODE:-none}"
-    assert "env_file" not in service
-
-
-@host_repository_only
-def test_api_override_is_minimal_explicit_bridge_and_local_env_file():
-    override = yaml.safe_load((ROOT / "docker-compose.api.yml").read_text(encoding="utf-8"))
-    assert override == {
-        "services": {
-            "shortcutminer": {
-                "env_file": [".env.phase16"],
-                "network_mode": "bridge",
-            }
-        }
-    }
-
-
-@host_repository_only
-def test_secret_file_is_excluded_from_build_context_and_dockerfile_copy_allowlist():
-    dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
-    assert ".env" in dockerignore
-    assert ".env.*" in dockerignore
-    dockerfile = (ROOT / "infrastructure" / "docker" / "Dockerfile").read_text(encoding="utf-8")
-    assert ".env.phase16" not in dockerfile
-    copy_lines = [line.strip() for line in dockerfile.splitlines() if line.strip().startswith("COPY ")]
-    assert all(not line.startswith("COPY . ") and not line.startswith("COPY ./ ") for line in copy_lines)
-
-
-@host_repository_only
-def test_committed_compose_and_runtime_configs_contain_no_raw_credential_field():
+def test_runtime_configs_contain_no_raw_credential_field():
     for path in (ROOT / "configs").rglob("*.yaml"):
         value = yaml.safe_load(path.read_text(encoding="utf-8"))
         serialized = json.dumps(value, sort_keys=True).casefold()
         assert '"api_key":' not in serialized
         assert '"authorization":' not in serialized
         assert '"bearer":' not in serialized
-    for path in (ROOT / "docker-compose.yml", ROOT / "docker-compose.api.yml"):
-        text = path.read_text(encoding="utf-8")
-        assert "SHORTCUTMINER_TEXT_API_KEY=" not in text
-        assert "SHORTCUTMINER_VLM_API_KEY=" not in text
+
 
 
 def test_pilot_config_and_snapshot_contract_reject_raw_credentials():

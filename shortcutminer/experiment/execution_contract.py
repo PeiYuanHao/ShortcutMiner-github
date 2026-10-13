@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path, PureWindowsPath
+from shortcutminer.intervention.capabilities import GENERAL_IMAGE_TYPES, supports_adaptive_constructor
 from typing import Any, Literal
 
 from pydantic import Field, TypeAdapter, ValidationError, model_validator
@@ -26,6 +27,7 @@ from shortcutminer.protocol.quantitative import (
 )
 from shortcutminer.tooling.builtins import ExperimentToolInput
 from shortcutminer.tooling.protocol import ToolResult
+from shortcutminer.protocol.model_reliance import DatasetShiftSpec
 
 
 CONTROL_OWNED = "CONTROL_OWNED"
@@ -101,7 +103,8 @@ EXPERIMENT_PARAMETER_OWNERSHIP: dict[str, dict[str, tuple[str, ...]]] = {
             "test_split_values", "model_id", "model_backend", "feature_version",
             "max_train_samples", "max_eval_samples", "max_model_iterations", "seed",
             "artifact_policy", "confidence_level", "bootstrap_iterations",
-            "class_weight", "holdout_fraction",
+            "class_weight", "holdout_fraction", "training_options", "adaptive_screening",
+            "screening_transformation", "screening_split_values",
         ),
         MODEL_OWNED: (),
         AUTHORIZED_RESOURCE_SELECTION: (),
@@ -120,7 +123,7 @@ EXPERIMENT_PARAMETER_OWNERSHIP: dict[str, dict[str, tuple[str, ...]]] = {
             "model_reference", "metadata_file", "sample_id_column", "sample_path_column",
             "label_column", "split_column", "split_values", "evaluation_partition",
             "max_eval_samples", "max_intervention_samples", "seed", "confidence_level",
-            "bootstrap_iterations",
+            "bootstrap_iterations", "dataset_shift",
         ),
         MODEL_OWNED: (
             "transformation", "target_cue", "intended_invariants", "comparison_mode",
@@ -235,7 +238,8 @@ class TaskModelEvaluationDraft(StrictProtocolModel):
 
 
 class OODEvaluationDraft(StrictProtocolModel):
-    transformation: ImageInterventionSpec
+    transformation: ImageInterventionSpec | None = None
+    dataset_shift: DatasetShiftSpec | None = None
     target_cue: NonEmptyText
     intended_invariants: list[NonEmptyText] = Field(
         default_factory=lambda: ["task label semantics"]
@@ -470,7 +474,28 @@ def _authorize_transformation(
     value = TypeAdapter(ImageInterventionSpec).dump_python(
         transformation, mode="json"
     )
+    if value.get('type') == 'provided_pair':
+        if not any(transformation == spec for field, spec in resources.visual_ood_specs.items()
+                   if field in resources.allowed_scientific_metadata_fields):
+            raise UnauthorizedScientificField('Provided pair recipe is not authorized for the visual candidate')
+        _normalize_authorized_path(transformation.pair_index_file, root=dataset_root, authorized=None)
+    if value.get('type') in (GENERAL_IMAGE_TYPES | {'spatial_mask', 'spatial_replace'}) and resources.visual_ood_specs:
+        if not any(transformation == spec for field, spec in resources.visual_ood_specs.items()
+                   if field in resources.allowed_scientific_metadata_fields):
+            raise UnauthorizedScientificField('Spatial intervention differs from the frozen visual proposal')
+    frozen_colors = [recipe for field, recipe in resources.color_ood_specs.items()
+                     if field in resources.allowed_scientific_metadata_fields]
+    if value.get('type') == 'global_color' and frozen_colors and transformation not in frozen_colors:
+        raise UnauthorizedScientificField('Color intervention is not the authorized bound recipe for this candidate')
+    if value.get('type') == 'corner_patch' and not any(transformation == recipe
+            for field,recipe in resources.patch_ood_specs.items() if field in resources.allowed_scientific_metadata_fields):
+        raise UnauthorizedScientificField('Corner patch transformation is not the authorized bound memory recipe')
     mask_column = value.get("mask_column")
+    if value.get('local_foreground') is not None and not any(
+        transformation == recipe for field, recipe in resources.background_ood_specs.items()
+        if field in resources.allowed_scientific_metadata_fields
+    ):
+        raise UnauthorizedScientificField('Local foreground recipe is not caller-authorized for this candidate')
     if mask_column is not None:
         _authorize_fields([mask_column], resources)
     reference = value.get("replacement_sample_reference")
@@ -684,20 +709,30 @@ def finalize_run_experiment_draft(
             "sample_id_column": _require_resource(resources.sample_id_column, "sample_id_column"),
             "sample_path_column": _require_resource(resources.sample_path_column, "sample_path_column"),
             "label_column": resources.label_column,
-            "split_column": None,
-            "train_split_values": [],
-            "validation_split_values": [],
-            "test_split_values": [],
+            "split_column": resources.split_column if resources.train_split_values else None,
+            "train_split_values": resources.train_split_values,
+            "validation_split_values": resources.validation_split_values,
+            "test_split_values": resources.test_split_values,
             "holdout_fraction": resources.training_holdout_fraction,
             "model_id": _model_id(run_id, task_id),
             "model_backend": resources.model_backend,
             "feature_version": resources.feature_version,
-            "max_train_samples": max(4, resources.max_samples),
+            "max_train_samples": resources.max_train_samples or max(4, resources.max_samples),
             "max_eval_samples": resources.max_samples,
             "max_model_iterations": resources.max_model_iterations,
             "class_weight": resources.training_class_weight,
             "artifact_policy": resources.artifact_policy,
+            "training_options": resources.training_options.model_dump(mode="json") if resources.training_options else None,
         }
+        parameters["metadata_file"] = resources.model_metadata_file or parameters["metadata_file"]
+        bound_recipes={**resources.color_ood_specs,**resources.patch_ood_specs,**resources.visual_ood_specs}
+        if resources.adaptive_screening is not None and any(field in bound_recipes for field in resources.allowed_scientific_metadata_fields):
+            recipes = [bound_recipes[field] for field in resources.allowed_scientific_metadata_fields if field in bound_recipes]
+            if resources.model_backend != 'torchvision_resnet_matrix' or len(recipes) != 1 or not supports_adaptive_constructor(recipes[0]):
+                raise AuthoritativeResourceMissing('Adaptive screening requires exactly one authorized supported image intervention and CUDA training')
+            parameters.update(adaptive_screening=resources.adaptive_screening.model_dump(mode='json'),
+                              screening_transformation=recipes[0].model_dump(mode='json'),
+                              screening_split_values=resources.evaluation_split_values)
     else:
         model_references = _model_references(
             history=history,
@@ -713,21 +748,23 @@ def finalize_run_experiment_draft(
         base = {
             **common,
             "model_reference": model_references[0],
-            "metadata_file": _require_resource(metadata_file, "metadata_file"),
+            "metadata_file": resources.model_metadata_file or _require_resource(metadata_file, "metadata_file"),
             "sample_id_column": _require_resource(resources.sample_id_column, "sample_id_column"),
             "sample_path_column": _require_resource(resources.sample_path_column, "sample_path_column"),
             "label_column": resources.label_column,
-            "split_column": None,
-            "split_values": [],
-            "evaluation_partition": "training_manifest_test",
+            "split_column": resources.split_column if resources.evaluation_split_values else None,
+            "split_values": resources.evaluation_split_values,
+            "evaluation_partition": "configured_split" if resources.evaluation_split_values else "training_manifest_test",
             "max_eval_samples": resources.max_samples,
         }
         if isinstance(choice, OODEvaluationDraft):
+            if choice.dataset_shift is not None and not any(choice.dataset_shift == resources.ood_specs.get(field)
+                    for field in resources.allowed_scientific_metadata_fields):
+                raise UnauthorizedScientificField("OOD split recipe is not authorized for this scientific scope")
             parameters = {
                 **base,
-                "transformation": _authorize_transformation(
-                    choice.transformation, resources, dataset_root
-                ),
+                "transformation": _authorize_transformation(choice.transformation, resources, dataset_root) if choice.transformation is not None else None,
+                "dataset_shift": choice.dataset_shift.model_dump(mode="json") if choice.dataset_shift else None,
                 "target_cue": choice.target_cue,
                 "intended_invariants": choice.intended_invariants,
                 "comparison_mode": choice.comparison_mode,

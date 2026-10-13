@@ -1,107 +1,96 @@
-# Local Docker acceptance (Phase 6)
+# Windows local deployment
 
-Run at the repository root. Docker/Compose are the only required host tools.
-The root Compose file is the only service definition; no Docker-in-Docker is used.
+Use Windows AMD64 and conda environment `shortcutminer` (Python 3.11.16).
+Commands support both CMD and PowerShell from `E:\ShortcutMiner-github`.
+The root `requirements.txt` is a standalone text file containing all 71 exact package
+versions and Windows wheel hashes. The separate `requirements` directory holds
+supplementary Windows wheel/provenance locks, not the file to pass to `pip -r`.
 
-## Build, import, and tests
+CMD: `cd /d E:\ShortcutMiner-github`
 
-```bash
-docker compose config
-docker compose build
-docker compose run --rm shortcutminer python -m shortcutminer --help
-docker compose run --rm shortcutminer python -c "import shortcutminer"
-docker compose run --rm shortcutminer pytest -q
-```
-
-Keep `SHORTCUTMINER_NETWORK_MODE=none` (the default) and do not pass API credentials
-for acceptance commands. The build needs registry access, but the resulting mock
-and Python tests execute without external network access.
-
-## Explicit real API mode
-
-Real API execution uses the small `docker-compose.api.yml` override. Store credentials only in
-the local, Git-ignored `.env.phase16` file:
-
-```dotenv
-SHORTCUTMINER_TEXT_API_KEY=
-SHORTCUTMINER_VLM_API_KEY=
-```
-
-Do not place values in committed Compose/model files or pass them with `-e`. Check presence safely:
+PowerShell: `Set-Location E:\ShortcutMiner-github`
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.api.yml run --rm shortcutminer python -m shortcutminer pilot credentials --config /config/experiments/real_blind_pilot.example.yaml
+conda activate shortcutminer
+python -m pip install --require-hashes --no-deps -r requirements.txt
+python scripts/formal_environment.py check
+python scripts/formal_environment.py pytest
+python scripts/formal_environment.py smoke
 ```
 
-The API override enables bridge networking and loads `.env.phase16`. Without the explicit second
-`-f`, the service remains offline and receives neither credential. The readiness command reports
-only `SET` or `MISSING`.
+The exact interpreter currently resides at
+`E:\Anaconda_envs\envs\shortcutminer\python.exe`. If activation is unavailable,
+invoke that interpreter directly:
 
-Provider persistence uses a deny-by-schema boundary. The unambiguous readiness field is
-`raw_provider_body_persistence=false`: raw HTTP response bodies, reasoning content,
-Authorization headers, API keys, and image base64 are never written. Runtime snapshots retain
-the legacy contract field `raw_response_persistence=false`; model-call artifacts contain only
-sanitized identifiers, hashes, latency, usage, finish/schema status, and retry diagnostics.
-The offline regression can be run without credentials or network access:
+CMD:
 
-```bash
-python scripts/phase16_provider_security_preflight.py --root /tmp/provider-security-preflight
+```cmd
+"E:\Anaconda_envs\envs\shortcutminer\python.exe" scripts\formal_environment.py check
 ```
 
-## Result and checkpoint persistence across removed containers
+PowerShell:
 
-Use fresh run IDs if these examples have already been executed. Never overwrite
-an existing experiment to repeat an acceptance test.
-
-```bash
-docker compose run --rm shortcutminer python -m shortcutminer mock --run-id phase6-smoke --runs-root /runs
-docker compose run --rm shortcutminer python scripts/container_acceptance.py phase6-smoke
-docker compose down
-docker compose run --rm shortcutminer python scripts/container_acceptance.py phase6-smoke
+```powershell
+& "E:\Anaconda_envs\envs\shortcutminer\python.exe" scripts\formal_environment.py check
 ```
 
-Both verification calls must return `verification: PASS`, matching hashes for
-the durable JSON/event artifacts, and a readable SQLite checkpoint. Every
-`run --rm` creates and removes a different container while keeping the named
-volume. The verifier checks all five stage artifacts, run metadata, final report,
-checkpoint thread ID, and SQLite integrity.
+Use `python -m shortcutminer` so the CLI uses the
+same interpreter. Do not install from compatibility ranges for formal runs.
 
-## Failed run and resume in a new container
+Recreating the conda base on Windows uses the exact package export:
 
-The first command below deliberately exits **1**, after the first four agents
-complete and Summarize fails. That status is expected only for this command.
-
-```bash
-docker compose run --rm shortcutminer python -m shortcutminer mock --run-id phase6-resume --runs-root /runs --fail-at summarize
-docker compose run --rm shortcutminer python scripts/container_acceptance.py phase6-resume --failed
-docker compose down
-docker compose run --rm shortcutminer python -m shortcutminer resume phase6-resume --runs-root /runs --runtime mock
-docker compose run --rm shortcutminer python scripts/container_acceptance.py phase6-resume --resumed
+```powershell
+conda create --name shortcutminer --file requirements/conda-win64.explicit.txt
+conda activate shortcutminer
+python -m pip install --require-hashes --no-deps -r requirements.txt
 ```
 
-The resumed CLI output must list only `summarize` in `mock_agents_invoked`.
-The verifier requires two attempts and exactly one successful event for each
-earlier stage. Resuming a completed run again must invoke no agents.
-Mock CLI resume is restricted to synthetic demo runs to avoid mixing canned
-findings with real model experiments.
+The create command is for a missing environment, not the existing one. Package
+retrieval requires internet access; offline acceptance uses a fake loopback provider
+and strips provider credentials. This does not disable Windows networking.
 
-## Storage, permissions, and configuration
+## Persistent paths
 
-The named `runs` volume stores durable state below `/runs`. Its initial ownership
-comes from the image's non-root UID/GID 10001. Do not use `docker compose down -v`
-unless you intentionally want to delete these results. Custom bind mounts must
-be writable by UID/GID 10001. Mount datasets read-only at `/data`.
+| Purpose | Windows path |
+| --- | --- |
+| Source | `E:/ShortcutMiner-github` |
+| Runs/checkpoints/reports/telemetry | `E:/ShortcutMiner-github/runs` |
+| Source datasets (treat as read-only) | `E:/ShortcutMiner-Experiments` |
+| Frozen configs (treat as read-only) | `E:/ShortcutMiner-github/configs` |
 
-For live model runs, follow the explicit environment and configuration commands
-in the README. Keep the same `/data` and `/runs` paths when resuming so checkpoint
-references remain valid. Change model YAML through `/config`, not a rebuild.
-The image includes no raw datasets, host virtual environments, or `.env` files.
-The CLI is a local batch process. No HTTP health endpoint, supervisor, external
-database service, distributed runtime, or GPU stack is introduced.
+Pass `--runs-root E:/ShortcutMiner-github/runs` explicitly for audit/mock/resume.
+Resume must use the same root, run ID, source identity, and frozen configuration.
+Artifacts survive process exit or Windows restart. Dataset/config read-only policy is procedural, not an OS sandbox. Historical
+checkpoints with different absolute roots need separate path review.
 
-The current repository scope remains local Docker execution. The bounded real CPU
-quantitative backend and Pillow/NumPy qualitative descriptor backend are included in
-the image and test suite. The qualitative backend can create task-scoped inspection
-JSON and contact sheets in `/runs` while source datasets remain read-only under
-`/data`. Provider-native VLM integration and large scientific evaluations remain
-outside these container acceptance instructions.
+## Credentials and formal execution
+
+API CLI commands automatically read the repository-root, Git-ignored `.env.formal`
+for `SHORTCUTMINER_TEXT_API_KEY` and `SHORTCUTMINER_VLM_API_KEY`. Values are injected
+only into the current process while the command runs, then removed. Existing explicit
+process credentials take precedence. No Windows user/system environment variables
+are written. UTF-8/BOM, quoted values, comments, and CRLF are supported; shell commands
+and variable interpolation are never executed. Only these two key names are loaded.
+Mock commands, offline acceptance, and unit tests disable this loading.
+
+Presence-only verification (same command in CMD and PowerShell; no API request):
+
+```text
+conda activate shortcutminer
+python -m shortcutminer pilot credentials --config configs/experiments/real_blind_pilot.example.yaml
+```
+
+The result reports only SET/MISSING, never values. Do not place keys in configuration, source, requirements, manifests, logs, reports,
+or command arguments. Acceptance never
+calls real providers. Credentials alone do not authorize a formal run.
+
+Before E1, complete local capacity acceptance and manually create a clean Git
+commit. Record the final source/config/environment/lock identity with:
+
+```powershell
+python scripts/formal_environment.py finalize
+```
+
+This records an identity receipt under `runs/environment-freeze-windows` and does
+not run E1–E5. Source or environment changes require reviewed re-freezing before
+experiments. See [formal environment](formal-experiment-environment.md).

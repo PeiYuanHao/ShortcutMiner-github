@@ -2,9 +2,12 @@
 
 from typing import Annotated, Literal
 
-from pydantic import Field, FiniteFloat, StringConstraints, field_validator, model_validator
+from pydantic import Field, FiniteFloat, StringConstraints, field_validator, model_validator, model_serializer
 
 from shortcutminer.protocol.executive import AnalysisTask
+from shortcutminer.protocol.model_reliance import TorchvisionTrainingOptions, DatasetShiftSpec, AdaptivePairedScreeningOptions
+from shortcutminer.intervention.protocol import BackgroundReplaceTransform, GlobalColorTransform, CornerPatchTransform, ProvidedPairTransform, AutonomousImageTransform
+from shortcutminer.protocol.ood_recipe import OODRecipeSelectionPolicy
 from shortcutminer.protocol.identify import (
     Candidate,
     CandidateId,
@@ -142,9 +145,31 @@ class QuantitativeExecutionResources(StrictProtocolModel):
     training_class_weight: Literal["none", "balanced"] = "none"
     training_holdout_fraction: float = Field(default=0.25, gt=0.0, lt=0.5)
     max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
-    model_backend: Literal["reference_image_linear"] = "reference_image_linear"
-    feature_version: Literal["reference_image_features_v1"] = "reference_image_features_v1"
+    model_backend: Literal["reference_image_linear", "torchvision_resnet_matrix"] = "reference_image_linear"
+    feature_version: Literal["reference_image_features_v1", "torchvision_rgb224_v1"] = "reference_image_features_v1"
+    training_options: TorchvisionTrainingOptions | None = None
+    adaptive_screening: AdaptivePairedScreeningOptions | None = None
+    model_metadata_file: SafeRelativePath | None = None
+    train_split_values: list[NonEmptyText] = Field(default_factory=list)
+    validation_split_values: list[NonEmptyText] = Field(default_factory=list)
+    test_split_values: list[NonEmptyText] = Field(default_factory=list)
+    evaluation_split_values: list[NonEmptyText] = Field(default_factory=list)
+    max_train_samples: int | None = Field(default=None, ge=4, le=100000)
+    association_variable_mode: Literal["auto", "categorical_categorical", "numeric_categorical", "numeric_numeric"] = "auto"
+    ood_specs: dict[NonEmptyText, DatasetShiftSpec] = Field(default_factory=dict)
+    background_ood_specs: dict[NonEmptyText, BackgroundReplaceTransform] = Field(default_factory=dict)
+    color_ood_specs: dict[NonEmptyText, GlobalColorTransform] = Field(default_factory=dict)
+    patch_ood_specs: dict[NonEmptyText, CornerPatchTransform] = Field(default_factory=dict)
+    ood_recipe_selection: OODRecipeSelectionPolicy | None = None
     artifact_policy: Literal["safe_json_npz"] = "safe_json_npz"
+    visual_ood_specs: dict[NonEmptyText, ProvidedPairTransform | AutonomousImageTransform] = Field(default_factory=dict)
+
+    @model_serializer(mode='wrap')
+    def preserve_old_visual_contract(self, handler):
+        result = handler(self)
+        if 'visual_ood_specs' not in self.model_fields_set:
+            result.pop('visual_ood_specs', None)
+        return result
 
     @field_validator(
         "available_metadata_fields",

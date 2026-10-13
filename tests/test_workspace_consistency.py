@@ -50,7 +50,8 @@ def test_workspace_roles_and_established_load_order():
 def test_all_seven_real_documents_are_loaded_exactly_and_repeatably(agent):
     root = default_agent_workspace_dir(agent)
     assert root.is_dir()
-    assert {p.name for p in root.glob("*.md")} == set(EXPECTED_ORDER)
+    supplemental = {"ood-selection-legacy-v1.md"} if agent == "quantitative" else set()
+    assert {p.name for p in root.glob("*.md")} == set(EXPECTED_ORDER) | supplemental
     contents = []
     for name in EXPECTED_ORDER:
         path = root / name

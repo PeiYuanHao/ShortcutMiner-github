@@ -249,6 +249,7 @@ def build_candidate_contexts(
             binding,
             capabilities=context.capabilities,
             runtime_constraints=context.audit_options.runtime_constraints,
+            structured_spec_available=bool(set(binding.metadata_fields) & set(context.capabilities.structured_intervention_fields)),
         )
         for binding in bindings
     ]
@@ -263,6 +264,7 @@ def resolve_candidate_binding_for_request(candidate, request: ExecutiveRequest):
         available_metadata_fields=context.capabilities.available_metadata_fields,
         label_column=context.task.label_column,
         addressing_fields=context.capabilities.addressing_fields,
+        visual_measurement_bindings=context.capabilities.visual_measurement_bindings,
     )
 
 

@@ -93,13 +93,12 @@ def validate_executive_request(request: ExecutiveRequest) -> None:
             "ExecutiveRoutingContext dataset does not match CandidateReport."
         )
 
-    expected_candidate_ids = [
-        f"C{index:03d}" for index in range(1, len(report.candidates) + 1)
-    ]
     candidate_ids = [candidate.candidate_id for candidate in report.candidates]
-    if candidate_ids != expected_candidate_ids:
+    # Identify still creates sequential IDs. The controller may supply an ordered
+    # screening subset; those original IDs must never be renumbered.
+    if candidate_ids != sorted(set(candidate_ids)):
         raise ExecutiveExecutionError(
-            "CandidateReport candidate IDs must be sequential from C001."
+            "Executive candidate IDs must be unique and in original order."
         )
 
     authoritative_artifacts = set(context.artifact_references)
@@ -221,6 +220,9 @@ def validate_executive_draft(
                 raise ExecutiveDraftSemanticError(
                     f"Executive draft selected unavailable {target} check."
                 )
+            required = set(request.routing_context.audit_options.required_quantitative_checks)
+            if target == "quantitative" and required.issubset(allowed) and not required.issubset(branch.requested_checks):
+                raise ExecutiveDraftSemanticError("Executive draft omitted caller-required executable quantitative checks")
 
 
 def _finalize_task(
@@ -242,6 +244,8 @@ def _finalize_task(
         )
         else []
     )
+    if target == "qualitative" and request.routing_context.audit_options.qualitative_metadata_policy == "candidate-bound-v2":
+        metadata_fields = list(candidate_context.bound_metadata_fields)
     suffix = "QT" if target == "quantitative" else "QL"
     task_id = f"TASK-{candidate.candidate_id}-{suffix}"
     outputs = expected_outputs_for_checks(

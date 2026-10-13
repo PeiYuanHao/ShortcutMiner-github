@@ -195,6 +195,14 @@ def compile_quantitative_experiment_plan(
         for experiment_type in targets:
             if experiment_type not in requirement.resolved_experiment_types:
                 raise QuantitativePlanCompilerBug("experiment_type_not_resolved")
+            from shortcutminer.experiment.ood_recipe_selection import selection_pending, EXPENSIVE
+            if selection_pending(resources) and experiment_type in EXPENSIVE:
+                step_id = add(planning_check, experiment_type, allowed, 'needs_scientific_spec', None,
+                    provenance='explicit_scientific_spec_required',
+                    description='Quantitative must select an eligible memory OOD recipe before costly execution.')
+                if experiment_type == 'task_model_training':
+                    training_ids.append(step_id)
+                continue
             if experiment_type == "statistical_check":
                 if not allowed:
                     raise QuantitativePlanUnmaterializable(
@@ -203,7 +211,7 @@ def compile_quantitative_experiment_plan(
                 for field in allowed:
                     canonical = _canonical(
                         request, requirement, runtime, experiment_type,
-                        {"cue_field": field, "variable_mode": "auto"},
+                        {"cue_field": field, "variable_mode": resources.association_variable_mode},
                     )
                     add(
                         planning_check, experiment_type, [field], "ready", canonical,
@@ -312,6 +320,78 @@ def compile_quantitative_experiment_plan(
                     description="Evaluate the approved model artifact produced by its training dependency.",
                 )
             elif experiment_type in {"ood_evaluation", "counterfactual_intervention"}:
+                bound_recipes={**resources.color_ood_specs,**resources.patch_ood_specs,**resources.visual_ood_specs}
+                color_fields = [field for field in allowed if field in bound_recipes]
+                if len(color_fields) == 1:
+                    field = color_fields[0]
+                    choice = {'transformation': bound_recipes[field].model_dump(mode='json'),
+                        'target_cue': request.candidate.cue.name,
+                        'intended_invariants': ['spatial pixel coordinates', 'task label semantics'],
+                        'preservation_status': 'unverified'}
+                    if bound_recipes[field].type == 'corner_patch':
+                        choice['intended_invariants']=['pixels outside verified corner regions','task label semantics']
+                    if bound_recipes[field].type in {'spatial_mask','spatial_replace'}:
+                        choice['intended_invariants']=['pixels outside the frozen agent-selected region','same source image and label; semantics inside the filled region are unverified']
+                    from shortcutminer.intervention.capabilities import general_image_constructor
+                    if general_image_constructor(bound_recipes[field]):
+                        choice['intended_invariants']=['image dimensions','same source label; class-defining content and task semantics remain unverified']
+                    if experiment_type == 'ood_evaluation': choice['comparison_mode'] = 'paired'
+                    try:
+                        canonical = _canonical(request, requirement, runtime, experiment_type, choice)
+                    except ExperimentDependencyPending:
+                        canonical = None
+                    add(planning_check, experiment_type, [field], 'ready' if canonical else 'pending_dependency', canonical,
+                        dependencies=training_ids, provenance='execution_resources',
+                        description='Construct the authorized paired cue intervention and evaluate the same task models.')
+                    # A paired counterfactual does not replace an independently
+                    # authorized benchmark environment. Retain both measurements
+                    # when the caller explicitly supplied both for this field.
+                    if experiment_type == 'ood_evaluation' and field in resources.ood_specs:
+                        shift_choice = {
+                            'dataset_shift': resources.ood_specs[field].model_dump(mode='json'),
+                            'target_cue': request.candidate.cue.name,
+                            'intended_invariants': ['task label semantics'],
+                            'comparison_mode': 'independent', 'preservation_status': 'unverified',
+                        }
+                        try:
+                            independent = _canonical(request, requirement, runtime, experiment_type, shift_choice)
+                        except ExperimentDependencyPending:
+                            independent = None
+                        add(planning_check, experiment_type, [field], 'ready' if independent else 'pending_dependency', independent,
+                            dependencies=training_ids, provenance='execution_resources',
+                            description='Evaluate the same approved task models on separately authorized independent ID and OOD environments.')
+                    continue
+                paired = [field for field in allowed if field in resources.background_ood_specs]
+                if len(paired) == 1:
+                    field = paired[0]
+                    choice = {'transformation': resources.background_ood_specs[field].model_dump(mode='json'),
+                        'target_cue': request.candidate.cue.name, 'intended_invariants': ['foreground pixels inside protected mask', 'task label semantics'],
+                        'preservation_status': 'unverified'}
+                    if experiment_type == 'ood_evaluation': choice['comparison_mode'] = 'paired'
+                    try:
+                        canonical = _canonical(request, requirement, runtime, experiment_type, choice)
+                    except ExperimentDependencyPending:
+                        canonical = None
+                    add(planning_check, experiment_type, [field], 'ready' if canonical else 'pending_dependency', canonical,
+                        dependencies=training_ids, provenance='execution_resources',
+                        description='Construct paired background OOD using frozen local foreground models and evaluate the same task models.')
+                    continue
+                matching = [field for field in allowed if field in resources.ood_specs]
+                if experiment_type == "ood_evaluation" and len(matching) == 1:
+                    field = matching[0]
+                    try:
+                        canonical = _canonical(request, requirement, runtime, experiment_type, {
+                            "dataset_shift": resources.ood_specs[field].model_dump(mode="json"),
+                            "target_cue": request.candidate.cue.name,
+                            "intended_invariants": ["task label semantics"],
+                            "comparison_mode": "independent", "preservation_status": "unverified",
+                        })
+                    except ExperimentDependencyPending:
+                        canonical = None
+                    add(planning_check, experiment_type, [field], "ready" if canonical else "pending_dependency",
+                        canonical, dependencies=training_ids, provenance="execution_resources",
+                        description="Evaluate disjoint frozen ID/OOD partitions using the same validation-selected task model.")
+                    continue
                 add(
                     planning_check, experiment_type, allowed,
                     "needs_scientific_spec", None,

@@ -1,0 +1,117 @@
+{
+  "text_model_config": "configs/models/pilot_text.example.yaml",
+  "vlm_model_config": "configs/models/pilot_vlm.example.yaml",
+  "promotion_policy": {
+    "policy_version": "budgeted-paired-probe-v2",
+    "calibration_status": "externally_frozen",
+    "strategy": "budgeted_paired_probe",
+    "max_probe_candidates": 3,
+    "metric_rules": []
+  },
+  "paper_protocol": {
+    "source_pdf": "D:/PeiYuan Hao/桌面/ShortcutMiner.pdf",
+    "source_pdf_sha256": "01627a8713da225f79f6a02356eedc2f18334d141e7fb3dec560edb88cab4b77",
+    "reference_pages": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "data_risk_heuristic": "Cramers V is used only for ordering feasible candidates; at most three paired probes per run. No hard V promotion threshold.",
+    "metadata_assisted": true,
+    "blind_discovery_claim": false,
+    "note": "IRM input adapter; metadata-assisted training-only discovery. Frozen adaptive thresholds unchanged; probe a validation-selected ResNet18 seed42 then expand to ResNet18/50 seeds42/43/44 only when primary interval supports expansion. Paired red/green swaps and independent original OOD are distinct evidence.",
+    "effect_reporting": "Continuous signed paired effects and uncertainty; no universal 30pp shortcut/no-shortcut boundary."
+  },
+  "execution_options": {
+    "sample_id_column": "img_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "model_metadata_file": "model_metadata.csv",
+    "train_split_values": [
+      "train"
+    ],
+    "validation_split_values": [
+      "val"
+    ],
+    "test_split_values": [
+      "id",
+      "test"
+    ],
+    "evaluation_split_values": [
+      "id"
+    ],
+    "model_backend": "torchvision_resnet_matrix",
+    "feature_version": "torchvision_rgb224_v1",
+    "training_options": {
+      "architectures": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "epochs": 100,
+      "minimum_epochs": 10,
+      "early_stopping_patience": 10,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "momentum": 0.9,
+      "weight_decay": 0.0001,
+      "workers": 4,
+      "torch_threads": 24,
+      "amp": true,
+      "checkpoint_interval": 5,
+      "augmentation": "digit_preserving"
+    },
+    "association_variable_mode": "categorical_categorical",
+    "ood_specs": {
+      "color": {
+        "id_split_values": [
+          "id"
+        ],
+        "ood_split_values": [
+          "test"
+        ]
+      }
+    },
+    "excluded_scientific_fields": [],
+    "background_ood_specs": {},
+    "color_ood_specs": {
+      "color": {
+        "type": "global_color",
+        "mode": "swap_red_green"
+      }
+    },
+    "adaptive_screening": {
+      "minimum_effect": 0.02,
+      "family_alpha": 0.05,
+      "candidate_budget": 3,
+      "pair_checkpoints": [
+        128,
+        256,
+        512
+      ],
+      "probe_fraction": 0.5,
+      "sensitivity_effects": [
+        0.01,
+        0.02,
+        0.05
+      ]
+    }
+  },
+  "dataset_root": "E:/datasets/colored-mnist",
+  "derived_dataset_root": "E:/ShortcutMiner-github/runs/colored-mnist-irm-input-v1",
+  "expected_source_inventory_sha256": "93e45630bfa0db61988c945ceaa99c84f6de9518c97bcfbf7fee02d471beb556",
+  "split_protocol": {
+    "seed": 42,
+    "id_fraction": 0.018,
+    "validation_fraction_of_remaining": 0.2,
+    "isolation": "SHA256 of max(RGB) digit foreground, groups isolated; training content overlapping original OOD excluded",
+    "original_test_role": "original IRM independent OOD environment retained, unused for model selection"
+  },
+  "dataset_format": "irm_colored_mnist",
+  "dataset_description": "Binary handwritten digit classification from RGB 14x14 red/green foreground images on black backgrounds. The observed y column is the task target. Discovery receives only the training partition, with color verified against pixels; no construction truth or held-out statistics are supplied. Validation and held-out ID/OOD are isolated by recovered digit-content groups. Authorized red-green channel swapping preserves digit intensity and observed labels for paired ID comparisons; independent held-out environment comparison is separately authorized. Do not assume any expected verdict. Equivalent visual and metadata representations should be treated as one scientific hypothesis when evidence supports that equivalence."
+}

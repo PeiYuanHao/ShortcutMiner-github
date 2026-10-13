@@ -464,6 +464,7 @@ def execute_quantitative(
     workspace_dir: str | Path | None = None,
     tool_runtime: ToolRuntime | None = None,
     execution_requirement: QuantitativeExecutionRequirement | None = None,
+    plan_step_allowlist: frozenset[str] | None = None,
 ) -> QuantitativeResult:
     """Invoke, validate, and optionally persist one quantitative task."""
     try:
@@ -482,10 +483,18 @@ def execute_quantitative(
         )
         prompt = load_agent_workspace_prompt("quantitative", workspace_dir)
         if tool_runtime is not None:
+            from dataclasses import replace
+            tool_runtime.context=replace(tool_runtime.context,construction_resources=(
+                request.execution_resources.model_dump(mode='json') if request.execution_resources is not None else None))
             tool_runtime.bind_analysis_task(
                 runtime_constraints=request.task.inputs.runtime_constraints,
                 requested_checks=request.task.requested_checks,
             )
+        if requirement.must_attempt_run_experiment and tool_runtime is not None and plan_step_allowlist is None:
+            from shortcutminer.experiment.ood_recipe_selection import selection_pending, select_memory_recipe, EXPENSIVE
+            if (request.execution_resources is not None and selection_pending(request.execution_resources)
+                    and set(requirement.resolved_experiment_types) & EXPENSIVE):
+                request = select_memory_recipe(request, client, tool_runtime, prompt=prompt, runs_root=runs_root)
         experiment_plan = None
         mandatory_step_ids: list[str] = []
         mandatory_results: list[ToolResult] = []
@@ -494,9 +503,12 @@ def execute_quantitative(
                 raise QuantitativePlanUnmaterializable(
                     "mandatory_quantitative_execution_requires_tool_runtime"
                 )
-            experiment_plan = compile_quantitative_experiment_plan(
-                request, requirement, tool_runtime
-            )
+            def compile_current_plan():
+                compiled = compile_quantitative_experiment_plan(request, requirement, tool_runtime)
+                if plan_step_allowlist is not None:
+                    compiled = compiled.model_copy(update={"steps": [step for step in compiled.steps if step.step_id in plan_step_allowlist]})
+                return compiled
+            experiment_plan = compile_current_plan()
             known_steps = {step.step_id: step for step in experiment_plan.steps}
             for previous in tool_runtime.history:
                 if previous.tool_name != "run_experiment" or previous.status != "success":
@@ -559,7 +571,7 @@ def execute_quantitative(
                     mandatory_results.append(result)
                     if result.status != "success":
                         raise QuantitativePlanUnmaterializable("mandatory_quantitative_backend_execution_failed")
-                refreshed = compile_quantitative_experiment_plan(request, requirement, tool_runtime)
+                refreshed = compile_current_plan()
                 done = set(mandatory_step_ids)
                 experiment_plan = refreshed.model_copy(update={
                     "steps": [
@@ -608,6 +620,12 @@ def execute_quantitative(
         payload = build_quantitative_agent_payload(
             request, requirement, experiment_plan
         )
+        if plan_step_allowlist is not None:
+            payload["validation_stage"] = {
+                "phase": "stage1_cheap_validation",
+                "current_requested_checks": list(dict.fromkeys(step.planning_check for step in experiment_plan.steps)) if experiment_plan else [],
+                "remaining_checks": "Deferred to the deterministic evidence promotion controller; only current plan steps are executable.",
+            }
         if runs_root is not None:
             save_stage_json(
                 runs_root,

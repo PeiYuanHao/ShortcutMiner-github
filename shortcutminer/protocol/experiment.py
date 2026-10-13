@@ -14,7 +14,7 @@ from shortcutminer.intervention.protocol import (
     ImageInterventionSpec,
     LabelPreservationStatus,
 )
-from shortcutminer.protocol.model_reliance import TaskModelId
+from shortcutminer.protocol.model_reliance import TaskModelId, TorchvisionTrainingOptions, DatasetShiftSpec, AdaptivePairedScreeningOptions
 
 
 class EmptyExperimentParameters(StrictProtocolModel):
@@ -160,8 +160,12 @@ class TaskModelTrainingParameters(UncertaintyOptions):
     test_split_values: list[NonEmptyText] = Field(default_factory=list)
     holdout_fraction: float = Field(default=0.25, gt=0, lt=0.5)
     model_id: TaskModelId
-    model_backend: Literal["reference_image_linear"] = "reference_image_linear"
-    feature_version: Literal["reference_image_features_v1"] = "reference_image_features_v1"
+    model_backend: Literal["reference_image_linear", "torchvision_resnet_matrix"] = "reference_image_linear"
+    feature_version: Literal["reference_image_features_v1", "torchvision_rgb224_v1"] = "reference_image_features_v1"
+    training_options: "TorchvisionTrainingOptions | None" = None
+    adaptive_screening: AdaptivePairedScreeningOptions | None = None
+    screening_transformation: ImageInterventionSpec | None = None
+    screening_split_values: list[NonEmptyText] = Field(default_factory=list)
     max_train_samples: int = Field(default=10_000, ge=4, le=100_000)
     max_eval_samples: int = Field(default=10_000, ge=1, le=100_000)
     max_model_iterations: int = Field(default=300, ge=10, le=5_000)
@@ -171,6 +175,13 @@ class TaskModelTrainingParameters(UncertaintyOptions):
 
     @model_validator(mode="after")
     def validate_training_split(self):
+        if self.adaptive_screening is not None:
+            if self.model_backend != 'torchvision_resnet_matrix' or self.screening_transformation is None or not self.screening_split_values:
+                raise ValueError('Adaptive screening requires CUDA training, a transformation and explicit probe splits')
+            if not set(self.screening_split_values).issubset(self.test_split_values) or not self.validation_split_values:
+                raise ValueError('Adaptive probe splits must be isolated held-out partitions')
+        elif self.screening_transformation is not None or self.screening_split_values:
+            raise ValueError('Probe inputs require a frozen adaptive policy')
         values = [
             set(self.train_split_values),
             set(self.validation_split_values),
@@ -213,7 +224,8 @@ class TaskModelEvaluationParameters(UncertaintyOptions):
 
 
 class OODEvaluationParameters(TaskModelEvaluationParameters):
-    transformation: ImageInterventionSpec
+    transformation: ImageInterventionSpec | None = None
+    dataset_shift: "DatasetShiftSpec | None" = None
     target_cue: NonEmptyText
     intended_invariants: list[NonEmptyText] = Field(
         default_factory=lambda: ["task label semantics"]
@@ -221,6 +233,14 @@ class OODEvaluationParameters(TaskModelEvaluationParameters):
     comparison_mode: ComparisonMode
     preservation_status: LabelPreservationStatus = "unverified"
     max_intervention_samples: int = Field(default=1_000, ge=1, le=10_000)
+
+    @model_validator(mode="after")
+    def one_ood_design(self):
+        if (self.transformation is None) == (self.dataset_shift is None):
+            raise ValueError("OOD requires exactly one transformation or dataset_shift")
+        if self.dataset_shift is not None and (self.split_column is None or self.comparison_mode != "independent"):
+            raise ValueError("dataset_shift requires split_column and independent comparison")
+        return self
 
 
 class CounterfactualInterventionParameters(TaskModelEvaluationParameters):

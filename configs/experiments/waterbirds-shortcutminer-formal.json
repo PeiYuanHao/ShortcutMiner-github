@@ -1,0 +1,99 @@
+{
+  "dataset_root": "E:/ShortcutMiner-Experiments/waterbirds",
+  "derived_dataset_root": "E:/ShortcutMiner-github/runs/waterbirds-shortcutminer-input-v1",
+  "expected_metadata_sha256": "2f023b9dc371f6fbb82c7cb810ff0f03e19c54c8055a2e37517ae7bb56644362",
+  "split_protocol": {
+    "id_fraction": 0.2,
+    "seed": 42,
+    "stratification": "joint_label_and_background",
+    "training": "remaining_official_train",
+    "validation": "official_validation",
+    "ood": "official_balanced_test",
+    "discovery": "remaining_training_only"
+  },
+  "text_model_config": "configs/models/pilot_text.example.yaml",
+  "vlm_model_config": "configs/models/pilot_vlm.example.yaml",
+  "paper_protocol": {
+    "source_pdf": "D:\\PeiYuan Hao\\桌面\\ShortcutMiner.pdf",
+    "source_pdf_sha256": "01627a8713da225f79f6a02356eedc2f18334d141e7fb3dec560edb88cab4b77",
+    "reference_pages": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "data_risk_heuristic": "Cramers V > 0.5 (paper heuristic, not calibrated general shortcut probability)",
+    "model_high_impact_drop": 0.3,
+    "metadata_assisted": true,
+    "blind_discovery_claim": false,
+    "note": "Fresh measured values replace historical paper numbers; never force expected effect."
+  },
+  "promotion_policy": {
+    "policy_version": "paper-pdf-cramers-v-0.5-v1",
+    "calibration_status": "externally_frozen",
+    "minimum_samples": 4,
+    "metric_rules": [
+      {
+        "experiment_type": "statistical_check",
+        "metric": "effect_size",
+        "operator": "gt",
+        "threshold": 0.5
+      }
+    ]
+  },
+  "execution_options": {
+    "sample_id_column": "img_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "model_metadata_file": "model_metadata.csv",
+    "train_split_values": [
+      "train"
+    ],
+    "validation_split_values": [
+      "val"
+    ],
+    "test_split_values": [
+      "id",
+      "ood"
+    ],
+    "evaluation_split_values": [
+      "id"
+    ],
+    "model_backend": "torchvision_resnet_matrix",
+    "feature_version": "torchvision_rgb224_v1",
+    "training_options": {
+      "architectures": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "epochs": 100,
+      "minimum_epochs": 10,
+      "early_stopping_patience": 10,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "momentum": 0.9,
+      "weight_decay": 0.0001,
+      "workers": 4,
+      "torch_threads": 24,
+      "amp": true,
+      "checkpoint_interval": 5
+    },
+    "association_variable_mode": "categorical_categorical",
+    "ood_specs": {
+      "place": {
+        "id_split_values": [
+          "id"
+        ],
+        "ood_split_values": [
+          "ood"
+        ]
+      }
+    },
+    "excluded_scientific_fields": []
+  }
+}

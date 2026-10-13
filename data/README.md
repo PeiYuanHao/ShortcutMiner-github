@@ -2,13 +2,13 @@
 
 Raw research datasets do not belong in this Git repository. Store Waterbirds,
 Camelyon17, Colorized-MNIST, and other real datasets locally, then point a dataset
-configuration at the mounted root.
+configuration at the local dataset root.
 
-The root Docker Compose configuration mounts this directory at `/data` as
+Formal Windows experiments use `E:/ShortcutMiner-Experiments`, treated as
 read-only. One possible local layout is:
 
 ```text
-data/
+E:/ShortcutMiner-Experiments/
 ├── waterbirds/
 ├── camelyon17/
 └── colorized_mnist/

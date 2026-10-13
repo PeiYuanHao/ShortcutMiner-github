@@ -92,6 +92,18 @@ def test_permission_matrix_is_least_privilege(registry):
     matrix = registry.permission_matrix()
 
     assert matrix == {
+        "search_shortcut_literature": {
+            "identify": True, "executive": False, "quantitative": False,
+            "qualitative": False, "summarize": False,
+        },
+        "inspect_shortcut_methods": {
+            "identify": True, "executive": True, "quantitative": True,
+            "qualitative": True, "summarize": True,
+        },
+        "calibrate_luminance": {
+            "identify": False, "executive": False, "quantitative": True,
+            "qualitative": False, "summarize": False,
+        },
         "get_column_distribution": {
             "identify": True,
             "executive": False,

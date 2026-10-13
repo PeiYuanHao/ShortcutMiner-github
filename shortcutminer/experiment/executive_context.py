@@ -8,6 +8,7 @@ from shortcutminer.protocol.executive import (
     ExecutiveRoutingContext,
 )
 from shortcutminer.protocol.identify import CandidateReport, IdentifyRequest
+from shortcutminer.protocol.dataset_profile import DatasetProfile
 
 
 class ExecutiveContextError(RuntimeError):
@@ -52,6 +53,7 @@ def build_executive_request(
     capabilities: ExecutiveCapabilities,
     artifact_references: list[str] | None = None,
     limitations: list[str] | None = None,
+    dataset_profile: DatasetProfile | None = None,
 ) -> ExecutiveRequest:
     """Build bounded, traceable Executive input from one Identify run."""
 
@@ -127,6 +129,16 @@ def build_executive_request(
             "bounded Identify metadata profile."
         )
 
+    if dataset_profile is not None:
+        if (dataset_profile.dataset.name != identify_request.dataset.name
+                or dataset_profile.dataset.root_reference != identify_request.dataset.root
+                or dataset_profile.dataset.metadata_file != identify_request.dataset.metadata_file
+                or dataset_profile.task.label_column != identify_request.task.label_column
+                or dataset_profile.task.task_type != identify_request.task.type):
+            raise ExecutiveContextError("Executive DatasetProfile does not match authoritative Identify input.")
+        if not claimed_fields.issubset(dataset_profile.metadata.column_names):
+            raise ExecutiveContextError("Executive capabilities contain fields absent from the public DatasetProfile.")
+
     authoritative_artifacts = _unique_strings(
         [
             *candidate_report.artifact_references,
@@ -146,6 +158,7 @@ def build_executive_request(
         run_id=identify_request.run_id,
         dataset=identify_request.dataset,
         task=identify_request.task,
+        dataset_profile=dataset_profile,
         audit_options=audit_options,
         capabilities=capabilities,
         artifact_references=authoritative_artifacts,

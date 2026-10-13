@@ -1,6 +1,6 @@
 schema_version: "1.0"
 pilot_id: phase16-real-provider-pilot-v16-task-isolation
-artifact_root: /runs/pilots
+artifact_root: E:/ShortcutMiner-github/runs/pilots
 repository_root: .
 frozen_git_commit: 8a3470a6117130372a6acb2d869a642a666c2602
 text_runtime:

@@ -1,0 +1,13 @@
+# Scientific direct pins preserved; compatibility ranges live in pyproject.toml.
+langgraph==1.2.11
+langgraph-checkpoint-sqlite==3.1.1
+pydantic==2.13.5
+pandas==3.0.5
+numpy==2.4.6
+Pillow==12.3.0
+scipy==1.17.1
+scikit-learn==1.9.0
+PyYAML==6.0.3
+pytest==9.1.1
+rich==14.3.4
+transformers==5.14.1

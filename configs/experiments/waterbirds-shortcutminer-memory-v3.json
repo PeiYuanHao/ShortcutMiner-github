@@ -1,0 +1,131 @@
+{
+  "dataset_root": "E:/ShortcutMiner-Experiments/waterbirds",
+  "derived_dataset_root": "E:/ShortcutMiner-github/runs/waterbirds-shortcutminer-input-v1",
+  "expected_metadata_sha256": "2f023b9dc371f6fbb82c7cb810ff0f03e19c54c8055a2e37517ae7bb56644362",
+  "split_protocol": {
+    "id_fraction": 0.2,
+    "seed": 42,
+    "stratification": "joint_label_and_background",
+    "training": "remaining_official_train",
+    "validation": "official_validation",
+    "ood": "official_balanced_test",
+    "discovery": "remaining_training_only"
+  },
+  "text_model_config": "configs/models/pilot_text.example.yaml",
+  "vlm_model_config": "configs/models/pilot_vlm.example.yaml",
+  "paper_protocol": {
+    "source_pdf": "D:\\PeiYuan Hao\\桌面\\ShortcutMiner.pdf",
+    "source_pdf_sha256": "01627a8713da225f79f6a02356eedc2f18334d141e7fb3dec560edb88cab4b77",
+    "reference_pages": [
+      4,
+      5,
+      6,
+      7
+    ],
+    "data_risk_heuristic": "Cramers V > 0.5 (paper heuristic, not calibrated general shortcut probability)",
+    "model_high_impact_drop": 0.3,
+    "metadata_assisted": true,
+    "blind_discovery_claim": false,
+    "note": "Tool availability and hashes are frozen, not a preselected OOD operation. Quantitative selects a memory recipe and supplies foreground object prompt; local DINO/SAM/ViTMatte constructs masks. Training-only previews and held-out per-image checks retain failures. This config is not a rerun or replacement of the previous Waterbirds result."
+  },
+  "promotion_policy": {
+    "policy_version": "paper-pdf-cramers-v-0.5-v1",
+    "calibration_status": "externally_frozen",
+    "minimum_samples": 4,
+    "metric_rules": [
+      {
+        "experiment_type": "statistical_check",
+        "metric": "effect_size",
+        "operator": "gt",
+        "threshold": 0.5
+      }
+    ]
+  },
+  "execution_options": {
+    "sample_id_column": "img_id",
+    "sample_path_column": "img_filename",
+    "split_column": "split",
+    "model_metadata_file": "model_metadata.csv",
+    "train_split_values": [
+      "train"
+    ],
+    "validation_split_values": [
+      "val"
+    ],
+    "test_split_values": [
+      "id",
+      "ood"
+    ],
+    "evaluation_split_values": [
+      "id"
+    ],
+    "model_backend": "torchvision_resnet_matrix",
+    "feature_version": "torchvision_rgb224_v1",
+    "training_options": {
+      "architectures": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "epochs": 100,
+      "minimum_epochs": 10,
+      "early_stopping_patience": 10,
+      "batch_size": 32,
+      "learning_rate": 0.001,
+      "momentum": 0.9,
+      "weight_decay": 0.0001,
+      "workers": 4,
+      "torch_threads": 24,
+      "amp": true,
+      "checkpoint_interval": 5
+    },
+    "association_variable_mode": "categorical_categorical",
+    "ood_specs": {},
+    "excluded_scientific_fields": [],
+    "background_ood_specs": {},
+    "ood_recipe_selection": {
+      "catalog_version": "ood-memory-v2",
+      "fields": [
+        "place"
+      ],
+      "max_quality_revisions": 2,
+      "local_foreground_tools": {
+        "local-dino-sam-vitmatte": {
+          "sam": {
+            "directory": "E:\\Beyond Post-hoc\\sam-vit-base",
+            "files_sha256": {
+              "config.json": "5ebd0d8643b486f3a716bf17c2a15531eb818b2b96ff0c6c5dcc88fa015161af",
+              "preprocessor_config.json": "225545a743c654e3c495ec6f545a0eaba57c8ba3fbbd8483b3cb1c0fc58db517",
+              "model.safetensors": "892c410e496344e527255ccdcb2cb7244a609acb5389c7c4fdba1288f861c579"
+            }
+          },
+          "vitmatte": {
+            "directory": "E:\\Beyond Post-hoc\\vitmatte-small-composition-1k",
+            "files_sha256": {
+              "config.json": "ae1006f5a83227048b563b2e60709d4203e432b2276949ebef41a8cfeeeaf45f",
+              "preprocessor_config.json": "0db558038b96a3f5c97e46d4ec8966fcc479e9aa58a391bca60b5094a5f7fee0",
+              "model.safetensors": "bda9289db1bb6762d978b42d1c62ae3f34daf7497171a347a1d09657efd788cb"
+            }
+          },
+          "grounding_dino": {
+            "directory": "D:\\hf_cache\\hub\\models--IDEA-Research--grounding-dino-base\\snapshots\\12bdfa3120f3e7ec7b434d90674b3396eccf88eb",
+            "files_sha256": {
+              "config.json": "eda416dae6f49419ff831b1c190ec430a060b19aae688dbaf2425a075b650608",
+              "preprocessor_config.json": "8454179ba95e2ad22947835aad7b45862a601fc0055ab88bf1ee70892d3aea60",
+              "model.safetensors": "5548f844c928c4b6f411fa8cbcc2bfa8dbbba437cb1d513975519f93c2a9ed21",
+              "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+              "tokenizer_config.json": "d40ab645b68211910b9170d22433d43186a6ec8ee6fd10ba170524b25bf4fb56",
+              "special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+              "vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+            }
+          }
+        }
+      },
+      "construction_protocol": "quality-v2"
+    }
+  }
+}

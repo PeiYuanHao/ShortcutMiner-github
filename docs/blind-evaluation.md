@@ -135,8 +135,7 @@ Every run records an `EvaluationSnapshot` at
 - candidate limit, validation depth, and budget settings.
 
 Source-tree runs resolve the full Git commit directly from `.git` without invoking
-an external command. Packaged environments, including the repository's Docker
-image where `.git` is intentionally excluded, must supply the full 40- or 64-digit
+an external command. Packaged copies where `.git` is excluded must supply the full 40- or 64-digit
 hexadecimal commit explicitly; an unknown or abbreviated revision is rejected.
 
 Secrets and absolute paths are removed. Private truth is never an input to the

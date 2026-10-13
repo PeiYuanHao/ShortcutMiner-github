@@ -1,0 +1,284 @@
+{
+  "schema_version": "shortcut-literature-v1",
+  "reviewed_on": "2026-10-08",
+  "scope": "Targeted primary-source review; not an exhaustive systematic review. No current-dataset hidden rules or expected verdicts.",
+  "papers": [
+    {
+      "id": "geirhos2020",
+      "title": "Shortcut Learning in Deep Neural Networks",
+      "year": 2020,
+      "url": "https://arxiv.org/abs/2004.07780"
+    },
+    {
+      "id": "geirhos2019",
+      "title": "ImageNet-trained CNNs are biased towards texture; increasing shape bias improves accuracy and robustness",
+      "year": 2019,
+      "url": "https://arxiv.org/abs/1811.12231"
+    },
+    {
+      "id": "irm2019",
+      "title": "Invariant Risk Minimization",
+      "year": 2019,
+      "url": "https://arxiv.org/abs/1907.02893"
+    },
+    {
+      "id": "sagawa2020",
+      "title": "An Investigation of Why Overparameterization Exacerbates Spurious Correlations",
+      "year": 2020,
+      "url": "https://proceedings.mlr.press/v119/sagawa20a.html"
+    },
+    {
+      "id": "groupdro2020",
+      "title": "Distributionally Robust Neural Networks for Group Shifts",
+      "year": 2020,
+      "url": "https://arxiv.org/abs/1911.08731"
+    },
+    {
+      "id": "lapuschkin2019",
+      "title": "Unmasking Clever Hans predictors and assessing what machines really learn",
+      "year": 2019,
+      "url": "https://www.nature.com/articles/s41467-019-08987-4"
+    },
+    {
+      "id": "degrave2021",
+      "title": "AI for radiographic COVID-19 detection selects shortcuts over signal",
+      "year": 2021,
+      "url": "https://www.nature.com/articles/s42256-021-00338-7"
+    },
+    {
+      "id": "zech2018",
+      "title": "Variable generalization performance of a deep learning model to detect pneumonia in chest radiographs",
+      "year": 2018,
+      "url": "https://doi.org/10.1371/journal.pmed.1002683"
+    },
+    {
+      "id": "wilds2021",
+      "title": "WILDS: A Benchmark of in-the-Wild Distribution Shifts",
+      "year": 2021,
+      "url": "https://proceedings.mlr.press/v139/koh21a.html"
+    },
+    {
+      "id": "objectnet2019",
+      "title": "ObjectNet: A large-scale bias-controlled dataset for pushing the limits of object recognition models",
+      "year": 2019,
+      "url": "https://papers.nips.cc/paper_files/paper/2019/hash/97af07a14cacba681feacf3012730892-Abstract.html"
+    },
+    {
+      "id": "hfc2020",
+      "title": "High-Frequency Component Helps Explain the Generalization of Convolutional Neural Networks",
+      "year": 2020,
+      "url": "https://openaccess.thecvf.com/content_CVPR_2020/html/Wang_High-Frequency_Component_Helps_Explain_the_Generalization_of_Convolutional_Neural_Networks_CVPR_2020_paper.html"
+    },
+    {
+      "id": "imagenetc2019",
+      "title": "Benchmarking Neural Network Robustness to Common Corruptions and Perturbations",
+      "year": 2019,
+      "url": "https://arxiv.org/abs/1903.12261"
+    },
+    {
+      "id": "nli2018",
+      "title": "Annotation Artifacts in Natural Language Inference Data",
+      "year": 2018,
+      "url": "https://aclanthology.org/N18-2017/"
+    },
+    {
+      "id": "hans2019",
+      "title": "Right for the Wrong Reasons: Diagnosing Syntactic Heuristics in Natural Language Inference",
+      "year": 2019,
+      "url": "https://aclanthology.org/P19-1334/"
+    },
+    {
+      "id": "saliency2018",
+      "title": "Sanity Checks for Saliency Maps",
+      "year": 2018,
+      "url": "https://arxiv.org/abs/1810.03292"
+    },
+    {
+      "id": "leakage2023",
+      "title": "Leakage and the Reproducibility Crisis in ML-based Science",
+      "year": 2023,
+      "url": "https://arxiv.org/abs/2207.07048"
+    }
+  ],
+  "families": [
+    {
+      "id": "global_photometry",
+      "cue": "Global brightness / exposure / contrast",
+      "discovery": "Inspect luminance independently of hue, structure and regional descriptors.",
+      "validation": "Training-calibrated Y-mean normalization or reflection; no-op paired control; same frozen model and reserved confirmation.",
+      "runtime_status": "executable_general_rgb",
+      "sources": [
+        "geirhos2020",
+        "imagenetc2019",
+        "degrave2021"
+      ],
+      "limitations": "Engineering adaptation of photometric/acquisition stress tests; these papers do not prescribe our Y recipe. Global pixel changes do not imply semantic destruction, or guarantee preservation."
+    },
+    {
+      "id": "color_palette",
+      "cue": "Hue / channel ordering / saturation",
+      "discovery": "Separate RGB channel scale from chromatic balance; inspect current labels and pixels.",
+      "validation": "Authorized palette permutation, grayscale/desaturation or channel scaling; paired evaluation with unchanged geometry.",
+      "runtime_status": "executable_general_rgb",
+      "sources": [
+        "irm2019"
+      ],
+      "limitations": "IRM reports Colored-MNIST environments, not arbitrary-natural-image label guarantees; color can define the class."
+    },
+    {
+      "id": "background_context",
+      "cue": "Background / context / environment",
+      "discovery": "Compare foreground and surrounding scene with training evidence.",
+      "validation": "Frozen foreground segmentation and background replacement or approved scene swaps; foreground-only controls.",
+      "runtime_status": "executable_with_segmentation_prerequisites",
+      "sources": [
+        "sagawa2020",
+        "groupdro2020"
+      ],
+      "limitations": "Masks may be wrong; model-protected foreground and SAM previews are not semantic certification."
+    },
+    {
+      "id": "localized_artifact",
+      "cue": "Watermark / logo / text marker / corner patch",
+      "discovery": "Find repeated localized non-task marks; do not assume a corner or box from memory.",
+      "validation": "Agent-localized mask, replacement, matched patch removal or position randomization; keep processing artifacts and content-loss controls.",
+      "runtime_status": "executable_with_localization_prerequisites",
+      "sources": [
+        "lapuschkin2019",
+        "geirhos2020"
+      ],
+      "limitations": "Do not erase task-defining numerals or claim to recover occluded original pixels."
+    },
+    {
+      "id": "texture_shape",
+      "cue": "Texture / local statistics versus shape",
+      "discovery": "Review entropy and edge facts as potentially shared representations, plus visible object shape.",
+      "validation": "Blur or frequency sensitivity is a diagnostic; faithful shape-texture cue-conflict / stylization needs approved construction and semantic checks.",
+      "runtime_status": "diagnostic_executable_stylization_not_implemented",
+      "sources": [
+        "geirhos2019"
+      ],
+      "limitations": "Natural texture can be genuine task evidence; blur is not a faithful texture-only counterfactual."
+    },
+    {
+      "id": "frequency",
+      "cue": "High-frequency signal / spectral sensitivity",
+      "discovery": "Use structural descriptors as leads; inspect spectral changes if this hypothesis is selected.",
+      "validation": "Bounded Fourier low/high-pass filtering and blur with paired no-op controls.",
+      "runtime_status": "executable_general_rgb",
+      "sources": [
+        "hfc2020"
+      ],
+      "limitations": "Frequency sensitivity is not alone a shortcut verdict; high-pass output is an engineering diagnostic adaptation."
+    },
+    {
+      "id": "geometry",
+      "cue": "Orientation / viewpoint / position / crop",
+      "discovery": "Check observed orientation and spatial distribution independently from texture.",
+      "validation": "Reflect-padded rotation or bounded spatial intervention; natural viewpoint transfer requires a separately approved dataset.",
+      "runtime_status": "rotation_executable_3d_viewpoint_not_implemented",
+      "sources": [
+        "objectnet2019",
+        "geirhos2020"
+      ],
+      "limitations": "Rotation can change digit or directional labels; ObjectNet uses controlled real captures, not our synthetic renderer."
+    },
+    {
+      "id": "encoding_quality",
+      "cue": "JPEG / blur / resolution / noise",
+      "discovery": "Inspect encoding facts and nuisance-quality differences without treating file size as a pixel cue.",
+      "validation": "Recompression, blur, resolution and noise paired stress tests; report exact persistence round-trips.",
+      "runtime_status": "executable_general_rgb",
+      "sources": [
+        "imagenetc2019"
+      ],
+      "limitations": "Corruption robustness methods do not establish that every corruption is a shortcut; file size itself may never enter the classifier."
+    },
+    {
+      "id": "source_style",
+      "cue": "Hospital / device / repository / scanner style",
+      "discovery": "Inspect only approved acquisition metadata and pixel evidence.",
+      "validation": "Approved source subgroup/external validation; visual style perturbations are proxies; true acquisition-source swapping needs authorized data.",
+      "runtime_status": "observational_tools_available_external_data_required",
+      "sources": [
+        "zech2018",
+        "degrave2021"
+      ],
+      "limitations": "Do not equate brightness or JPEG with a verified hospital/scanner source, or infer private source paths."
+    },
+    {
+      "id": "accessory",
+      "cue": "Co-occurring object / treatment device / off-target marker",
+      "discovery": "Localize visible contextual objects independently of target pathology/content.",
+      "validation": "Mask/background intervention if localization is sound; domain expert semantic review required for medical conclusions.",
+      "runtime_status": "executable_with_localization_and_domain_review",
+      "sources": [
+        "zech2018",
+        "degrave2021"
+      ],
+      "limitations": "Device removal can alter valid evidence or mask pathology; this library provides no clinical certification."
+    },
+    {
+      "id": "demographic",
+      "cue": "Demographic or identity attribute correlated with target",
+      "discovery": "Use permitted attribute groups and counterexamples; do not infer sensitive traits from identity/path.",
+      "validation": "Approved subgroup/worst-group analysis; attribute counterfactual edits require validated domain-specific tools.",
+      "runtime_status": "subgroup_tools_available_attribute_editing_not_implemented",
+      "sources": [
+        "groupdro2020"
+      ],
+      "limitations": "Protected attributes may be legitimate targets; editing identity cannot be promised by an image transform."
+    },
+    {
+      "id": "environment_shift",
+      "cue": "Location / camera / time / geographic domain",
+      "discovery": "Inspect approved environment groups and distribution differences.",
+      "validation": "Independent approved environment evaluation and worst-group metrics; source-group-disjoint splits when available.",
+      "runtime_status": "observational_tools_available_external_data_required",
+      "sources": [
+        "wilds2021"
+      ],
+      "limitations": "Exact pixel uniqueness does not imply patient/site/geographic independence."
+    },
+    {
+      "id": "text_annotation",
+      "cue": "Negation / annotation artifacts / hypothesis-only bias",
+      "discovery": "Inspect annotation protocols and available text, not labels embedded in paths.",
+      "validation": "Hypothesis-only or cue-only baselines and hard subsets; text backend must be supplied.",
+      "runtime_status": "method_memory_only_no_text_training_backend",
+      "sources": [
+        "nli2018"
+      ],
+      "limitations": "Do not invoke image ResNet training as a text validation method."
+    },
+    {
+      "id": "text_heuristic",
+      "cue": "Lexical overlap / subsequence / constituent heuristics",
+      "discovery": "Check text relations using current task evidence.",
+      "validation": "HANS-style controlled minimal pairs and syntactic generalization; domain text generator/backend required.",
+      "runtime_status": "method_memory_only_no_text_counterfactual_backend",
+      "sources": [
+        "hans2019"
+      ],
+      "limitations": "Minimal edits can change the true inference label; do not retain labels without checking."
+    },
+    {
+      "id": "leakage",
+      "cue": "Duplicates / subject identity / split leakage",
+      "discovery": "Inspect approved hashes and split assignments; identity fields are controls, not default shortcut hypotheses.",
+      "validation": "Duplicate/subject-disjoint checks; correctly isolated retraining if leakage is established.",
+      "runtime_status": "exact_hash_checks_available_subject_metadata_required",
+      "sources": [
+        "leakage2023"
+      ],
+      "limitations": "Leakage is a design failure distinct from a pixel nuisance cue; near-duplicate and subject detection are not yet certified."
+    }
+  ],
+  "cross_cutting": {
+    "saliency": "Use localization as a hypothesis lead only; perform model/data-randomization sanity checks when relying on saliency.",
+    "sources": [
+      "saliency2018"
+    ],
+    "early_stop": "Keep the frozen primary effect, family error budget and reserved confirmation; do not tune using outcomes."
+  }
+}

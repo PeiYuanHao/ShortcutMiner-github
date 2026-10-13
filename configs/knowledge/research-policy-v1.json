@@ -1,0 +1,4 @@
+{
+  "research": {"enabled": true, "max_queries": 3, "max_results": 3, "timeout_seconds": 15, "include_learned": true},
+  "learning": {"enabled": true, "max_entries_per_run": 3}
+}

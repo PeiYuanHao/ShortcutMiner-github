@@ -1,0 +1,3291 @@
+{
+  "schema_version": 2,
+  "freeze_name": "paper-v1-windows-candidate",
+  "status": "windows_source_snapshot_authorized_waterbirds_model_capacity_pass",
+  "date_local": "2026-10-04",
+  "timezone": "Asia/Shanghai",
+  "execution_environment": {
+    "type": "native_windows_conda",
+    "platform": "win_amd64",
+    "operating_system": "Microsoft Windows 11 Home",
+    "os_version": "10.0.22631",
+    "python": "3.11.16",
+    "conda_environment": "shortcutminer",
+    "prefix": "E:\\Anaconda_envs\\envs\\shortcutminer",
+    "executable": "E:\\Anaconda_envs\\envs\\shortcutminer\\python.exe",
+    "conda_explicit_lock": "requirements/conda-win64.explicit.txt",
+    "conda_packages": [
+      {
+        "name": "bzip2",
+        "version": "1.0.8",
+        "build": "h2bbff1b_6",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/bzip2-1.0.8-h2bbff1b_6.conda",
+        "sha256": "4e30c9bfd4501555b0859c863e95ea044290babf3bf190b9d4fb38b06cf15c3c",
+        "md5": "33e784123d565c38e68945f07b461282"
+      },
+      {
+        "name": "ca-certificates",
+        "version": "2026.8.13",
+        "build": "haa95532_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/ca-certificates-2026.8.13-haa95532_0.conda",
+        "sha256": "c63a3f6d352cd26637bbec680954160d544a82e88543929e0b88d287109fc83f",
+        "md5": "4f009edb3dfadbb5db5203a13eadb846"
+      },
+      {
+        "name": "libexpat",
+        "version": "2.8.2",
+        "build": "hd7fb8db_1",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/libexpat-2.8.2-hd7fb8db_1.conda",
+        "sha256": "a4f6a14ae8fd1f754c7508ab509fcf90cabbb26ce5228d8bee51ec9f69b3ac40",
+        "md5": "2fcb5f1e5c28132066701a82ee8728df"
+      },
+      {
+        "name": "libffi",
+        "version": "3.4.8",
+        "build": "h42d73b9_3",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/libffi-3.4.8-h42d73b9_3.conda",
+        "sha256": "52fa61549a14619aa53c0ae875f6d969fd97c92edffce64bfd7277e2557a726e",
+        "md5": "8e18977967bec00d09d85778525d661b"
+      },
+      {
+        "name": "libzlib",
+        "version": "1.3.2",
+        "build": "h1c6eee0_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/libzlib-1.3.2-h1c6eee0_0.conda",
+        "sha256": "ee9ff49405717b96ec8d9b586beaaf96b741ffc4d37df6623f1d599ab8bdbb14",
+        "md5": "ffdad8ab74f765222bdf2e3473e12c76"
+      },
+      {
+        "name": "openssl",
+        "version": "3.5.8",
+        "build": "hbb43b14_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/openssl-3.5.8-hbb43b14_0.conda",
+        "sha256": "e71760e145c97b16159605ef67fdbf3b970ec4a2c63e7b947bcafd0f7995c657",
+        "md5": "5bb9e80e2b74c21e8ef015e1219f4664"
+      },
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "build": "py311haa95532_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/packaging-26.3-py311haa95532_0.conda",
+        "sha256": "e9f8486dae9fbfff4a08e59779d2c8ec326991d8e519cbd4778a066d530e93d8",
+        "md5": "2878b2d7b0e37b4bc29e7225773bb6ba"
+      },
+      {
+        "name": "pip",
+        "version": "26.2.1",
+        "build": "pyhc872135_0",
+        "subdir": "noarch",
+        "url": "https://repo.anaconda.com/pkgs/main/noarch/pip-26.2.1-pyhc872135_0.conda",
+        "sha256": "64a7339fb4b85160f4c7fff98e1ad9d2a9b84f01e954a7bc5c6b2dea3bb98bfd",
+        "md5": "786f51293908e5aee1a57518e298d346"
+      },
+      {
+        "name": "python",
+        "version": "3.11.16",
+        "build": "hb00fc5c_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/python-3.11.16-hb00fc5c_0.conda",
+        "sha256": "f557680c1e03860d16a9342ff47eda8b1ed2fea57a8f7eb433d165b435d3069b",
+        "md5": "29e1fba60a44b019288b6bc72c752568"
+      },
+      {
+        "name": "setuptools",
+        "version": "83.0.0",
+        "build": "py311haa95532_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/setuptools-83.0.0-py311haa95532_0.conda",
+        "sha256": "ec8abfa2762f1273a68e7b3820bb919373b444450ceff4e931fc7d6928296c3d",
+        "md5": "b0323245dde21df9e22e3e4159ff9948"
+      },
+      {
+        "name": "sqlite",
+        "version": "3.53.2",
+        "build": "hee5a0db_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/sqlite-3.53.2-hee5a0db_0.conda",
+        "sha256": "2810e058702910c30cdfab5190090d8f4bb384870a5526980f437475567ed704",
+        "md5": "634ebe3c8c7aec8cf083913191b75bd1"
+      },
+      {
+        "name": "tk",
+        "version": "8.6.15",
+        "build": "hf199647_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/tk-8.6.15-hf199647_0.conda",
+        "sha256": "2f7e9d06b513bcabce6d9ae195e45ccf94fd249edfefc591a5430a9f6f92a7fa",
+        "md5": "ddff7b6a72958ef802f40a735e505474"
+      },
+      {
+        "name": "tzdata",
+        "version": "2026c",
+        "build": "he532380_0",
+        "subdir": "noarch",
+        "url": "https://repo.anaconda.com/pkgs/main/noarch/tzdata-2026c-he532380_0.conda",
+        "sha256": "52adc4b0a9cce2ffb8ad319d54b7c940ae7961f7caf7ce6851eec4b3f542c368",
+        "md5": "448fc60cd3fb615bf69e242f8aa22914"
+      },
+      {
+        "name": "ucrt",
+        "version": "10.0.22621.0",
+        "build": "haa95532_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/ucrt-10.0.22621.0-haa95532_0.conda",
+        "sha256": "9dfca4fb23f20e62a48b9c52e2fdf4d0d34bb31eb6a930c2195fcd10651b3cc3",
+        "md5": "15e1b10231d7d236520501fcfb440f31"
+      },
+      {
+        "name": "vc",
+        "version": "14.3",
+        "build": "h2df5915_12",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/vc-14.3-h2df5915_12.conda",
+        "sha256": "81f68bd3f7e74032547fc3c2b1d7d914b2688cc11f2470625c5c65d49d1474bd",
+        "md5": "6737bfee92a331a876eadd8a2af7bc09"
+      },
+      {
+        "name": "vc14_runtime",
+        "version": "14.44.35208",
+        "build": "h4927774_12",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/vc14_runtime-14.44.35208-h4927774_12.conda",
+        "sha256": "492ba65a50d99120e047469057f5eaddd3043cf17a18761653d1b3ae5d9d6c84",
+        "md5": "061ea1cc93ee2dd574defcaa4e93c4e5"
+      },
+      {
+        "name": "vs2015_runtime",
+        "version": "14.44.35208",
+        "build": "ha6b5a95_12",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/vs2015_runtime-14.44.35208-ha6b5a95_12.conda",
+        "sha256": "5b484a4b7df0133f60fd9e12dcf1926f868eaa34a2c3ddad8475169a1a99d9fa",
+        "md5": "74783ea081af58781a57cf9ec9b09008"
+      },
+      {
+        "name": "wheel",
+        "version": "0.47.0",
+        "build": "py311haa95532_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/wheel-0.47.0-py311haa95532_0.conda",
+        "sha256": "cd79cc3893df9018003277024890806b19b331d8c22b4e118be6a49f9943d094",
+        "md5": "7b23413af5d472741ed48a407f8d072d"
+      },
+      {
+        "name": "xz",
+        "version": "5.8.2",
+        "build": "h53af0af_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/xz-5.8.2-h53af0af_0.conda",
+        "sha256": "e09005f52c41234213bd52ebd07092d945855b6d631dd709dcf35dbc71a15c63",
+        "md5": "70e604035b6c97b915114912f047fb2a"
+      },
+      {
+        "name": "zlib",
+        "version": "1.3.2",
+        "build": "h1c6eee0_0",
+        "subdir": "win-64",
+        "url": "https://repo.anaconda.com/pkgs/main/win-64/zlib-1.3.2-h1c6eee0_0.conda",
+        "sha256": "538f7c9b5ed6fa388c51bd499c736fd474826bcd7f2908456e9d2050b486e476",
+        "md5": "5885e2a4e16e0ba2f1792f3d61ef41f9"
+      }
+    ],
+    "python_executable_sha256": "db44abe9c1b318e6c6b201dddab44c163146b4ef26363adea3f0eb17c68fa84c",
+    "supported_shells": [
+      "CMD",
+      "PowerShell"
+    ]
+  },
+  "build_tools": {
+    "pip": "26.2.1",
+    "setuptools": "83.0.0",
+    "wheel": "0.47.0"
+  },
+  "resolution": {
+    "source": "pip 26.2.1 in native Windows AMD64 conda shortcutminer, Python 3.11.16",
+    "metadata_resolution": "pip native resolver with fast-deps HTTP range metadata; installation must verify full wheel hashes",
+    "host_venv_used_for_resolution": false,
+    "existing_installed_versions_constrained": true,
+    "direct_dependency_versions_unchanged": true,
+    "install_policy": "--require-hashes --no-deps --only-binary=:all:; standalone version/hash requirements or supplementary exact wheel URL locks",
+    "dependencies": [
+      {
+        "name": "aiosqlite",
+        "version": "0.22.1",
+        "wheel": "aiosqlite-0.22.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/00/b7/e3bf5133d697a08128598c8d0abc5e16377b51465a33756de24fa7dee953/aiosqlite-0.22.1-py3-none-any.whl",
+        "sha256": "21c002eb13823fad740196c5a2e9d8e62f6243bd9e7e4a1f87fb5e44ecb4fceb"
+      },
+      {
+        "name": "annotated-doc",
+        "version": "0.0.5",
+        "wheel": "annotated_doc-0.0.5-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+        "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101"
+      },
+      {
+        "name": "annotated-types",
+        "version": "0.8.0",
+        "wheel": "annotated_types-0.8.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/99/91/8acff4f5e50511b911bbccb72b8628a49c68ce14148cd9f6431094859a90/annotated_types-0.8.0-py3-none-any.whl",
+        "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0"
+      },
+      {
+        "name": "anyio",
+        "version": "4.14.2",
+        "wheel": "anyio-4.14.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl",
+        "sha256": "9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494"
+      },
+      {
+        "name": "certifi",
+        "version": "2026.7.22",
+        "wheel": "certifi-2026.7.22-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+        "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+      },
+      {
+        "name": "charset-normalizer",
+        "version": "3.5.1",
+        "wheel": "charset_normalizer-3.5.1-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/e3/57/32f0ccea59e8612057c61d6fd22ef2cb63cca93c9fe594094919696ac170/charset_normalizer-3.5.1-cp311-cp311-win_amd64.whl",
+        "sha256": "f9b1e28d0e8dbfa858abdba91d6b547beaf2df1a59bec6da6faae7b96a4991a9"
+      },
+      {
+        "name": "click",
+        "version": "8.5.0",
+        "wheel": "click-8.5.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl",
+        "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"
+      },
+      {
+        "name": "cloudpickle",
+        "version": "3.1.2",
+        "wheel": "cloudpickle-3.1.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/88/39/799be3f2f0f38cc727ee3b4f1445fe6d5e4133064ec2e4115069418a5bb6/cloudpickle-3.1.2-py3-none-any.whl",
+        "sha256": "9acb47f6afd73f60dc1df93bb801b472f05ff42fa6c84167d25cb206be1fbf4a"
+      },
+      {
+        "name": "colorama",
+        "version": "0.4.6",
+        "wheel": "colorama-0.4.6-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+        "sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"
+      },
+      {
+        "name": "distro",
+        "version": "1.9.0",
+        "wheel": "distro-1.9.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/12/b3/231ffd4ab1fc9d679809f356cebee130ac7daa00d6d6f3206dd4fd137e9e/distro-1.9.0-py3-none-any.whl",
+        "sha256": "7bffd925d65168f85027d8da9af6bddab658135b840670a223589bc0c8ef02b2"
+      },
+      {
+        "name": "filelock",
+        "version": "4.0.10",
+        "wheel": "filelock-4.0.10-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/5b/2a/4b1ea3f2180be251a5cff1e70c8a5b7994ffa5c8eab8937901f8a9db58fe/filelock-4.0.10-py3-none-any.whl",
+        "sha256": "698048d158dc3c9e18cc5e88b3efdd4bd0e77d76686b22adb4511cc4b2c2f0db"
+      },
+      {
+        "name": "fsspec",
+        "version": "2026.9.0",
+        "wheel": "fsspec-2026.9.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/6c/c0/a98505f18594f1bce828bb159cec0fcf9860562f1a2c85913409fc8f3d9e/fsspec-2026.9.0-py3-none-any.whl",
+        "sha256": "8dd6e646e99ea382bd85f97a45e6b526a442d79423a7dc673f1e2756d05fcb5f"
+      },
+      {
+        "name": "h11",
+        "version": "0.16.0",
+        "wheel": "h11-0.16.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/04/4b/29cac41a4d98d144bf5f6d33995617b185d14b22401f75ca86f384e87ff1/h11-0.16.0-py3-none-any.whl",
+        "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86"
+      },
+      {
+        "name": "hf-xet",
+        "version": "1.6.0",
+        "wheel": "hf_xet-1.6.0-cp38-abi3-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/98/b7/8c59a66d15205024662f1d66968136f13893f96df1ddc5087e2e281fc95f/hf_xet-1.6.0-cp38-abi3-win_amd64.whl",
+        "sha256": "fb4fadde1b2b70bf4c0c14a6dccbe7194b1c28947fefd5bbe3fed9d940676c3b"
+      },
+      {
+        "name": "httpcore",
+        "version": "1.0.9",
+        "wheel": "httpcore-1.0.9-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/7e/f5/f66802a942d491edb555dd61e3a9961140fd64c90bce1eafd741609d334d/httpcore-1.0.9-py3-none-any.whl",
+        "sha256": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55"
+      },
+      {
+        "name": "httpx",
+        "version": "0.28.1",
+        "wheel": "httpx-0.28.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl",
+        "sha256": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad"
+      },
+      {
+        "name": "huggingface-hub",
+        "version": "1.33.0",
+        "wheel": "huggingface_hub-1.33.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/fc/16/963096d224b80909432dc16561a615fd33d2d13beef3ce4c63fa25e40867/huggingface_hub-1.33.0-py3-none-any.whl",
+        "sha256": "04e434b06e100eddbce9a6e817d72693a7884b10a79bd67ab48080d5c07eb899"
+      },
+      {
+        "name": "idna",
+        "version": "3.19",
+        "wheel": "idna-3.19-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/57/b0/0e52c878c53f245edd3a11020f20979b3f490f245af532c7cae3027754b5/idna-3.19-py3-none-any.whl",
+        "sha256": "815e7be7a7806d54abb586dc943addc79e8b2ee16915059658cbeff4b1b43bf4"
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0",
+        "wheel": "iniconfig-2.3.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl",
+        "sha256": "f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12"
+      },
+      {
+        "name": "jinja2",
+        "version": "3.1.6",
+        "wheel": "jinja2-3.1.6-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+        "sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67"
+      },
+      {
+        "name": "joblib",
+        "version": "1.6.0",
+        "wheel": "joblib-1.6.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/18/53/84099323c2ec4be98d935f63c033ac4151ee83836ca1050ede3b3aadf155/joblib-1.6.0-py3-none-any.whl",
+        "sha256": "3dbbf9f6e4b592a2357b854608e980fe6390d131d7a82f011a377ef2ebef7aba"
+      },
+      {
+        "name": "jsonpatch",
+        "version": "1.33",
+        "wheel": "jsonpatch-1.33-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/73/07/02e16ed01e04a374e644b575638ec7987ae846d25ad97bcc9945a3ee4b0e/jsonpatch-1.33-py2.py3-none-any.whl",
+        "sha256": "0ae28c0cd062bbd8b8ecc26d7d164fbbea9652a1a3693f3b956c1eae5145dade"
+      },
+      {
+        "name": "jsonpointer",
+        "version": "3.1.1",
+        "wheel": "jsonpointer-3.1.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/9e/6a/a83720e953b1682d2d109d3c2dbb0bc9bf28cc1cbc205be4ef4be5da709d/jsonpointer-3.1.1-py3-none-any.whl",
+        "sha256": "8ff8b95779d071ba472cf5bc913028df06031797532f08a7d5b602d8b2a488ca"
+      },
+      {
+        "name": "langchain-core",
+        "version": "1.6.1",
+        "wheel": "langchain_core-1.6.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/8e/25/f50dd65673c819aa33d3c34df58c115dbb6ec627d19f93e6e401dd0fc8d7/langchain_core-1.6.1-py3-none-any.whl",
+        "sha256": "954a84132a5cb0435d27b910e336347b6744ecc18fbeef1e2de7029a0959841a"
+      },
+      {
+        "name": "langchain-protocol",
+        "version": "0.0.19",
+        "wheel": "langchain_protocol-0.0.19-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/80/c9/f6cbf357d48ccbd18bb394433b1fd7ad9be004eed9377ad08bb85777e5e6/langchain_protocol-0.0.19-py3-none-any.whl",
+        "sha256": "4cdf879a492a35980fd859ae792d3c65458ccaae504e183c9a10d7eac1f0720f"
+      },
+      {
+        "name": "langgraph",
+        "version": "1.2.11",
+        "wheel": "langgraph-1.2.11-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/0a/7f/c5c30e4be99ff821029c7ac872a480676bb179c9f3df85ea3f38d13f86d4/langgraph-1.2.11-py3-none-any.whl",
+        "sha256": "8bab70de7b2d00b5300fb289bcf38d8b241400f3184c1e95e8ce706fb0e8686b"
+      },
+      {
+        "name": "langgraph-checkpoint",
+        "version": "4.2.0",
+        "wheel": "langgraph_checkpoint-4.2.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/05/71/3b475f09bd57d3a5649792c66353312b4432afd843f301739dfcebd157f0/langgraph_checkpoint-4.2.0-py3-none-any.whl",
+        "sha256": "0547fd228935a0b758865de3a3d6d7a2537c308895d0f9ab092ce9151b5da942"
+      },
+      {
+        "name": "langgraph-checkpoint-sqlite",
+        "version": "3.1.1",
+        "wheel": "langgraph_checkpoint_sqlite-3.1.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/f5/b9/e458601a1718337839bcfeec9d1b27b8b16ce135be2bd50ed0395d33a878/langgraph_checkpoint_sqlite-3.1.1-py3-none-any.whl",
+        "sha256": "8505c54c94a658080525d7e6780fdd4e0c078ff2566b30d399c02cc9f9af1c63"
+      },
+      {
+        "name": "langgraph-prebuilt",
+        "version": "1.1.0",
+        "wheel": "langgraph_prebuilt-1.1.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/e9/43/3fe1a700b8490ed02679cdbbc8c915eb23a092faf496c9c1118abcd10be3/langgraph_prebuilt-1.1.0-py3-none-any.whl",
+        "sha256": "51e311747d755b751d5c6b39b0c1446124d3a7643d2515017e6714b323508fc9"
+      },
+      {
+        "name": "langgraph-sdk",
+        "version": "0.4.4",
+        "wheel": "langgraph_sdk-0.4.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/43/d5/2ad7f3a835c6fcebf58b6669552536ecd52d2dfe4cf49c6c36648fd83572/langgraph_sdk-0.4.4-py3-none-any.whl",
+        "sha256": "39afe416c91742925e6f8a93715f566d499b36e1b636b804a4ffe3190e4f4e64"
+      },
+      {
+        "name": "langsmith",
+        "version": "0.11.2",
+        "wheel": "langsmith-0.11.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/00/d9/cec0c1d24dda8c67a23ad204d0167e50aee202460e9388488661d94513f5/langsmith-0.11.2-py3-none-any.whl",
+        "sha256": "75258142d27dffcc5df331479704b23fc3fd812cfca0469119bb9055a842882f"
+      },
+      {
+        "name": "markdown-it-py",
+        "version": "4.2.0",
+        "wheel": "markdown_it_py-4.2.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b3/81/4da04ced5a082363ecfa159c010d200ecbd959ae410c10c0264a38cac0f5/markdown_it_py-4.2.0-py3-none-any.whl",
+        "sha256": "9f7ebbcd14fe59494226453aed97c1070d83f8d24b6fc3a3bcf9a38092641c4a"
+      },
+      {
+        "name": "markupsafe",
+        "version": "3.0.4",
+        "wheel": "markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/91/89/f2b509f7bf79352e40117824c1070dbeafd4df67031d3fa98165a3134228/markupsafe-3.0.4-cp311-cp311-win_amd64.whl",
+        "sha256": "fdb4ca07ab75ffadab4a8b135ad59cdbb3156b99310f3d565370da74a15d6bd3"
+      },
+      {
+        "name": "mdurl",
+        "version": "0.1.2",
+        "wheel": "mdurl-0.1.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl",
+        "sha256": "84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"
+      },
+      {
+        "name": "mpmath",
+        "version": "1.3.0",
+        "wheel": "mpmath-1.3.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl",
+        "sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"
+      },
+      {
+        "name": "narwhals",
+        "version": "2.26.0",
+        "wheel": "narwhals-2.26.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/40/b5/1b84b2c784db76d69442334bc8b8748c840f13ca53be086f4f250ad4a0bc/narwhals-2.26.0-py3-none-any.whl",
+        "sha256": "29326d74f107c347fd1009bd58e38d9f7c7c5b51e6de97bc93dbc325d9038b54"
+      },
+      {
+        "name": "networkx",
+        "version": "3.6.1",
+        "wheel": "networkx-3.6.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl",
+        "sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762"
+      },
+      {
+        "name": "numpy",
+        "version": "2.4.6",
+        "wheel": "numpy-2.4.6-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/c5/31/7fc6239c12bce7e931463251cca4426c465e1876ba3cc785402ef4dd8f4e/numpy-2.4.6-cp311-cp311-win_amd64.whl",
+        "sha256": "1e254a00cdf42b1e4d5b3d68d33af63268d41340d8885df2ab6470f2e1500147"
+      },
+      {
+        "name": "orjson",
+        "version": "3.12.0",
+        "wheel": "orjson-3.12.0-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/35/24/2ed0e6f51ea3d0af45d807233a851175af75bec83ef5fd0d6a2601904ec0/orjson-3.12.0-cp311-cp311-win_amd64.whl",
+        "sha256": "fb2539159dfe8d371914f354360fa50e4a577cc89222a3828b9650a5e5040252"
+      },
+      {
+        "name": "ormsgpack",
+        "version": "1.12.2",
+        "wheel": "ormsgpack-1.12.2-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/78/29/6d5758fabef3babdf4bbbc453738cc7de9cd3334e4c38dd5737e27b85653/ormsgpack-1.12.2-cp311-cp311-win_amd64.whl",
+        "sha256": "73670ed0375ecc303858e3613f407628dd1fca18fe6ac57b7b7ce66cc7bb006c"
+      },
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "wheel": "packaging-26.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+        "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+      },
+      {
+        "name": "pandas",
+        "version": "3.0.5",
+        "wheel": "pandas-3.0.5-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/fa/9a/31f4983f191af51ab2a8f2d0c7b33dff3a84da26533f982fff02c2f9e28b/pandas-3.0.5-cp311-cp311-win_amd64.whl",
+        "sha256": "b1261758dfb6cf12c3cff8300e21cefad30e7ec709abb4c24ac7318e6a52462a"
+      },
+      {
+        "name": "pillow",
+        "version": "12.3.0",
+        "wheel": "pillow-12.3.0-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/63/c6/4bad1b18d132a50b27e1365e1ab163616f7a5bb56d330f66f9d1d9d4f9d4/pillow-12.3.0-cp311-cp311-win_amd64.whl",
+        "sha256": "8e95e1385e4998ae9694eeaa4730ba5457ff61185b3a55e2e7bea0880aef452a"
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0",
+        "wheel": "pluggy-1.6.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl",
+        "sha256": "e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746"
+      },
+      {
+        "name": "pydantic",
+        "version": "2.13.5",
+        "wheel": "pydantic-2.13.5-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/eb/47/c95ffc2009878c7aac0c5e08528022dcb885933252a88b5f170058014464/pydantic-2.13.5-py3-none-any.whl",
+        "sha256": "346a034f080da3755d8e9cb5e00e8b07de1d39e4f6e2c87d8ab7cafa0b269a73"
+      },
+      {
+        "name": "pydantic-core",
+        "version": "2.46.5",
+        "wheel": "pydantic_core-2.46.5-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/9e/c2/718b9deb4b72453b5d8c7447a3b14cb77bef36917ef5f514e0948a4096a0/pydantic_core-2.46.5-cp311-cp311-win_amd64.whl",
+        "sha256": "40375c2d05acec10323e45dfe2077ac44bc74659008614af5069034e2cfc781c"
+      },
+      {
+        "name": "pygments",
+        "version": "2.21.0",
+        "wheel": "pygments-2.21.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/71/46/17f022dd3e953bf20a04a028a21ec746d942f8d2af30fa0f124fa0e6a684/pygments-2.21.0-py3-none-any.whl",
+        "sha256": "2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9"
+      },
+      {
+        "name": "pytest",
+        "version": "9.1.1",
+        "wheel": "pytest-9.1.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl",
+        "sha256": "37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c"
+      },
+      {
+        "name": "python-dateutil",
+        "version": "2.9.0.post0",
+        "wheel": "python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/ec/57/56b9bcc3c9c6a792fcbaf139543cee77261f3651ca9da0c93f5c1221264b/python_dateutil-2.9.0.post0-py2.py3-none-any.whl",
+        "sha256": "a8b2bc7bffae282281c8140a97d3aa9c14da0b136dfe83f850eea9a5f7470427"
+      },
+      {
+        "name": "python-dotenv",
+        "version": "1.2.4",
+        "wheel": "python_dotenv-1.2.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/60/d1/38f3a3405989a89ac18390803e70c6ad7c7760da4f9b83cbeca0c44a0c72/python_dotenv-1.2.4-py3-none-any.whl",
+        "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc"
+      },
+      {
+        "name": "pyyaml",
+        "version": "6.0.3",
+        "wheel": "pyyaml-6.0.3-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/da/e3/ea007450a105ae919a72393cb06f122f288ef60bba2dc64b26e2646fa315/pyyaml-6.0.3-cp311-cp311-win_amd64.whl",
+        "sha256": "9f3bfb4965eb874431221a3ff3fdcddc7e74e3b07799e0e84ca4a0f867d449bf"
+      },
+      {
+        "name": "regex",
+        "version": "2026.9.29",
+        "wheel": "regex-2026.9.29-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/4d/4a/aab232183c70fdcf77bcf0c51819da02ec522e393e6a0bf00bcf2142e21f/regex-2026.9.29-cp311-cp311-win_amd64.whl",
+        "sha256": "1043aedf5917caa861bcb25a9c11460049656bdf0017a90a309fa8f255467725"
+      },
+      {
+        "name": "requests",
+        "version": "2.34.2",
+        "wheel": "requests-2.34.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl",
+        "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0"
+      },
+      {
+        "name": "requests-toolbelt",
+        "version": "1.0.0",
+        "wheel": "requests_toolbelt-1.0.0-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/3f/51/d4db610ef29373b879047326cbf6fa98b6c1969d6f6dc423279de2b1be2c/requests_toolbelt-1.0.0-py2.py3-none-any.whl",
+        "sha256": "cccfdd665f0a24fcf4726e690f65639d272bb0637b9b92dfd91a5568ccf6bd06"
+      },
+      {
+        "name": "rich",
+        "version": "14.3.4",
+        "wheel": "rich-14.3.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b3/76/6d163cfac87b632216f71879e6b2cf17163f773ff59c00b5ff4900a80fa3/rich-14.3.4-py3-none-any.whl",
+        "sha256": "07e7adb4690f68864777b1450859253bed81a99a31ac321ac1817b2313558952"
+      },
+      {
+        "name": "safetensors",
+        "version": "0.8.0",
+        "wheel": "safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+        "sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f"
+      },
+      {
+        "name": "scikit-learn",
+        "version": "1.9.0",
+        "wheel": "scikit_learn-1.9.0-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/3b/67/be3d369f40d8178ba3bd86635d132e08cb5329b023e4669d9426d84bc007/scikit_learn-1.9.0-cp311-cp311-win_amd64.whl",
+        "sha256": "5dc1818c77575d149e25fce9ef82dd7b7263ae372f03494158668ad632a69759"
+      },
+      {
+        "name": "scipy",
+        "version": "1.17.1",
+        "wheel": "scipy-1.17.1-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/95/da/0d1df507cf574b3f224ccc3d45244c9a1d732c81dcb26b1e8a766ae271a8/scipy-1.17.1-cp311-cp311-win_amd64.whl",
+        "sha256": "d30e57c72013c2a4fe441c2fcb8e77b14e152ad48b5464858e07e2ad9fbfceff"
+      },
+      {
+        "name": "shellingham",
+        "version": "1.5.4",
+        "wheel": "shellingham-1.5.4-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl",
+        "sha256": "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"
+      },
+      {
+        "name": "six",
+        "version": "1.17.0",
+        "wheel": "six-1.17.0-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl",
+        "sha256": "4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274"
+      },
+      {
+        "name": "sniffio",
+        "version": "1.3.1",
+        "wheel": "sniffio-1.3.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl",
+        "sha256": "2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2"
+      },
+      {
+        "name": "sqlite-vec",
+        "version": "0.1.9",
+        "wheel": "sqlite_vec-0.1.9-py3-none-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/42/89/81b2907cda14e566b9bf215e2ad82fc9b349edf07d2010756ffdb902f328/sqlite_vec-0.1.9-py3-none-win_amd64.whl",
+        "sha256": "4a28dc12fa4b53d7b1dced22da2488fade444e96b5d16fd2d698cd670675cf32"
+      },
+      {
+        "name": "sympy",
+        "version": "1.14.0",
+        "wheel": "sympy-1.14.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl",
+        "sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5"
+      },
+      {
+        "name": "tenacity",
+        "version": "9.1.4",
+        "wheel": "tenacity-9.1.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl",
+        "sha256": "6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55"
+      },
+      {
+        "name": "threadpoolctl",
+        "version": "3.7.0",
+        "wheel": "threadpoolctl-3.7.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/43/3f/f88a53f60a472b46f4023f56d204dd7de33d34c5d2acbfa0d70a674e639e/threadpoolctl-3.7.0-py3-none-any.whl",
+        "sha256": "cd8b60b5641b45c67bbf73c64c843235fc2d8a480c87389f52f5dbee893b86be"
+      },
+      {
+        "name": "tokenizers",
+        "version": "0.22.2",
+        "wheel": "tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+        "sha256": "c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48"
+      },
+      {
+        "name": "torch",
+        "version": "2.9.1+cu128",
+        "wheel": "torch-2.9.1+cu128-cp311-cp311-win_amd64.whl",
+        "url": "https://download.pytorch.org/whl/cu128/torch-2.9.1%2Bcu128-cp311-cp311-win_amd64.whl",
+        "sha256": "633005a3700e81b5be0df2a7d3c1d48aced23ed927653797a3bd2b144a3aeeb6"
+      },
+      {
+        "name": "torchvision",
+        "version": "0.24.1+cu128",
+        "wheel": "torchvision-0.24.1+cu128-cp311-cp311-win_amd64.whl",
+        "url": "https://download.pytorch.org/whl/cu128/torchvision-0.24.1%2Bcu128-cp311-cp311-win_amd64.whl",
+        "sha256": "6d836745bd3130ef8f3569c9f0d9d70103b5e2e9fa058310bcac5f63bcf2d043"
+      },
+      {
+        "name": "tqdm",
+        "version": "4.70.1",
+        "wheel": "tqdm-4.70.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl",
+        "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73"
+      },
+      {
+        "name": "transformers",
+        "version": "5.14.1",
+        "wheel": "transformers-5.14.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/6f/67/8d85ca2323233ae3c0365a659c4e52ee1f587b440e4bc577e7d8e4416d0f/transformers-5.14.1-py3-none-any.whl",
+        "sha256": "9db974c4079ede2d1a3ea7ca5a240df33f2cc26fc2b36ba64c5f2a4f43b6e725"
+      },
+      {
+        "name": "typer",
+        "version": "0.27.2",
+        "wheel": "typer-0.27.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/dc/bf/205d0004930ede8f542fb58f601526fccf4ae7626075ca1e6c4de5d3d652/typer-0.27.2-py3-none-any.whl",
+        "sha256": "b3a5fc4342d5fc8fda8fc3010b1cf117e9249aab7fae800c2eff62fd3842d97d"
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.16.0",
+        "wheel": "typing_extensions-4.16.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+        "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.4",
+        "wheel": "typing_inspection-0.4.4-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/67/81/4add07e5172b7ac40d8ed5ff580409a7801a4fe26d529bdd915401dabfbe/typing_inspection-0.4.4-py3-none-any.whl",
+        "sha256": "65b8397ba37ccbce054456aaccddfc91e6e3083c92824df348d96ca832f3f147"
+      },
+      {
+        "name": "tzdata",
+        "version": "2026.3",
+        "wheel": "tzdata-2026.3-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/e5/6d/b53b99a9f2766d095985947a5782f1702cabb129a34f7a802d7197af832f/tzdata-2026.3-py2.py3-none-any.whl",
+        "sha256": "dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931"
+      },
+      {
+        "name": "urllib3",
+        "version": "2.7.0",
+        "wheel": "urllib3-2.7.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl",
+        "sha256": "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897"
+      },
+      {
+        "name": "uuid-utils",
+        "version": "0.17.0",
+        "wheel": "uuid_utils-0.17.0-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/c2/1a/e01417f52eae6e2cb412260bb332b4ee4b37af2982d9c38cff4b68b2e899/uuid_utils-0.17.0-cp311-cp311-win_amd64.whl",
+        "sha256": "14dc2f46abb1091260c0d203fcbdf4e045042cc07e49183fd3b255904b95eb70"
+      },
+      {
+        "name": "websockets",
+        "version": "16.1.1",
+        "wheel": "websockets-16.1.1-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/71/b2/e511c1c6f64a95c2f3fc54bffda0e14eaa7e9442be605c29270f7589b918/websockets-16.1.1-cp311-cp311-win_amd64.whl",
+        "sha256": "7421fad442de870a8cbf2287d1cad7e706ece0dbfeba5e911df132cbdc1cb56a"
+      },
+      {
+        "name": "xxhash",
+        "version": "4.0.1",
+        "wheel": "xxhash-4.0.1-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/d9/58/60d2170e8cda0891aab25dcaa74797b420c3c6cde8a5bc8372f17b30c0cf/xxhash-4.0.1-cp311-cp311-win_amd64.whl",
+        "sha256": "ac0f291ab6485bd71f33941f9b92771318332a05d505460b41e893a549caadc0"
+      },
+      {
+        "name": "zstandard",
+        "version": "0.25.0",
+        "wheel": "zstandard-0.25.0-cp311-cp311-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/43/a3/c6155f5c1cce691cb80dfd38627046e50af3ee9ddc5d0b45b9b063bfb8c9/zstandard-0.25.0-cp311-cp311-win_amd64.whl",
+        "sha256": "daab68faadb847063d0c56f361a289c4f268706b598afbf9ad113cbe5c38b6b2"
+      }
+    ],
+    "build_tool_dependencies": [
+      {
+        "name": "packaging",
+        "version": "26.3",
+        "wheel": "packaging-26.3-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl",
+        "sha256": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c"
+      },
+      {
+        "name": "pip",
+        "version": "26.2.1",
+        "wheel": "pip-26.2.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/f3/6e/1736e5b4ae2b778ef2f81c47d797de9f891d4d8acb047a24ca37a60294dd/pip-26.2.1-py3-none-any.whl",
+        "sha256": "71138adf1f4ca900cdb7d289c21b7494329f2332b6d85f0e1c42108c0384ed3e"
+      },
+      {
+        "name": "setuptools",
+        "version": "83.0.0",
+        "wheel": "setuptools-83.0.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl",
+        "sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3"
+      },
+      {
+        "name": "wheel",
+        "version": "0.47.0",
+        "wheel": "wheel-0.47.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/87/1b/9e33c09813d65e248f7f773119148a612516a4bea93e9c6f545f78455b7c/wheel-0.47.0-py3-none-any.whl",
+        "sha256": "212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced"
+      }
+    ],
+    "reports": {
+      "resolution.json": "d3d62a228442c4b21c02b994007194d0b1d3b81901c8d98009551a073ed4385c",
+      "build-tools-resolution.json": "8d4f66c94cbaed2101c6ed9dce512cb1baccb3c536345a686ece88fb7e899e07",
+      "dotenv-resolution.json": "4fce2ca40292509aeb5dc3bf105e13d17cdcfee372048f8e6cefdd4e040dfeb4"
+    },
+    "installed_environment": {
+      "installed": {
+        "shortcutminer": "0.1.0",
+        "aiosqlite": "0.22.1",
+        "annotated-types": "0.8.0",
+        "anyio": "4.14.2",
+        "certifi": "2026.7.22",
+        "charset-normalizer": "3.5.1",
+        "cloudpickle": "3.1.2",
+        "colorama": "0.4.6",
+        "distro": "1.9.0",
+        "filelock": "4.0.10",
+        "fsspec": "2026.9.0",
+        "h11": "0.16.0",
+        "httpcore": "1.0.9",
+        "httpx": "0.28.1",
+        "idna": "3.19",
+        "iniconfig": "2.3.0",
+        "Jinja2": "3.1.6",
+        "joblib": "1.6.0",
+        "jsonpatch": "1.33",
+        "jsonpointer": "3.1.1",
+        "langchain-core": "1.6.1",
+        "langchain-protocol": "0.0.19",
+        "langgraph": "1.2.11",
+        "langgraph-checkpoint": "4.2.0",
+        "langgraph-checkpoint-sqlite": "3.1.1",
+        "langgraph-prebuilt": "1.1.0",
+        "langgraph-sdk": "0.4.4",
+        "langsmith": "0.11.2",
+        "markdown-it-py": "4.2.0",
+        "MarkupSafe": "3.0.4",
+        "mdurl": "0.1.2",
+        "mpmath": "1.3.0",
+        "narwhals": "2.26.0",
+        "networkx": "3.6.1",
+        "numpy": "2.4.6",
+        "orjson": "3.12.0",
+        "ormsgpack": "1.12.2",
+        "packaging": "26.3",
+        "pandas": "3.0.5",
+        "pillow": "12.3.0",
+        "pip": "26.2.1",
+        "pluggy": "1.6.0",
+        "pydantic": "2.13.5",
+        "pydantic_core": "2.46.5",
+        "Pygments": "2.21.0",
+        "pytest": "9.1.1",
+        "python-dateutil": "2.9.0.post0",
+        "python-dotenv": "1.2.4",
+        "PyYAML": "6.0.3",
+        "requests": "2.34.2",
+        "requests-toolbelt": "1.0.0",
+        "rich": "14.3.4",
+        "scikit-learn": "1.9.0",
+        "scipy": "1.17.1",
+        "setuptools": "83.0.0",
+        "six": "1.17.0",
+        "sniffio": "1.3.1",
+        "sqlite-vec": "0.1.9",
+        "sympy": "1.14.0",
+        "tenacity": "9.1.4",
+        "threadpoolctl": "3.7.0",
+        "torch": "2.9.1+cu128",
+        "torchvision": "0.24.1+cu128",
+        "typing_extensions": "4.16.0",
+        "typing-inspection": "0.4.4",
+        "tzdata": "2026.3",
+        "urllib3": "2.7.0",
+        "uuid_utils": "0.17.0",
+        "websockets": "16.1.1",
+        "wheel": "0.47.0",
+        "xxhash": "4.0.1",
+        "zstandard": "0.25.0"
+      },
+      "baseline_version_changes": [],
+      "unlocked_extra_packages": {},
+      "scientific_direct_pins_unchanged": true,
+      "local_segmentation_addition": {
+        "transformers": "5.14.1",
+        "huggingface-hub": "1.33.0",
+        "safetensors": "0.8.0",
+        "tokenizers": "0.22.2"
+      }
+    },
+    "root_requirements": {
+      "path": "requirements.txt",
+      "format": "standalone exact version pins + Windows wheel SHA-256 hashes",
+      "packages": 82,
+      "index": "https://pypi.org/simple",
+      "gpu_wheel_index": "https://download.pytorch.org/whl/cu128",
+      "includes_other_files": false
+    },
+    "existing_environment_addition": {
+      "name": "python-dotenv",
+      "version": "1.2.4",
+      "installed_before_this_change": true,
+      "upgraded_by_this_change": false,
+      "loader_implementation": "standard library; no new dependency installation"
+    },
+    "local_segmentation_addition": {
+      "transformers": "5.14.1",
+      "report": "runs\\local-segmentation-review-20261004\\transformers-resolution.json",
+      "existing_versions_changed": false,
+      "new_packages": [
+        {
+          "name": "annotated-doc",
+          "version": "0.0.5",
+          "wheel": "annotated_doc-0.0.5-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/3e/30/e900b21425a860e195f32e37657aa1f7c7f2b1bfb26f03ca209b90933c06/annotated_doc-0.0.5-py3-none-any.whl",
+          "sha256": "117bac03a25ede5df5440e855b32d556049ca169ead221505badf432fed4b101"
+        },
+        {
+          "name": "click",
+          "version": "8.5.0",
+          "wheel": "click-8.5.0-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl",
+          "sha256": "255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360"
+        },
+        {
+          "name": "hf-xet",
+          "version": "1.6.0",
+          "wheel": "hf_xet-1.6.0-cp38-abi3-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/98/b7/8c59a66d15205024662f1d66968136f13893f96df1ddc5087e2e281fc95f/hf_xet-1.6.0-cp38-abi3-win_amd64.whl",
+          "sha256": "fb4fadde1b2b70bf4c0c14a6dccbe7194b1c28947fefd5bbe3fed9d940676c3b"
+        },
+        {
+          "name": "huggingface-hub",
+          "version": "1.33.0",
+          "wheel": "huggingface_hub-1.33.0-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/fc/16/963096d224b80909432dc16561a615fd33d2d13beef3ce4c63fa25e40867/huggingface_hub-1.33.0-py3-none-any.whl",
+          "sha256": "04e434b06e100eddbce9a6e817d72693a7884b10a79bd67ab48080d5c07eb899"
+        },
+        {
+          "name": "regex",
+          "version": "2026.9.29",
+          "wheel": "regex-2026.9.29-cp311-cp311-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/4d/4a/aab232183c70fdcf77bcf0c51819da02ec522e393e6a0bf00bcf2142e21f/regex-2026.9.29-cp311-cp311-win_amd64.whl",
+          "sha256": "1043aedf5917caa861bcb25a9c11460049656bdf0017a90a309fa8f255467725"
+        },
+        {
+          "name": "safetensors",
+          "version": "0.8.0",
+          "wheel": "safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+          "sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f"
+        },
+        {
+          "name": "shellingham",
+          "version": "1.5.4",
+          "wheel": "shellingham-1.5.4-py2.py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/e0/f9/0595336914c5619e5f28a1fb793285925a8cd4b432c9da0a987836c7f822/shellingham-1.5.4-py2.py3-none-any.whl",
+          "sha256": "7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"
+        },
+        {
+          "name": "tokenizers",
+          "version": "0.22.2",
+          "wheel": "tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+          "url": "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+          "sha256": "c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48"
+        },
+        {
+          "name": "tqdm",
+          "version": "4.70.1",
+          "wheel": "tqdm-4.70.1-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/a7/03/921a3d3c75785aca9ebfbfcabfbc3a1be12e2ab5265deb026d55a5a3f83e/tqdm-4.70.1-py3-none-any.whl",
+          "sha256": "c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73"
+        },
+        {
+          "name": "transformers",
+          "version": "5.14.1",
+          "wheel": "transformers-5.14.1-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/6f/67/8d85ca2323233ae3c0365a659c4e52ee1f587b440e4bc577e7d8e4416d0f/transformers-5.14.1-py3-none-any.whl",
+          "sha256": "9db974c4079ede2d1a3ea7ca5a240df33f2cc26fc2b36ba64c5f2a4f43b6e725"
+        },
+        {
+          "name": "typer",
+          "version": "0.27.2",
+          "wheel": "typer-0.27.2-py3-none-any.whl",
+          "url": "https://files.pythonhosted.org/packages/dc/bf/205d0004930ede8f542fb58f601526fccf4ae7626075ca1e6c4de5d3d652/typer-0.27.2-py3-none-any.whl",
+          "sha256": "b3a5fc4342d5fc8fda8fc3010b1cf117e9249aab7fae800c2eff62fd3842d97d"
+        }
+      ]
+    }
+  },
+  "gpu": {
+    "torch": "2.9.1+cu128",
+    "torchvision": "0.24.1+cu128",
+    "wheel_channel": "https://download.pytorch.org/whl/cu128/",
+    "cuda_runtime": "12.8",
+    "cuda_distribution": "bundled in official Windows torch wheel; no copied Linux NVIDIA/triton dependencies",
+    "torchaudio_installed": false,
+    "runtime_acceptance": "PASS",
+    "scientific_stage2_backend": "real_cpu_v1 / reference_image_linear (CPU; unchanged)",
+    "cuda_runtime_version_integer": 12080,
+    "bundled_dlls": [
+      {
+        "file": "c10.dll",
+        "bytes": 1085952,
+        "sha256": "c08c41aa3b5f541708c8a17bf19cff5c6158109317192e41d65f45fde6e6f80c"
+      },
+      {
+        "file": "c10_cuda.dll",
+        "bytes": 436736,
+        "sha256": "507bb2157bed5eb6b60b741a5d1f57e5e5b2c7fa02f03476c99febdb606a79b8"
+      },
+      {
+        "file": "caffe2_nvrtc.dll",
+        "bytes": 17920,
+        "sha256": "79bdbc5928c55af176f845de80f2c02fc6d2b18a0c57566035983089aec4ee3d"
+      },
+      {
+        "file": "cublas64_12.dll",
+        "bytes": 113716224,
+        "sha256": "9513540e4ec4c51ee9e7304138c2cc255c29a8c181f9e80c38efa25738becd99"
+      },
+      {
+        "file": "cublasLt64_12.dll",
+        "bytes": 674667520,
+        "sha256": "b199d1ff892a81b7fd3d57ba1781549609b41500b36008fef326038393ad46c7"
+      },
+      {
+        "file": "cudart64_12.dll",
+        "bytes": 573952,
+        "sha256": "c2c9a9c22a9bcba90e261825968836787b331038047a26770cffb7a583c28344"
+      },
+      {
+        "file": "cudnn64_9.dll",
+        "bytes": 266288,
+        "sha256": "9edbcdff73b0af070eb160b2ce66e59feca04aa017351d8eedcc5e8e149967d2"
+      },
+      {
+        "file": "cudnn_adv64_9.dll",
+        "bytes": 282445872,
+        "sha256": "f202e8ff36209ac4292fe2ef79d4539487495b3b948f0c978cc63298f43a1850"
+      },
+      {
+        "file": "cudnn_cnn64_9.dll",
+        "bytes": 4618272,
+        "sha256": "3f03dec3b81f137f049e1d1c06ff469248eef54ff9424b3b9045fc0f69559d1a"
+      },
+      {
+        "file": "cudnn_engines_precompiled64_9.dll",
+        "bytes": 513926688,
+        "sha256": "ebc2c1f74366b029a4350f7f9a3b109ccd5aa9b4ae02527950793dd29f7b74fb"
+      },
+      {
+        "file": "cudnn_engines_runtime_compiled64_9.dll",
+        "bytes": 20201008,
+        "sha256": "93ab6351ca0f2b6ca842f83d284e56c427525778c14657229801a13cf8121bd8"
+      },
+      {
+        "file": "cudnn_graph64_9.dll",
+        "bytes": 2420256,
+        "sha256": "a933efeb280a3252297f92d79f7e83003bcbc6f665872d11645d1dbbab9cb598"
+      },
+      {
+        "file": "cudnn_heuristic64_9.dll",
+        "bytes": 56823328,
+        "sha256": "458175f12771a35de0ea39c04250d727c2424d42a7ffe0bc987ae81204748fba"
+      },
+      {
+        "file": "cudnn_ops64_9.dll",
+        "bytes": 126508576,
+        "sha256": "851d8f4191a24b322b0be738d191a3159455f0da4db47a19f5cc7ad6e55edf61"
+      },
+      {
+        "file": "cufft64_11.dll",
+        "bytes": 276121600,
+        "sha256": "f4fea9227b14843894ad5436725f9638b172171142c95291fc6ae7a493248221"
+      },
+      {
+        "file": "cufftw64_11.dll",
+        "bytes": 163328,
+        "sha256": "84c86dcc4d4b770e75766964149ef688c901dc89e380278fe399dd3c03608541"
+      },
+      {
+        "file": "cupti64_2025.1.1.dll",
+        "bytes": 4483664,
+        "sha256": "d026870a2c503d1b6e38a793170823ceca83d776f9b887f63fb0bb5c93d5c525"
+      },
+      {
+        "file": "curand64_10.dll",
+        "bytes": 71955968,
+        "sha256": "3465fd1b46e551339b8f44c455756a0f2cba8bd846562eb659040d48edb7aaac"
+      },
+      {
+        "file": "cusolver64_11.dll",
+        "bytes": 225683456,
+        "sha256": "3d4f7a66b5f352db56d4bb5962bb453a42d5feb2d831779f4a0bebc9971c36fb"
+      },
+      {
+        "file": "cusolverMg64_11.dll",
+        "bytes": 157071360,
+        "sha256": "c3377f10606ff0606be2f08401d54aff6c37f137b78d6b6e21be356a5b4d6cc2"
+      },
+      {
+        "file": "cusparse64_12.dll",
+        "bytes": 379535872,
+        "sha256": "f4688daa6163c47a0b5293926ec7ae367de6b4af54ea201638b308831b322a0e"
+      },
+      {
+        "file": "libiomp5md.dll",
+        "bytes": 1614192,
+        "sha256": "d41a71c38f627a95748596820ab380135dcccc4ceecd6fe7d4e247d015bf55a4"
+      },
+      {
+        "file": "libiompstubs5md.dll",
+        "bytes": 43888,
+        "sha256": "137dd44f652a926eb540861994c58ea24ebfbf6b45886ac964a68c5742549c47"
+      },
+      {
+        "file": "nvJitLink_120_0.dll",
+        "bytes": 77860352,
+        "sha256": "959d3cb44527ec884db8dc20772520b584dbe7d622d11b0530e6326417078b3e"
+      },
+      {
+        "file": "nvperf_host.dll",
+        "bytes": 21641792,
+        "sha256": "473b14252a2927607090cba4f12f06436842310245e8e9f5747548813eaff215"
+      },
+      {
+        "file": "nvrtc-builtins64_128.dll",
+        "bytes": 6356480,
+        "sha256": "a7afa2a40cbd3f922a33d8bf71c13cb26ca707c7016a9bc5fcde36759ba668f5"
+      },
+      {
+        "file": "nvrtc64_120_0.alt.dll",
+        "bytes": 86794240,
+        "sha256": "5464ea01b079d78042374dc7819684910c8e9d5c63000e2d2d5aa02298ecf2ae"
+      },
+      {
+        "file": "nvrtc64_120_0.dll",
+        "bytes": 86728192,
+        "sha256": "02d2d7ef4690bf1a55dda1d3ac94c86ce8d16920071c87bcd3e70e94ef346e93"
+      },
+      {
+        "file": "nvToolsExt64_1.dll",
+        "bytes": 48128,
+        "sha256": "0fe54f1b80ad3e44da2a3d9f0956e7c3903029d6319689ce1c4068f7a20932f3"
+      },
+      {
+        "file": "shm.dll",
+        "bytes": 15360,
+        "sha256": "396539bf3aaef042380bef25f95bb0328c352060a0bff5dc622816d810cf663b"
+      },
+      {
+        "file": "torch.dll",
+        "bytes": 9728,
+        "sha256": "2df775d1b3a073b4250aef3a021bed6d4704ef9351a09375163115f53f86e3c9"
+      },
+      {
+        "file": "torch_cpu.dll",
+        "bytes": 262806528,
+        "sha256": "fbc62efc8cb148448311edaecf645263a15baf6beeb3528d7ac6ac5c2a168f85"
+      },
+      {
+        "file": "torch_cuda.dll",
+        "bytes": 902922240,
+        "sha256": "45d67cfeb13e21c765007908d9410bc31c91687ef5c900bba8bc943d82c6e700"
+      },
+      {
+        "file": "torch_global_deps.dll",
+        "bytes": 9728,
+        "sha256": "e58a5767f66fba91b534161671c3bbaa6b107b1cadb9b71d89ccd444b5677b9d"
+      },
+      {
+        "file": "torch_python.dll",
+        "bytes": 18653184,
+        "sha256": "c6a690c10a768079e5ad242375b1a14ed1e61f2dfc05aaa67bce5b4ece272328"
+      },
+      {
+        "file": "uv.dll",
+        "bytes": 195072,
+        "sha256": "fa569e682fc5fb7a8eb94c6829af9f30a569748dbbc6bce39735d48bc960bcf8"
+      },
+      {
+        "file": "zlibwapi.dll",
+        "bytes": 89088,
+        "sha256": "1f047faec08d9a35c304fb4a7cf13853589359a8f7cbfdd48c5d5807712dcf05"
+      }
+    ]
+  },
+  "hardware": {
+    "cpu_model": "Intel Core i9-14900HX",
+    "physical_cores": 24,
+    "logical_cores": 32,
+    "ram_gib": 15.62,
+    "gpu_model": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "gpu_memory_mib": 8188,
+    "nvidia_driver": "596.49"
+  },
+  "resource_limits": {
+    "policy": "efficiency_priority_native_host_resources",
+    "cpu_limit": null,
+    "memory_limit": null,
+    "pids_limit": null,
+    "shm_size": null,
+    "capacity_acceptance": "pending before E1; re-freeze before E1 only; then identical E1-E5 envelope"
+  },
+  "thread_limits": {
+    "OMP_NUM_THREADS": 24,
+    "MKL_NUM_THREADS": 24,
+    "OPENBLAS_NUM_THREADS": 24,
+    "NUMEXPR_NUM_THREADS": 24
+  },
+  "thread_benchmark": {
+    "scope": "synthetic BLAS throughput; not E1 capacity acceptance",
+    "matrix_shape": [
+      1536,
+      1536
+    ],
+    "repeats": 5,
+    "selected_threads": 24,
+    "results": [
+      {
+        "threads": 1,
+        "median_seconds": 0.10280999999940832,
+        "samples_seconds": [
+          0.09979999999995925,
+          0.10465529999964929,
+          0.10200330000043323,
+          0.10280999999940832,
+          0.10312729999986914
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 2,
+        "median_seconds": 0.053921500000797096,
+        "samples_seconds": [
+          0.054523199999493954,
+          0.05386629999975412,
+          0.053340899999966496,
+          0.053927800000565185,
+          0.053921500000797096
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 4,
+        "median_seconds": 0.02872750000005908,
+        "samples_seconds": [
+          0.02872750000005908,
+          0.028644900000472262,
+          0.02861769999981334,
+          0.03657000000021071,
+          0.03646200000002864
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 8,
+        "median_seconds": 0.024096999999528634,
+        "samples_seconds": [
+          0.025211699999999837,
+          0.023776899999575107,
+          0.024096999999528634,
+          0.025082099999963248,
+          0.02234000000044034
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 16,
+        "median_seconds": 0.021230199999990873,
+        "samples_seconds": [
+          0.02063240000006772,
+          0.020765299999766285,
+          0.022755699999834178,
+          0.021230199999990873,
+          0.023654799999349052
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 24,
+        "median_seconds": 0.018167799999901035,
+        "samples_seconds": [
+          0.018167799999901035,
+          0.01867800000036368,
+          0.017835099999501836,
+          0.01809159999993426,
+          0.018818300000020827
+        ],
+        "checksum": 385.6809685251939
+      },
+      {
+        "threads": 32,
+        "median_seconds": 0.018673800000215124,
+        "samples_seconds": [
+          0.017154500000287953,
+          0.018673800000215124,
+          0.017993899999964924,
+          0.01880570000048465,
+          0.019433700000263343
+        ],
+        "checksum": 385.6809685251939
+      }
+    ]
+  },
+  "paths": {
+    "source": "E:/ShortcutMiner-github",
+    "runs_root": "E:/ShortcutMiner-github/runs",
+    "experiment_root": "E:/ShortcutMiner-Experiments",
+    "config_root": "E:/ShortcutMiner-github/configs",
+    "datasets_configs_policy": "treat as read-only; no OS mount enforcement",
+    "resume_policy": "same absolute runs root, run ID and frozen configuration"
+  },
+  "network_modes": {
+    "offline_acceptance": {
+      "provider": "fake/mock loopback only",
+      "provider_credentials": "removed from acceptance child",
+      "os_network_disabled": false,
+      "tracing_enabled": false,
+      "local_secret_file_loading": "disabled via SHORTCUTMINER_DISABLE_FORMAL_ENV=1 in offline acceptance and unit tests"
+    },
+    "formal_audit": {
+      "activation": "explicit local launch only; acceptance never initiates formal audits",
+      "network": "native Windows host network",
+      "credentials": "API CLI loads TEXT/VLM keys from ignored repository-root .env.formal into process temporarily; no persistent Windows environment writes; nonempty explicit process keys take precedence"
+    }
+  },
+  "secrets": {
+    "runtime_variables": [
+      "SHORTCUTMINER_TEXT_API_KEY",
+      "SHORTCUTMINER_VLM_API_KEY"
+    ],
+    "forbidden_storage": [
+      "source",
+      "configs",
+      "locks",
+      "manifest",
+      "logs",
+      "audit reports",
+      "git"
+    ],
+    "secret_values_recorded": false,
+    "loader": {
+      "entrypoint": "API CLI and presence-only pilot credentials command",
+      "source": ".env.formal",
+      "names": [
+        "SHORTCUTMINER_TEXT_API_KEY",
+        "SHORTCUTMINER_VLM_API_KEY"
+      ],
+      "process_only": true,
+      "persistent_os_environment_modified": false,
+      "file_values_or_hash_recorded": false,
+      "shell_execution_or_interpolation": false,
+      "offline_loading": false
+    }
+  },
+  "timeouts_seconds": {
+    "dependency_install_acceptance": 3600,
+    "pytest_acceptance": 1800,
+    "fake_provider_smoke_audit": 300,
+    "formal_audit_total": null,
+    "provider_example_existing": 60,
+    "tool_default_existing": 30
+  },
+  "source_identity_policy": "candidate HEAD + dirty status + source tree SHA-256; formal requires user-created clean commit + Windows runtime/config/lock identities; no automatic commits",
+  "gates": {
+    "manual_clean_commit": "pending",
+    "capacity_acceptance": "pending",
+    "gpu_runtime_acceptance": "PASS",
+    "formal_experiments_started": false,
+    "real_providers_called": false
+  },
+  "source": {
+    "git_commit": "b636a132394bb05187fa0b2fa405d6ac43c5c842",
+    "dirty": true,
+    "source_tree_sha256": "ce90d5261a2b9620dfc8cc0f649a3020bf7f182fe7829400f878d6c3b795c0b5",
+    "files": [
+      {
+        "path": ".gitignore",
+        "sha256": "113c522dec2ebbaac645a36b6e33e73c7b52c6a5b402a5ef0484325700c3c2a2"
+      },
+      {
+        "path": "README.md",
+        "sha256": "b69e2a7a60c91e5a92e7b48ead9151a8ae309284b4672730d14fcd160b7e51be"
+      },
+      {
+        "path": "agents/executive/workspace/AGENTS.md",
+        "sha256": "50f3d0ca90b643199ada9598f520de22f35b8168b59859539848b379b03382a9"
+      },
+      {
+        "path": "agents/executive/workspace/HEARTBEAT.md",
+        "sha256": "deda3cd5ea136375712b8f2092fd9f08ce74092d8c4612cae1a29ff90c6692bf"
+      },
+      {
+        "path": "agents/executive/workspace/IDENTITY.md",
+        "sha256": "e230559f13bba50b0f758f7ba979db9af33990fdf6a8dedb56e992fab70f4ea4"
+      },
+      {
+        "path": "agents/executive/workspace/MEMORY.md",
+        "sha256": "de863a588c8ace8ad934faa62bbb8bd448949d103d3de45fc242b566f57aae6e"
+      },
+      {
+        "path": "agents/executive/workspace/SOUL.md",
+        "sha256": "fe31f0b5b7d3408bb975251f53342d0a36c76e622c4d371f5ceccf0e25eb0894"
+      },
+      {
+        "path": "agents/executive/workspace/TOOLS.md",
+        "sha256": "ea74d726524f8f2d5073d674dbac71b61fbc262155b12edea90c85936e87b45c"
+      },
+      {
+        "path": "agents/executive/workspace/USER.md",
+        "sha256": "7f2d2b3f39b68040ea8449b1871ba8c2122d43e40bad1c3477d2eae56689a329"
+      },
+      {
+        "path": "agents/identify/workspace/AGENTS.md",
+        "sha256": "50a38ce8715dba7dee77a9cd6063a91178316e17e2f6b0e713c5bfbd4d46f70d"
+      },
+      {
+        "path": "agents/identify/workspace/HEARTBEAT.md",
+        "sha256": "9ddfd77978f851e8386c407d897a39a533ced8e9c59426604743ab3ba800f735"
+      },
+      {
+        "path": "agents/identify/workspace/IDENTITY.md",
+        "sha256": "1021aeb782a139c9422df0e8acca93e2745f0586affd3dc90a56ec90b3dfa8af"
+      },
+      {
+        "path": "agents/identify/workspace/MEMORY.md",
+        "sha256": "ca04d9c8b90ee171b0c5b6b773e2ee852a53e2ad463f4bd08c48e6091d2c90bf"
+      },
+      {
+        "path": "agents/identify/workspace/SOUL.md",
+        "sha256": "9dd4e39e29330d20bde5c046ff2dd76b67959791922ded466cc266506485b8b6"
+      },
+      {
+        "path": "agents/identify/workspace/TOOLS.md",
+        "sha256": "53d47c80a8327c3753e4eb413326c67d3ce8a43e6aac0776454030908bf72d23"
+      },
+      {
+        "path": "agents/identify/workspace/USER.md",
+        "sha256": "f77c4859764e11dad8c1d2657b1fd3b341dd78d94ec453724ff9eaa5102ff907"
+      },
+      {
+        "path": "agents/qualitative/workspace/AGENTS.md",
+        "sha256": "0193ab3d36e7627df8eab45eb1e93fb81d3d42b2e925b14b2c0aeaf31b0e4d57"
+      },
+      {
+        "path": "agents/qualitative/workspace/HEARTBEAT.md",
+        "sha256": "1dac84b765978c00948ec4f215ccd66da46eba82abab0a0d7f20fa2dc8dc595c"
+      },
+      {
+        "path": "agents/qualitative/workspace/IDENTITY.md",
+        "sha256": "8ba4c65f729329fef0f00dadf133057d91f895b28457e5bb5d130e7ba5b49dbc"
+      },
+      {
+        "path": "agents/qualitative/workspace/MEMORY.md",
+        "sha256": "b49fce8750bb8b65d21c988320ff2e0b058f942946996dd3035adc4a5ee05671"
+      },
+      {
+        "path": "agents/qualitative/workspace/SOUL.md",
+        "sha256": "f6bd5c2d3605eb51d77deea1cd836c351fd5989a4b8f3a4f30e6a63534d2c01b"
+      },
+      {
+        "path": "agents/qualitative/workspace/TOOLS.md",
+        "sha256": "1402a0fefb1fc45449f3848cb3230b16891a78667cd1bdb73a501649e7b60739"
+      },
+      {
+        "path": "agents/qualitative/workspace/USER.md",
+        "sha256": "a299712a715a741835cbb684f468141d7ceb306c23041f4f4a1e76f096069343"
+      },
+      {
+        "path": "agents/quantitative/workspace/AGENTS.md",
+        "sha256": "2499cd25001b151a3438464b6e1afb9da6897bb104c24ef296cf860d75d67d20"
+      },
+      {
+        "path": "agents/quantitative/workspace/HEARTBEAT.md",
+        "sha256": "adcf365a9e440e9e5ffd916e29d3a7ea5b6bf283ee39d32c7af4d431eb20ddcb"
+      },
+      {
+        "path": "agents/quantitative/workspace/IDENTITY.md",
+        "sha256": "3bb1903004123b52294b9ee79b8ec373c081e6392a43c771a1e258883f279774"
+      },
+      {
+        "path": "agents/quantitative/workspace/MEMORY.md",
+        "sha256": "1b4397838749de1149224a73a1085770b2e1f40058c417bba0711df1cf01c342"
+      },
+      {
+        "path": "agents/quantitative/workspace/SOUL.md",
+        "sha256": "5265cbc1b43bedf3b858d650802fb94b1bb77e870d5a2e70b1a197298f43d126"
+      },
+      {
+        "path": "agents/quantitative/workspace/TOOLS.md",
+        "sha256": "5313e063d7f80fa283b307bea473c07d53ea813a7b19b1dceb7cdebbde836105"
+      },
+      {
+        "path": "agents/quantitative/workspace/USER.md",
+        "sha256": "2b9168a4f164aaf48b3038037b3dde9ece4bb46b7cd5afe375b8d3ad27529bd0"
+      },
+      {
+        "path": "agents/quantitative/workspace/ood-selection-legacy-v1.md",
+        "sha256": "5124ff62bf6820221284473610c209fd309d182802f9ebcee47b2aee194015f4"
+      },
+      {
+        "path": "agents/quantitative/workspace/ood_recipes.json",
+        "sha256": "f227cb1b14a25ef4cb6df8cfa09353d35434c432e1ddf670e042f0149dfe41c0"
+      },
+      {
+        "path": "agents/quantitative/workspace/ood_recipes.quality-v2-compat.json",
+        "sha256": "9efbfa31a3cdf560414320dccd4a39cd1fb3a230ea5d140178950781bf1eb764"
+      },
+      {
+        "path": "agents/quantitative/workspace/ood_recipes.v2.json",
+        "sha256": "987fdb350f2249cd6e5178af43db40facc1c6833ee017d603ff7d9ddbfcbd81f"
+      },
+      {
+        "path": "agents/summarize/workspace/AGENTS.md",
+        "sha256": "47768251dfe36f38170aeac5141520ef79c1810ec2ed7024addb882208a268e8"
+      },
+      {
+        "path": "agents/summarize/workspace/HEARTBEAT.md",
+        "sha256": "ab29a48de803fe89dd895ac0393a942f212a8f7ab80e8b7b6b57456e908338a3"
+      },
+      {
+        "path": "agents/summarize/workspace/IDENTITY.md",
+        "sha256": "302a9598945ae609a70f9f05c59192bd5f592e55344dae8626f17421ab378f1e"
+      },
+      {
+        "path": "agents/summarize/workspace/MEMORY.md",
+        "sha256": "947d12fe57806a3f170d24b3987b3041f86ab6ddb2f0d475ea0db358ccf7b091"
+      },
+      {
+        "path": "agents/summarize/workspace/SOUL.md",
+        "sha256": "1d132b79893095c0bfe8c5439810f7f5ca3c546d4625f15025d6ea14aa59d9be"
+      },
+      {
+        "path": "agents/summarize/workspace/TOOLS.md",
+        "sha256": "205013c769a3d959e2695088af88695aa1730c8be13a898ac9104fab90d0e7b7"
+      },
+      {
+        "path": "agents/summarize/workspace/USER.md",
+        "sha256": "1c169a3ebe38857edc2f26cba732f461d93489592fb719ed1b188eb9e2e40982"
+      },
+      {
+        "path": "configs/base.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/datasets/colored_mnist.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/datasets/synthetic_patch.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/datasets/waterbirds.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/experiments/colored-mnist-irm-shortcutminer-adaptive-v1.json",
+        "sha256": "ded5345dd35b79f760c87b47777ff7ceed8bf23a978dc73f61aaeadf810b7566"
+      },
+      {
+        "path": "configs/experiments/colored-mnist-irm-shortcutminer-memory-v2.json",
+        "sha256": "f2849cac61e5e6051b046bbf8f7dee2daefe7ae415ccee25e385aa415d623a28"
+      },
+      {
+        "path": "configs/experiments/colorized-mnist-shortcutminer-adaptive-v2.json",
+        "sha256": "cbd3734a6fc5603c6ad31ba1f0d113aa365ed0fa93ac47b6fd3a959a4b43b5ac"
+      },
+      {
+        "path": "configs/experiments/colorized-mnist-shortcutminer-formal.json",
+        "sha256": "f83e6a489541df2c5633cd7565b7f41589a5d5073bb86047c97a13c5d14f9b72"
+      },
+      {
+        "path": "configs/experiments/generic_intake.example.yaml",
+        "sha256": "21914944c56fc8197e86e64c8a603037a1cc72e3396b2b5a91ebe3c720b74b0f"
+      },
+      {
+        "path": "configs/experiments/icdm_main.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.example.yaml",
+        "sha256": "8707af4517a42ced927bed9488018d3e6a63c79d3e88df9a8a53f6e9b37591c0"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.phase16_readiness_r2.yaml",
+        "sha256": "807460e861706f25cbb790ca697a546bdd36412757eafafd4b57b29f30889328"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.phase16_readiness_r3.yaml",
+        "sha256": "a637e4dd37408f6d7d3047648b2ab8e2445603abc962b0ea4e285d8729d94edc"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.v13.yaml",
+        "sha256": "ae351c3e7720023e5c2fcc56ba3456f13e28727d1bc16163aef4bb7b9b4b6fcf"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.v14.yaml",
+        "sha256": "724bf5fd883c09d8f9a31f59492a2e8ad52d0bcfb847eb687bb3071385a94044"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.v15.yaml",
+        "sha256": "df614eac970cbcb3fb9b0cf27ae3b7333ffe851e3b93d3d93f16279198713194"
+      },
+      {
+        "path": "configs/experiments/real_blind_pilot.v16.yaml",
+        "sha256": "5589c21afe3d9288797b971442c3a1e1efcb2216268ac35caa86060e4af572f4"
+      },
+      {
+        "path": "configs/experiments/smoke_test.yaml",
+        "sha256": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32"
+      },
+      {
+        "path": "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v1.json",
+        "sha256": "bab034cb851ea29593cdef7b5d3c107980478c0b8d3926f75f0dab551656b49b"
+      },
+      {
+        "path": "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v2.json",
+        "sha256": "3a9ad4a514927e895c390d4339c5f288f57b835e2667cc81daab6f123f84c871"
+      },
+      {
+        "path": "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v3.json",
+        "sha256": "3a8b1a8fdd9a9822df720e8951df8f417efbae057c5f4fbe3c98795bed1c5ad8"
+      },
+      {
+        "path": "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v4.json",
+        "sha256": "70e13797476a78c8ea7e798c025825e23dd29738f7f2a7dc0afbc08c6c4b232d"
+      },
+      {
+        "path": "configs/experiments/waterbirds-paper-v1.json",
+        "sha256": "ad89e779e08b97fb3a876e7a898fc9debef6b3f8e67c648b9cf5a743d9131fdd"
+      },
+      {
+        "path": "configs/experiments/waterbirds-paper-validation.proposal.json",
+        "sha256": "d7871be4a3af3d4f4f0b923c1792a3a58a7398d1284852781663a5bd68c29a07"
+      },
+      {
+        "path": "configs/experiments/waterbirds-shortcutminer-background-formal.json",
+        "sha256": "ce98f4c248542a84cec8d0e01082354b802e278bca54d5af8a881dff76d4183f"
+      },
+      {
+        "path": "configs/experiments/waterbirds-shortcutminer-formal.json",
+        "sha256": "c155631b162422ed5e1d7fe626de500aa3412bb020654b6ab531ea465c7e6b98"
+      },
+      {
+        "path": "configs/experiments/waterbirds-shortcutminer-memory-v2.json",
+        "sha256": "a69e6d449ffeb83489033e84fb9a9b5e8e809e8931827793543517af017e0462"
+      },
+      {
+        "path": "configs/experiments/waterbirds-shortcutminer-memory-v3.json",
+        "sha256": "bc1458f065e45980c8e3d020c3d9598cea0ecb014a9943149b566927401bfee4"
+      },
+      {
+        "path": "configs/models/model_a.yaml",
+        "sha256": "bddaf05bfaffc4005f6a4ed57ab890ee3a5fc0c7d819c7f344416432c01c3456"
+      },
+      {
+        "path": "configs/models/model_b.yaml",
+        "sha256": "69c3d2e99497f31c21bc02784472ec47c8741a23c37ea715406019559a77de38"
+      },
+      {
+        "path": "configs/models/model_c.yaml",
+        "sha256": "8b00048d49562da5e5fbf3a3d89b4c942c66c6aca0e4517b201bbd97a897a5d9"
+      },
+      {
+        "path": "configs/models/pilot_text.example.yaml",
+        "sha256": "86f59d2bc0f278e8ff0bee2c08344d664c20a8bd8d6c099b190b199b7db8cd42"
+      },
+      {
+        "path": "configs/models/pilot_vlm.example.yaml",
+        "sha256": "e6038c51994ce1e59546471f0807f6a46671107b5ff82671d09ca244c2f5ff5b"
+      },
+      {
+        "path": "configs/models/semantic_vlm.example.yaml",
+        "sha256": "2cee1a65088163bbdb00252a6aaf6bc14e7c3ee67a922d516cd5cdca64caef82"
+      },
+      {
+        "path": "configs/models/shared_per_agent.example.yaml",
+        "sha256": "0521eb19b1874c61a7cfe0db66afb3af72b17055aef0aa4f7711a643b1a11f93"
+      },
+      {
+        "path": "data/README.md",
+        "sha256": "75d41860f3e2affb45960a51a1d2d2042d35978adb80593d1e6fe9292062e8f1"
+      },
+      {
+        "path": "docs/adaptive-paired-early-stop.md",
+        "sha256": "9c2e02e0a586e7810d2af83d25d43431acaed8a72bc89994e5f9ae6429f0f2bc"
+      },
+      {
+        "path": "docs/architecture.md",
+        "sha256": "58b8df8aa05ed204f0085c62e1b0f2c9d688858995abfb4d2419f8e73a19862a"
+      },
+      {
+        "path": "docs/audit-report.md",
+        "sha256": "64f816c39ff05431d41ffb6a95ee39b2e8311e0d634b2e8709a52ee03e4cf785"
+      },
+      {
+        "path": "docs/blind-evaluation.md",
+        "sha256": "c541638070f252904791ce288de88c68c207127628e7a7299ea7f5764173ebd8"
+      },
+      {
+        "path": "docs/colorized-mnist-shortcutminer-run.md",
+        "sha256": "89a9032452f5d50903cb0e6c144ac714d56a8380e39ddc6a91718c149208fc8a"
+      },
+      {
+        "path": "docs/deployment.md",
+        "sha256": "fc97c7b9f4eb7baffad5caedb3067dc6d327b18d6bc797f1bd2f67e7cffed362"
+      },
+      {
+        "path": "docs/evidence-calibration.md",
+        "sha256": "ad4e208f6f4ef0d06448cdeae36b1fc18ef2403bb6f4d728254c3f0179161bfd"
+      },
+      {
+        "path": "docs/evidence-promotion.md",
+        "sha256": "07164d4a32c07e22d81c78a94055910090c180a329736ea4b6912b63bda4d272"
+      },
+      {
+        "path": "docs/experiment.md",
+        "sha256": "c8436bc722012fea14a8e2dabb2308ee120f58eefde45af3e4d30145f91676d0"
+      },
+      {
+        "path": "docs/formal-experiment-environment.md",
+        "sha256": "58dce8247105ba8184a7ec0771c881ac43bf525db2b627f78e3503bfbca14773"
+      },
+      {
+        "path": "docs/local-background-ood.md",
+        "sha256": "6c8710e792147c206b371385fbd815a4007d995218878b964069a3323f39f229"
+      },
+      {
+        "path": "docs/model-reliance.md",
+        "sha256": "19032821cbd6bbbce85872726e673a1a110d4b938e0e541d20a21dba8055a5d8"
+      },
+      {
+        "path": "docs/model-runtime.md",
+        "sha256": "84b1a0cdbf5059d334f6f695eb7b56fde4bff177cfe8fdf58b360449f755b2ca"
+      },
+      {
+        "path": "docs/ood-counterfactual.md",
+        "sha256": "4aae5788a86391fb986874735c7073e31175f5d0dbcfe3fa93caa668424c6dc3"
+      },
+      {
+        "path": "docs/paired-confidence-sequence-v1.md",
+        "sha256": "604bed8d26884ea52a79ebff3c71316b846e65c3853cd3d99630861a0c9b680f"
+      },
+      {
+        "path": "docs/phase16-readiness-audit.md",
+        "sha256": "aa46685d84fe90a9c8b8dc60d261539d2eacde8c361e3dadb690c6ad19b5857f"
+      },
+      {
+        "path": "docs/phase16-system-contract-audit.md",
+        "sha256": "f88379dabce8cf8e46356460db2e839b1da401801ed26e160ca1736cb4fa5b5e"
+      },
+      {
+        "path": "docs/phase6-validation.md",
+        "sha256": "e3240a16adffe6fac3303d1715a1fd44476aedc88314e3d6f8377a442ed3cf4c"
+      },
+      {
+        "path": "docs/protocol.md",
+        "sha256": "b32f4b822d162a04109d629b7210993dbac8f764d0c4b3460802e54acebea65b"
+      },
+      {
+        "path": "docs/quantitative-ood-memory.md",
+        "sha256": "27b2cd9c7bfa1d27e715dfc567eddaeda04e9d1c9af36cc8338020b591bf5a80"
+      },
+      {
+        "path": "docs/real-blind-pilot.md",
+        "sha256": "771234b46a032eda9765518507b32d19762fe55af4d1c3dcfaee2f3f8f0c7072"
+      },
+      {
+        "path": "docs/repeated-evaluation.md",
+        "sha256": "48796978198393f604542d74cb7fd444e378d7debeef2140ec7934f94bd3604a"
+      },
+      {
+        "path": "docs/reviewer-driven-validation.md",
+        "sha256": "cca75a2fe239186b84debbe901be6d118ad7c7d0763e8402337ead83efad7429"
+      },
+      {
+        "path": "docs/runtime-progress.md",
+        "sha256": "92d68c36aa2661d0eee12fa1c3cbcbd495fa4f8528e72714252f12c7c294dbfb"
+      },
+      {
+        "path": "docs/segmentation.md",
+        "sha256": "dc6ec2e42b88a9654e13987372eb876f158576f8aed9cf3eec248ba83b26b512"
+      },
+      {
+        "path": "docs/semantic-vision.md",
+        "sha256": "44d2384bbd14d2991f0df98a717df6e60230d37227e973b39443d425d1fc558f"
+      },
+      {
+        "path": "docs/tool-runtime.md",
+        "sha256": "6856c75613f005b09c6527e14f540bcedef6e307c72ede084bf975849e2493cc"
+      },
+      {
+        "path": "docs/visual-discovery.md",
+        "sha256": "1f84210e5be68ee6f4d2014194cfca7a3de0ec1bfc5e18ccca3f8827ce529637"
+      },
+      {
+        "path": "docs/waterbirds-paper-validation-proposal.md",
+        "sha256": "ac0141e2bf78623f7a060cfca30819ff830b2728715cedbbf39c2fc795d2ea97"
+      },
+      {
+        "path": "docs/waterbirds-paper-validation-run.md",
+        "sha256": "fc76b39049d3878f16e4c995032d03fca5c5fd3ab9daf86665c1a1ba222270d0"
+      },
+      {
+        "path": "docs/waterbirds-shortcutminer-core-run.md",
+        "sha256": "99787372abefdae9e2e6e5ac3d0522f906ba544e4d31a1520a9fcb50dc0c5d70"
+      },
+      {
+        "path": "evaluation/phase16_post_provider_failure_inventory.json",
+        "sha256": "e898f27fa5393fc54c3d6fe5a0d017aeb759e4451a8ffbde01ac47bfbbe4d382"
+      },
+      {
+        "path": "evaluation/phase16_system_contract_matrix.json",
+        "sha256": "0602ab88325fad3fe20b9f1cd181491b23247e9b5480ade253a96fe8f9e5b082"
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "fd88b56e2381b87599ae62a19921619ebafdc4c4f3b37937731602a56ee90e22"
+      },
+      {
+        "path": "requirements.txt",
+        "sha256": "28a71df26821d3378dc7921ffb6b0712f8970fe85c501ce536f1f75d861401f2"
+      },
+      {
+        "path": "requirements/build-tools-win64.lock",
+        "sha256": "de76d79fb2e38a26c42609f8a277c05bb739a5bb234d3209965f6f830a255a8e"
+      },
+      {
+        "path": "requirements/conda-win64.explicit.txt",
+        "sha256": "cfd6b894465c89af1968277f90a06e12b55ca0762266f32fc4bb4dfca0c71d5c"
+      },
+      {
+        "path": "requirements/core.in",
+        "sha256": "e0b7e134eaf2e405d1fde03c891e893384d7333e26591a22a1e239c2834d785f"
+      },
+      {
+        "path": "requirements/formal-win64-py311.lock",
+        "sha256": "87d60e6fc391b9fd021ea9f3f6878bb29a154d0784eb93e7c39971efe98b2138"
+      },
+      {
+        "path": "results/figures/.gitkeep",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "path": "results/summaries/.gitkeep",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "path": "results/tables/.gitkeep",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "path": "runs/.gitkeep",
+        "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+      },
+      {
+        "path": "scripts/aggregate_results.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "scripts/formal_environment.py",
+        "sha256": "90b939746617a8125cffd08b570de6c2e9d9fa32f95749e0b497dfbe80c4c2de"
+      },
+      {
+        "path": "scripts/formal_environment_lock.py",
+        "sha256": "10498f52116ee0f25d71f0b2d58f79d589409cafbe56223d06a2f51ce443477c"
+      },
+      {
+        "path": "scripts/health_check.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "scripts/phase16_provider_security_preflight.py",
+        "sha256": "915e32aa8b907d9a155daa09092d2036b99bef49e3f5e88a2f9cefe1b907056a"
+      },
+      {
+        "path": "scripts/phase16_task_isolation_replay.py",
+        "sha256": "3e2693dffd2ab11c094651765e8257c8f656bee16e0be4c9ab6593ef9589db71"
+      },
+      {
+        "path": "scripts/phase17_progress_acceptance.py",
+        "sha256": "531f3104d70698b6f1cf8e46f56151b5ee1f1e32decbdd5db97afb2b1fc1db66"
+      },
+      {
+        "path": "scripts/phase17_promotion_acceptance.py",
+        "sha256": "473dc8227c8d61cfb1a666fe298b428d456633e7fa0f4c830aa18e6a90631181"
+      },
+      {
+        "path": "scripts/run_colorized_mnist_shortcutminer.py",
+        "sha256": "7cfafed81a4d27f08eb8c4732027126a61d4e72a314ace90fc25dde66b9ba5eb"
+      },
+      {
+        "path": "scripts/run_experiment.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "scripts/run_matrix.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "scripts/run_waterbirds_background_validation.py",
+        "sha256": "beacbc2fd5ea4c2d852976dbcc0335f18fbc4826f07e94c5af7bcbe3cdb3abb0"
+      },
+      {
+        "path": "scripts/run_waterbirds_paper.py",
+        "sha256": "568026159f946e986fdc21e5f1d2620cee38cd2aaeeac3fc4b0039bf8ee215ce"
+      },
+      {
+        "path": "scripts/run_waterbirds_shortcutminer.py",
+        "sha256": "b62dd91a5a8a8bcafc776464e15bf27b00dfecf79430a6d22f4d92d0b4f19164"
+      },
+      {
+        "path": "scripts/validate_config.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/__init__.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/__main__.py",
+        "sha256": "8d52a0dca352f51f91084a090c25715d2b9365fdd1fe1fed2e41d884ac347bdf"
+      },
+      {
+        "path": "shortcutminer/agent_client.py",
+        "sha256": "1b50dceb93cbc9ad2661662a14d000f477a923313b8400fe06959755710373e8"
+      },
+      {
+        "path": "shortcutminer/audit.py",
+        "sha256": "35c7e24fc22591fe2ef63f8b9c7b693137ac40e9d1d97ddf653bcc1eec34d85c"
+      },
+      {
+        "path": "shortcutminer/cli.py",
+        "sha256": "d459dc6eb47f343dfa183bd0c377cd1e129b4be4014e57de4978e09d24a99e3f"
+      },
+      {
+        "path": "shortcutminer/context.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/evaluation/__init__.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/evaluation/aggregate.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/__init__.py",
+        "sha256": "fea5d0bf5c0cf964dc336fbde563db24185c95b0fcabc5c3fd98416ca6cb2ad7"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/batch.py",
+        "sha256": "8e7669240c540087b4fc62fac05d5d31bd901d939f14508cd588eadb00537c2d"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/downstream.py",
+        "sha256": "2ce1966e5f71efb4b64fa812a65e51698b3263da2b7a22345e725b7ce6a44d7f"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/evaluator.py",
+        "sha256": "275ba12437c9dbf3043d239da745abe167ca7c2e58a12a82560c9594b32f2163"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/generator.py",
+        "sha256": "0e4da2b3c009de4add5a09d8be64d699925009b06d03cc3ab0c6d476d2565166"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/leakage.py",
+        "sha256": "d7706b1da74a750de13b9b1a975f6ebb36095801b3b5d1130c733602c2b2f63d"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/matching.py",
+        "sha256": "6d4f60fd170bb4d3cc46e65a1c8ee5d44a7c1daadb4280540f62181435fe772b"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/metrics.py",
+        "sha256": "f5f35a941e7730464e50045dd6eb9521a5fe47b7edb13488e0084989eb23fea0"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/protocol.py",
+        "sha256": "6dfc1bf67dc674bce18abc91acb1e76ee7896aa81b9d406a0a49d36fd1b11282"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/repeated.py",
+        "sha256": "ff9fda8dc560f2fe7e51614db836d8fa94b19691e8c415ceb26a7b3c8a837467"
+      },
+      {
+        "path": "shortcutminer/evaluation/blind/snapshot.py",
+        "sha256": "d11394ae7a6b1b4063cd204c6fa9080b225e6fe8ce66168fe1a28a39578d8696"
+      },
+      {
+        "path": "shortcutminer/evaluation/calibration.py",
+        "sha256": "303bd21564d4f696e661e787073e6d6a29120d962c832a1b64bf7454da6e0a9b"
+      },
+      {
+        "path": "shortcutminer/evaluation/evidence_ledger.py",
+        "sha256": "ec46809770f9dbcd3f8720c5ca80c1ea52675fa7f3f70af3a84d06e8aff0b77d"
+      },
+      {
+        "path": "shortcutminer/evaluation/metrics.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/__init__.py",
+        "sha256": "e762b6d606fcf6cace5d088bd5da225dc82548227c1bad007ce476d1593ac771"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/budget.py",
+        "sha256": "3134fc182efc9d0b3ff2c4e786841a4a289cf2f29005f55e5cd2bc7536102933"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/credentials.py",
+        "sha256": "ec03a0c981914892bd843304185f4aad214af7f9723af9e2241d8a972b42ef54"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/preflight.py",
+        "sha256": "8099ef62b1d39be70b1ee4a5f3ed17c749784a012d854f4540198e98a626d261"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/protocol.py",
+        "sha256": "109af79f33e6eafb8152b226c32cb4bdddf10d18ad974e18678bd1a7078d9fb2"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/readiness.py",
+        "sha256": "ad768f3e8db0947a52de5c84ba6da0dfdc37994fee2857c5d3960e8dddee3e6a"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/realness.py",
+        "sha256": "1e4b39059a4b842c490b86cc7be1d747a6deda500e834fec48607ff260cb7ca7"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/report.py",
+        "sha256": "8d69b465d4c79413055aed991d0275495efebe6f9900ff16e42d4ee5b7ffea22"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/runner.py",
+        "sha256": "5b88b7aab1e0746d75d4e2c7da07ec7aae29a9c8f51d54debbc22bebec3f4cb9"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/snapshot.py",
+        "sha256": "d47f66962057f70f509770f422721cec9e6fbbc81a3202572032cbe0b947e96f"
+      },
+      {
+        "path": "shortcutminer/evaluation/pilot/suite.py",
+        "sha256": "d32d483525b54f55979014769771a70d842619870d31a944698745abefd10112"
+      },
+      {
+        "path": "shortcutminer/experiment/__init__.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/experiment/adaptive_screening.py",
+        "sha256": "73cac87e2d777c6ada2a5d773c17ac60e3b46267ca1f63ff364384990fe80af5"
+      },
+      {
+        "path": "shortcutminer/experiment/agent_workspace.py",
+        "sha256": "e0834974d707de3b510f11392a1fa5f5de97f1ef1b79960ebad5b78e752a5ced"
+      },
+      {
+        "path": "shortcutminer/experiment/audit_capabilities.py",
+        "sha256": "b7982e0c47c2bc8e105addf17266996cb1d09d3b40b5ed377ae92b1a6d152112"
+      },
+      {
+        "path": "shortcutminer/experiment/audit_intake.py",
+        "sha256": "ee05de290e8717e547e13c953596ec2d6c9cc12a8ed298ef905a803d16e722f0"
+      },
+      {
+        "path": "shortcutminer/experiment/audit_report.py",
+        "sha256": "933fcb210faa2f127c55d5e6327c355831d5e5a689954efede82ea468bf17d99"
+      },
+      {
+        "path": "shortcutminer/experiment/candidate_binding.py",
+        "sha256": "4533dfaef604ef4b334a0dfd2d6c186a2a9912fea1beee17ddac99f590787561"
+      },
+      {
+        "path": "shortcutminer/experiment/candidate_screening.py",
+        "sha256": "fdc3615ff605ff06b4fc4e185b0e2c08165af79ebcc228447e83addc95362c7a"
+      },
+      {
+        "path": "shortcutminer/experiment/check_requirements.py",
+        "sha256": "24892d190387f6ae114f432991be53fa90a79c1b017af4b4541d41bd09ced38f"
+      },
+      {
+        "path": "shortcutminer/experiment/check_resolution.py",
+        "sha256": "acdb00b2ea728d306ae574dcf3f481cad7ca9c52058c38b7e4f41eb003acd448"
+      },
+      {
+        "path": "shortcutminer/experiment/colorized_mnist.py",
+        "sha256": "348a48dbb6897219c955ad71826dff2a9940e36aac1d659e621db5998752b5c8"
+      },
+      {
+        "path": "shortcutminer/experiment/dataset_profiler.py",
+        "sha256": "90276beae05a68ca5d8cc4a0d1e15b949a2171a5a6f33f94fdab247722748f31"
+      },
+      {
+        "path": "shortcutminer/experiment/evidence_promotion.py",
+        "sha256": "6ead7fa6645141a5ba19a5422ccbb1f1a49c7f51f648a14e949d56857766bab1"
+      },
+      {
+        "path": "shortcutminer/experiment/execution_contract.py",
+        "sha256": "49420d34ffaff55bf0cfb5c3d60158f825a65cf40ba4c56609b7c87c0113ff7f"
+      },
+      {
+        "path": "shortcutminer/experiment/executive_context.py",
+        "sha256": "5917d816157a8070e1cbf92efe45eafcd776c35d2b751563c45f2ac0c6ac6ad4"
+      },
+      {
+        "path": "shortcutminer/experiment/executive_executor.py",
+        "sha256": "a03151b923e38f03993aba9d94a44b62430216d03c8f1986481a2fc02abc1a01"
+      },
+      {
+        "path": "shortcutminer/experiment/identify_context.py",
+        "sha256": "5ff69e22948dacd8fbe322a7743a4febde6c583b61652eda6ac5fe485ab51d12"
+      },
+      {
+        "path": "shortcutminer/experiment/identify_executor.py",
+        "sha256": "8352e8b5627ce5cb64d40b95f763d7a15b37f2f174c6307407a602736b67ce85"
+      },
+      {
+        "path": "shortcutminer/experiment/identify_workspace.py",
+        "sha256": "f805b53c14063da0e4b9d51bc5c7d703ee595a3216b6b6f26f3eb31a53c65d3a"
+      },
+      {
+        "path": "shortcutminer/experiment/irm_colored_mnist.py",
+        "sha256": "8e82a75aa440c169b1e39518d169a19f39188701c01007fedcdb604c7deccc46"
+      },
+      {
+        "path": "shortcutminer/experiment/loader.py",
+        "sha256": "4e8bf3bc13f80fd4161e0fb9a472d9391da49e6c6b3e715a6efc4b391b6f66f7"
+      },
+      {
+        "path": "shortcutminer/experiment/manifest.py",
+        "sha256": "8c3b0d615dd31e8f36094ebad51704b1c5de421f001b4c20ec98212acc72510e"
+      },
+      {
+        "path": "shortcutminer/experiment/matrix.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/experiment/model_reliance.py",
+        "sha256": "465052ddac116287862929b47213e3150d6e62f061cc926f79d24ea5be390e6d"
+      },
+      {
+        "path": "shortcutminer/experiment/ood_construction_quality.py",
+        "sha256": "1ee0d2bc45184174559466e4eba6cd5f0400d4cab239b01de5ee5cc9cb5ba2b6"
+      },
+      {
+        "path": "shortcutminer/experiment/ood_recipe_selection.py",
+        "sha256": "4ac2b7e16fe67c5a1d682e71176c30c56d545f785be2f2b3600b723234477bd8"
+      },
+      {
+        "path": "shortcutminer/experiment/ood_recipe_selection_legacy.py",
+        "sha256": "06419891479b705d5cf98e7028d291ee3a12f1e9c377c55d3c55967dc710a72a"
+      },
+      {
+        "path": "shortcutminer/experiment/ood_recipe_selection_quality.py",
+        "sha256": "b9b10757d51734bd58bb74dd64d6459a94a8680703d759039431a13deced2c21"
+      },
+      {
+        "path": "shortcutminer/experiment/paired_confidence_sequence.py",
+        "sha256": "cfddc7d742fd01883c01946e50af4b85915280d1fe7c07c400b1b0b363ccc7db"
+      },
+      {
+        "path": "shortcutminer/experiment/paired_evaluation.py",
+        "sha256": "bd9e3646bd9ca1b44166aad9110f49fe6252e9b0e4669ffb006b033ec3f70e52"
+      },
+      {
+        "path": "shortcutminer/experiment/qualitative_backend.py",
+        "sha256": "30fed6d81270dbeee5c32eb7f19cc9462782226b9c7778cb56282f8dd62403c7"
+      },
+      {
+        "path": "shortcutminer/experiment/qualitative_context.py",
+        "sha256": "2f5dee702f46aef0be46969a9ab0d2e02b8b884c5b1c323c4671499125b70d17"
+      },
+      {
+        "path": "shortcutminer/experiment/qualitative_executor.py",
+        "sha256": "86d16190dd61311b031bbb6165eca8fac9249886c486a55555211ae51278a07b"
+      },
+      {
+        "path": "shortcutminer/experiment/quantitative_context.py",
+        "sha256": "52c86c4e72d80e444bd1a86627412d51149ea77d7576b33fd175adf94d0f639b"
+      },
+      {
+        "path": "shortcutminer/experiment/quantitative_executor.py",
+        "sha256": "b6d2617bf22b17e95c9ab5cedfc53df88f654bb4025d3155be7b126780582b3a"
+      },
+      {
+        "path": "shortcutminer/experiment/quantitative_plan.py",
+        "sha256": "58cae195feb3cd6d8caa5c2312ed894ee8d78c626e92843838c09aed36614ef8"
+      },
+      {
+        "path": "shortcutminer/experiment/real_executor.py",
+        "sha256": "0ec819e6d435dd497ba0807eb6a58c074ecec3edcc9dc06d34cebe49a452a4fd"
+      },
+      {
+        "path": "shortcutminer/experiment/run_manager.py",
+        "sha256": "a733bbe9dc90e599450db3744190ffc7f72bb9a6d152654771be08283a54d4a9"
+      },
+      {
+        "path": "shortcutminer/experiment/summarize_executor.py",
+        "sha256": "edbb445e4d36696562885eb1b8908bd7267d12b559839ab740a62fb78d851897"
+      },
+      {
+        "path": "shortcutminer/experiment/synthetic_corner_patch.py",
+        "sha256": "c3200efaa53a0975e00a860e6d7926b236b000668407963df14fdda88abef1f0"
+      },
+      {
+        "path": "shortcutminer/experiment/tool_executor.py",
+        "sha256": "91f206d9a8ec480f1561cb016f5a0c6e47bbcefde42c9d05cb9de357a7ed5580"
+      },
+      {
+        "path": "shortcutminer/experiment/torchvision_backend.py",
+        "sha256": "425497846bbf46caca16546749b307140538fa05e8c4b09c12e14832e7274fd8"
+      },
+      {
+        "path": "shortcutminer/experiment/visual_discovery.py",
+        "sha256": "87d339ebe0d09ae428fda5d4c3c13e7a3fe735cb902561a0eea92dd5ce7239e1"
+      },
+      {
+        "path": "shortcutminer/experiment/waterbirds_background_validation.py",
+        "sha256": "cefbb69b0a6da9fe43784a368fa4cbeda41b5606ed7ca95b2f4382c1010316e3"
+      },
+      {
+        "path": "shortcutminer/experiment/waterbirds_paper.py",
+        "sha256": "6c32ba45c785d68f538b38fa68cd966c7ae4fd9a123fdc97337c5020516b0406"
+      },
+      {
+        "path": "shortcutminer/inspection/__init__.py",
+        "sha256": "81585e19e38a1bf620d5835eb14aaad97ff4fb3bea7744c15ad0bf6a4ef93203"
+      },
+      {
+        "path": "shortcutminer/inspection/image.py",
+        "sha256": "a164da8690147428ff3ced574f337cea264f1855b2bb4a7cf6b9d59a644b96cf"
+      },
+      {
+        "path": "shortcutminer/inspection/semantic.py",
+        "sha256": "b60e3f77859e1dfb17c43f4d3735c1b2f22e1fbaa3fcb74e0c39d1b470a92025"
+      },
+      {
+        "path": "shortcutminer/inspection/semantic_provider.py",
+        "sha256": "b53f111bd3ad6de000a6df841b818eaa02d1cb205a8d468ed81f9cbf28169099"
+      },
+      {
+        "path": "shortcutminer/intervention/__init__.py",
+        "sha256": "f570de631868a5fa9eb6c5f3526558b680261a2ffb7470247e075e7cbce4d789"
+      },
+      {
+        "path": "shortcutminer/intervention/corner_patch.py",
+        "sha256": "745a08180c5ede3bc428e949c19e722d4c5654523be7d55258b03739f8061f76"
+      },
+      {
+        "path": "shortcutminer/intervention/engine.py",
+        "sha256": "4f5a336615c75c3ad9cb6b560a4c6789d7ba7b4a0b47bd16fbb930a2eb2ece61"
+      },
+      {
+        "path": "shortcutminer/intervention/local_foreground.py",
+        "sha256": "aa16bc7a55cf6edc7ef3a2cfb4ca6889015a5156bb668a0b1075e4e2918e2ae6"
+      },
+      {
+        "path": "shortcutminer/intervention/protocol.py",
+        "sha256": "8c1619ece3ee451a2820c45d92eb1fd76cc962a364054d9389dca57902d0e774"
+      },
+      {
+        "path": "shortcutminer/intervention/segmentation.py",
+        "sha256": "1012cd5bc2dda0a10eeb86992239e171a014525b0121bb2112b76458dfb15488"
+      },
+      {
+        "path": "shortcutminer/monitoring/__init__.py",
+        "sha256": "8c9dff70f07a4dfd34c7b04c685837295e90d4721e6946b26d7d89d09b127270"
+      },
+      {
+        "path": "shortcutminer/monitoring/event_listener.py",
+        "sha256": "2b002fad543b37c8fed07cedbb1a3952818ca45f7256f1075b76198fad7f3899"
+      },
+      {
+        "path": "shortcutminer/monitoring/progress.py",
+        "sha256": "0f8d250cfdbfb3e4b1d52578d90b4da56d51962fc70a0d201e150e30ebacf8fb"
+      },
+      {
+        "path": "shortcutminer/monitoring/renderer.py",
+        "sha256": "596efd7b5ebd0c1ac858bb7d5fbef9f3713fee2f69bdaac7bb7a3b0e2d75ec75"
+      },
+      {
+        "path": "shortcutminer/monitoring/safety.py",
+        "sha256": "670e54970d38275be661cc63cd6cd39d0f27c7e1b87685716b44c0b9fb1c2157"
+      },
+      {
+        "path": "shortcutminer/orchestrator.py",
+        "sha256": "7892c92a020cd3f8c9ad4417b3e1f03bff509813b4b466681073a544e3b0fd36"
+      },
+      {
+        "path": "shortcutminer/protocol/__init__.py",
+        "sha256": "ff26a1e2e80c54ab6c381538a3960b2c60a9239267889f81f140eb9b6f585d98"
+      },
+      {
+        "path": "shortcutminer/protocol/artifacts.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/protocol/audit.py",
+        "sha256": "9dd0f2d944e82b27410d6e40f0cdb4e7a17c9df5dbe11174deafd26afca154ab"
+      },
+      {
+        "path": "shortcutminer/protocol/audit_report.py",
+        "sha256": "079bb89bd87c508c1d095923bc2d908468877cc75b84f59918ee3a4dd4de80a5"
+      },
+      {
+        "path": "shortcutminer/protocol/batches.py",
+        "sha256": "a5802d52ebfd7798c497b9aa363471c2ee8f8585582ceff68c00f88a71a8606a"
+      },
+      {
+        "path": "shortcutminer/protocol/dataset_profile.py",
+        "sha256": "83e252d1a6b795d93ede31e6bbd2ad250489a0110303cc2fc1447147274c591e"
+      },
+      {
+        "path": "shortcutminer/protocol/evidence.py",
+        "sha256": "0bcf3edc696ba6117a5e32b8c9d0e963314807037b5058465c2302fbd101ba73"
+      },
+      {
+        "path": "shortcutminer/protocol/executive.py",
+        "sha256": "fea974ca260c120a57c6aeaf8594f4085125d9808aa5e7facfb22c16f6107c33"
+      },
+      {
+        "path": "shortcutminer/protocol/experiment.py",
+        "sha256": "b6aed4f543d3c8aafdb29d857d49ce56bda20ee0fda11cdb762582ed472fc80d"
+      },
+      {
+        "path": "shortcutminer/protocol/identify.py",
+        "sha256": "b6e3e49169e24d633b06a09af56b99dd5d8bf20f58c9e7ffe222c200bd19e758"
+      },
+      {
+        "path": "shortcutminer/protocol/messages.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/protocol/model.py",
+        "sha256": "48abb752ab4a1fafef4cea0bb7cc212b17e280d5a996485856f9034c24e2b2f9"
+      },
+      {
+        "path": "shortcutminer/protocol/model_reliance.py",
+        "sha256": "0dd4954f044f872941b81e8746867ea794511784ef1fc6a191896cbb15d3ff15"
+      },
+      {
+        "path": "shortcutminer/protocol/model_runtime.py",
+        "sha256": "0fb6afda72c1e3c907d977a37149c2d4ef1f127aa99c5cb44a8c04414c817980"
+      },
+      {
+        "path": "shortcutminer/protocol/ood_recipe.py",
+        "sha256": "9b19296e70d5b168a96a8536f7f2b7fd67fa354e6a33f01d0a813bee5f75363e"
+      },
+      {
+        "path": "shortcutminer/protocol/ood_recipe_legacy.py",
+        "sha256": "fe58059948b89a48e83f6bca06df116b8d7ebe084fbbf915a1cd44c844ee121a"
+      },
+      {
+        "path": "shortcutminer/protocol/promotion.py",
+        "sha256": "671fb546d77ea3c6a1eddecaf7c9c7453bc981d3806c7d22cca86e01b980a443"
+      },
+      {
+        "path": "shortcutminer/protocol/qualitative.py",
+        "sha256": "9848a021cea54ce7fedb1839c2e51e700570fca56a71eb95d9edcfd08a3b17ab"
+      },
+      {
+        "path": "shortcutminer/protocol/qualitative_inspection.py",
+        "sha256": "c0ce51e9388e5d8c7580a866816f185fc718d230ed6dd2bab2dc4818ef1e1ef5"
+      },
+      {
+        "path": "shortcutminer/protocol/quantitative.py",
+        "sha256": "156c10be27e45d9a6c59f34e3f62a970a6e265f7b3b6550d9ebbe03173c98922"
+      },
+      {
+        "path": "shortcutminer/protocol/quantitative_plan.py",
+        "sha256": "4a9f83fac647f25bf3da09c044c044c026084d0cb95d5ea683347e4cc2a7faa8"
+      },
+      {
+        "path": "shortcutminer/protocol/run.py",
+        "sha256": "096a56dfa50c9d9c7ca9c1e8c217c35ea85a2214e1bab559d733fe9eeacec4e8"
+      },
+      {
+        "path": "shortcutminer/protocol/schemas.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/protocol/screening.py",
+        "sha256": "82f101608a01fff07266608e0726abd1f62b74f5bdc42d56beb0352d3e49906d"
+      },
+      {
+        "path": "shortcutminer/protocol/segmentation.py",
+        "sha256": "5b18eee1cfeead1bb368772ca3a83b31b2eb8af743a8dc7bb613696e54cc4fc1"
+      },
+      {
+        "path": "shortcutminer/protocol/states.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/protocol/summarize.py",
+        "sha256": "edb146e5989c36f1c294c2f5f9181aaaa4b054ce656f147fedca246705d02470"
+      },
+      {
+        "path": "shortcutminer/protocol/visual_discovery.py",
+        "sha256": "a0b25d22bba91cf720e6e16da04e6d4a5f6745b11da4cefbfd9f785790585e9f"
+      },
+      {
+        "path": "shortcutminer/runner.py",
+        "sha256": "0c58a304bd4ff9f18095659e00d29f224eeb04413e959c31237f4c468a2dc3e6"
+      },
+      {
+        "path": "shortcutminer/runtime/__init__.py",
+        "sha256": "d7400a357fbb2583a635d3309eb0e2a2919121405adab1ae8325a5a282143a39"
+      },
+      {
+        "path": "shortcutminer/runtime/demo.py",
+        "sha256": "76455af29e6c81df99f31cd1c5a959c8406651da29f463e6f30649a62761cf8a"
+      },
+      {
+        "path": "shortcutminer/runtime/formal_environment.py",
+        "sha256": "199f3067bd5a4b236b4b23e403d0cde0bab1aa31f4b865f1e5ff5d1cb2f7870d"
+      },
+      {
+        "path": "shortcutminer/runtime/identify_output_contract.py",
+        "sha256": "be49c5cddb74d8d814941f666a7219911e3da07648bc09df5b83c229d7a941b5"
+      },
+      {
+        "path": "shortcutminer/runtime/mock.py",
+        "sha256": "d62d6382257b03cce37047170b03257c5f4594f9d023ccd4cbd030380c9a0456"
+      },
+      {
+        "path": "shortcutminer/runtime/openai_compatible.py",
+        "sha256": "9dcee6252dedb82f89d6ffabf1b6937ea794f9b0e5ef8880cd1390f80da86750"
+      },
+      {
+        "path": "shortcutminer/runtime/qualitative_multimodal.py",
+        "sha256": "d21b1eed65a921a0fe2d8d2cfe3244bf22aa7fe7d823077681249c5a49fc7315"
+      },
+      {
+        "path": "shortcutminer/storage/__init__.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/storage/artifact_store.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/storage/dataset_profiles.py",
+        "sha256": "843a32f8077630ea2ae14c654e9388f84f5314f9897dfc15218f3d8a3cf8ec7b"
+      },
+      {
+        "path": "shortcutminer/storage/event_logger.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "shortcutminer/storage/events.py",
+        "sha256": "1ad256d8382ee4227b17f8a4e0a8594c8e147cfe45cfc10e4ab452bcdd41e5bd"
+      },
+      {
+        "path": "shortcutminer/storage/executive_artifacts.py",
+        "sha256": "b1cd941255dffe6212b52ae49ba7a294ce070c9fe386cdc7faf7f0f3deee917e"
+      },
+      {
+        "path": "shortcutminer/storage/identify_artifacts.py",
+        "sha256": "b0adca1ef15c47e9b078f870213aa9977965d6bf3d8a6fe17d73fd14da02f56a"
+      },
+      {
+        "path": "shortcutminer/storage/json_artifacts.py",
+        "sha256": "f02ac73c755985419cb7f9c03d2c2e7b182dbc69e23cfa791abbf090d018462a"
+      },
+      {
+        "path": "shortcutminer/storage/model_calls.py",
+        "sha256": "07a95a9dab72d47e589e8a8b1e450caf4b43db26a0b38a07ab42f5ef615fd43a"
+      },
+      {
+        "path": "shortcutminer/storage/paths.py",
+        "sha256": "ba4a78f49080cdae43dd2faf342e79d2412bc022aba9276ee92e302ec26c8147"
+      },
+      {
+        "path": "shortcutminer/storage/qualitative_artifacts.py",
+        "sha256": "b994428557a015e27d855b3caaa540c6b30cb8017e4e470582a3d4e0b51987db"
+      },
+      {
+        "path": "shortcutminer/storage/run_store.py",
+        "sha256": "59e19334be7cadd8d7ffeacd0e1250304da9168eec80ea6e79b66f51fd2e66b7"
+      },
+      {
+        "path": "shortcutminer/storage/stage_artifacts.py",
+        "sha256": "6e436ed4bf9d23418fdb5f1f5b3807a85f5847d520fa86c5333fc60fc38531ea"
+      },
+      {
+        "path": "shortcutminer/storage/tool_artifacts.py",
+        "sha256": "a677a6916c2f1504e12c188e430a709f28f6443e32c7596a0d6ce73c2ab56bae"
+      },
+      {
+        "path": "shortcutminer/storage/visual_discovery.py",
+        "sha256": "0dbb560fae4a4e927cfebbd06f6efce26883ba246a7913d58bde1a88b042c8f2"
+      },
+      {
+        "path": "shortcutminer/task_models/__init__.py",
+        "sha256": "511a98a690bf12b3495c88d7f5f5e885d76a6763c40c17d162b31a45e9d54a87"
+      },
+      {
+        "path": "shortcutminer/task_models/base.py",
+        "sha256": "c40bb7c921a42cd289306cbeb71cc7743ba7f70c8fc90eff00b889eed86468bb"
+      },
+      {
+        "path": "shortcutminer/task_models/prediction_artifact.py",
+        "sha256": "0b716041ef8fbc07089aaf08e8fd23c1097a32cda2567d9f7decad7ee14ddf4c"
+      },
+      {
+        "path": "shortcutminer/task_models/reference.py",
+        "sha256": "4e56f96ad50db635378be842500b9c04208dfac284a687d5331a01234c5e362b"
+      },
+      {
+        "path": "shortcutminer/task_models/registry.py",
+        "sha256": "73f0f5b0f6bacaf00180f6284337940ae12ce3cf7bf9ce0b1b6291b4526941e6"
+      },
+      {
+        "path": "shortcutminer/task_models/torchvision_matrix.py",
+        "sha256": "5caa083f9ef73cf996bf0287b536f09094e1a924e70b7290894e7ca849a44c80"
+      },
+      {
+        "path": "shortcutminer/tooling/__init__.py",
+        "sha256": "f64eac71b843c9c148b38dab002d9bf93939975433fa9fa2d5bd71670a313ae2"
+      },
+      {
+        "path": "shortcutminer/tooling/agent_loop.py",
+        "sha256": "2d8f7553bdab069aa4cf4605cf3bce09c0cf1bba32659100a143aea29c233c24"
+      },
+      {
+        "path": "shortcutminer/tooling/base.py",
+        "sha256": "287e4ff79b4c2336be93667fcb172d452c9192f5c2cb8339791ac5e87078a2c9"
+      },
+      {
+        "path": "shortcutminer/tooling/builtins.py",
+        "sha256": "d7a901055ade93c29b3cdb6a57a54a3aece57ceee479b1527ec2c209db520b8b"
+      },
+      {
+        "path": "shortcutminer/tooling/errors.py",
+        "sha256": "c7eb578017ae6023f6f0adad12766743b1be1653c5311f13307a873278b398e7"
+      },
+      {
+        "path": "shortcutminer/tooling/protocol.py",
+        "sha256": "623881cfea1eb6ed18b44501ae9860111710cde6c5e8138d0fad19f944887765"
+      },
+      {
+        "path": "shortcutminer/tooling/registry.py",
+        "sha256": "a403bdbf62fedc5b494bc9d78a34afe48902c23efabd911290f4c740f1c14951"
+      },
+      {
+        "path": "shortcutminer/tooling/runtime.py",
+        "sha256": "f8770b9cb155b9516b0ba2f724013b1368aeff5ec25a3d755f87ef68ffcf25d1"
+      },
+      {
+        "path": "shortcutminer/workflow/__init__.py",
+        "sha256": "3e780ce45ad05447523d0adb8f6047c1c9e631dc41a68ae80c7a91714080baf4"
+      },
+      {
+        "path": "shortcutminer/workflow/checkpoint.py",
+        "sha256": "fbe5b8945719670bfe3ce122630c29f93376cd534dfd3d80db16e33fa189a4da"
+      },
+      {
+        "path": "shortcutminer/workflow/graph.py",
+        "sha256": "0ba4c867183ab29d07f35f7608dc5e96542aeee8c2299017000cc81daae21357"
+      },
+      {
+        "path": "shortcutminer/workflow/nodes.py",
+        "sha256": "7d23d62c2fbbc756ae3687e7f12871d7a39851642995eb4d74c85a17aa59f446"
+      },
+      {
+        "path": "shortcutminer/workflow/observability.py",
+        "sha256": "2cd3abb4818f95e9bc09cbf69a7fb7b8ab747b3478e70d9b18bab58a78fa18fc"
+      },
+      {
+        "path": "shortcutminer/workflow/staged_validation.py",
+        "sha256": "5b6d0476a57c5a55fb9ec1c88457e6fd7f9a70fc9af3f2488cc23349a298818f"
+      },
+      {
+        "path": "shortcutminer/workflow/state.py",
+        "sha256": "3c7862676f8613ed36068da8f53e1ab6baf1339ac970d997564e935bef9b96c2"
+      },
+      {
+        "path": "tests/conftest.py",
+        "sha256": "672d9db1c858af3524245e7a28bb57ca389660acc1a458872db8a32ec4f516c4"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_a/metadata.csv",
+        "sha256": "84e10eb6f82db78c0f7428e81d3de6d15fb60def63396a729654efd58a8fb66f"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_a/samples/sample_001.dat",
+        "sha256": "8cf5ecc5c9f6aa2fb187d10badf7be933fa89e755c2fd389b061575e6c763a2b"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_a/samples/sample_002.dat",
+        "sha256": "547a3d8c1844283ce93a812c9fdcaa663adaca6a3f57f081a54fb39f828b2610"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_a/samples/sample_003.dat",
+        "sha256": "8774b8c3cc3fc9a906a25c46cb9e079557666929060c3eb2df2fb0a3289eda5a"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_a/samples/sample_004.dat",
+        "sha256": "ae4153394eec133e2adcd32b62d6ee74c5b1e1203226d7d6eccac71bc4bfa456"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_no_metadata/samples/item_a.txt",
+        "sha256": "b6a98d9ce9a2d9149288fa3df42d377c3e42737afdcdaf714e33c0a100b51060"
+      },
+      {
+        "path": "tests/fixtures/generic_dataset_no_metadata/samples/item_b.txt",
+        "sha256": "f2c82decdd7181cf98945929a62598db7e6b477e11f6e0eb0ae97020eff151ad"
+      },
+      {
+        "path": "tests/test_adaptive_screening.py",
+        "sha256": "83b675d296574f38a8236d755d95b6c8d5ac3d0db0bedc173c633fb300ec92db"
+      },
+      {
+        "path": "tests/test_agent_runtime.py",
+        "sha256": "749e18019986e0292e85e28c59b6e8b04e3cb980d370fe550e9cf3cce948d385"
+      },
+      {
+        "path": "tests/test_audit_capabilities.py",
+        "sha256": "b1c2e996a98f4a366d050e301a774133cf547ba23f0ef1c55c1ddd1bbf65ef2c"
+      },
+      {
+        "path": "tests/test_audit_entry.py",
+        "sha256": "f5b35ad215d9c18899b2dcf0a7567041042d7115785acb7542ff372f8c256d5d"
+      },
+      {
+        "path": "tests/test_audit_intake.py",
+        "sha256": "e10042047c068ba869119c9cd40fd32d5b3812128433b2e0ab8c2e7432262009"
+      },
+      {
+        "path": "tests/test_audit_progress.py",
+        "sha256": "f546c82e8da08b3ec14f58e7a044cd03ff9e9e396cf5624dec28519599954e58"
+      },
+      {
+        "path": "tests/test_audit_report.py",
+        "sha256": "7eb0eec4a5ac1e63a69a76208c478b51750b592dd0d18d3fd505d5791fc6d5e0"
+      },
+      {
+        "path": "tests/test_audit_report_markdown.py",
+        "sha256": "81035b503a4994b173468ebc6cee4ac98fb6181ddaf4863dd64cf95d16920cef"
+      },
+      {
+        "path": "tests/test_audit_reproducibility.py",
+        "sha256": "89187bbbad992ef75b2661182f42b805e5dfedc3bc48c30315588ba35e79bd77"
+      },
+      {
+        "path": "tests/test_blind_evaluation.py",
+        "sha256": "632c234d80e956999993a24721b7303650a39505a3fb6eebd0754198857a9aeb"
+      },
+      {
+        "path": "tests/test_candidate_screening.py",
+        "sha256": "53ac8b1e78051da0e4a27dd38ddd8509759105bb5aaf1cf94bff72ede0fabce1"
+      },
+      {
+        "path": "tests/test_cli.py",
+        "sha256": "7c689c6961293ea7cfe8a4e4ad3e74e0681001dff11622cc6bc7e21a2880fd84"
+      },
+      {
+        "path": "tests/test_colorized_mnist.py",
+        "sha256": "8b76852f5cb4a64396f0baa939129bc2402d81872353c74e218a828f0864184d"
+      },
+      {
+        "path": "tests/test_config.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tests/test_core_image_audit.py",
+        "sha256": "8b594191a2f8d82cf0ab3e174aa3f939d27deffba5febdd089ef91ddbad274b6"
+      },
+      {
+        "path": "tests/test_corner_patch_intervention.py",
+        "sha256": "253454f29edee7601c52d01962956cb4d43bf2d870354a3cc449d25cb143771b"
+      },
+      {
+        "path": "tests/test_dataset_inspector.py",
+        "sha256": "2ec3dce63236b0bba7d03357c0eff087b33158183fc6f60425a82efefdc4c354"
+      },
+      {
+        "path": "tests/test_dataset_leakage.py",
+        "sha256": "4349a25ff45d4d8e511f2b56f6d3b67a0baee1ad272cb18d066f107319be295f"
+      },
+      {
+        "path": "tests/test_dataset_profile.py",
+        "sha256": "3132e04bae1cb1c899aadd3d7fbf668d6d60e9295e2bda597fb0dd311bb10305"
+      },
+      {
+        "path": "tests/test_environment_protocol_compatibility.py",
+        "sha256": "5871c4d24804ddc2669e827a23172ee76730f62dd7fe6f2d9acda5402fbb490e"
+      },
+      {
+        "path": "tests/test_events.py",
+        "sha256": "3a0cbe0e377d7b34348c6c8aa0238a87fdaeaf7c7d30ecc5215da56fe39a1b87"
+      },
+      {
+        "path": "tests/test_evidence_calibration.py",
+        "sha256": "36b56b61766e72728688c09e967e9d1d640f84d13791af3890e21c0c526dc134"
+      },
+      {
+        "path": "tests/test_evidence_promotion.py",
+        "sha256": "60c8ef39fe4bacaf16684a5ad9b0393fdb22becf32534fc941f68797acbc064e"
+      },
+      {
+        "path": "tests/test_executive_artifacts.py",
+        "sha256": "aef79548bcf7f422b77718a7efe9a767711f7379506d52f68175df1bba7364fe"
+      },
+      {
+        "path": "tests/test_executive_context.py",
+        "sha256": "7f553b231b0dc9786536f5a2254a657241e83ccbba7e6a39e41418a5de3a2d2e"
+      },
+      {
+        "path": "tests/test_executive_executor.py",
+        "sha256": "7f3c62c821499f8ad7d3c860e946f542aeb668eacadabdd052dcdbb0e9b00eeb"
+      },
+      {
+        "path": "tests/test_executive_integration.py",
+        "sha256": "2b4f922455e378b459cdc66d8081e57e07475b3c53e458a11ee4496e8e1635a3"
+      },
+      {
+        "path": "tests/test_executive_protocol.py",
+        "sha256": "1b6ff6916abdc3a5402500cd79078cc758e038f480c6cba7c777bd2484acc6f7"
+      },
+      {
+        "path": "tests/test_executive_task_contract.py",
+        "sha256": "c06b4b14b5ae60f5e892a0046b2b5bfc36e1cf7d5520aabf413781ec16b8b34c"
+      },
+      {
+        "path": "tests/test_experiment_execution_contract.py",
+        "sha256": "e543e931995f214301754173383d952cb72f2a0a1114da4f8f5d193dc7ba5cc0"
+      },
+      {
+        "path": "tests/test_formal_environment_loading.py",
+        "sha256": "e97032452a49f6224330a7586dda5e7ddbb67c2be5a30513dab6b08c26908e1e"
+      },
+      {
+        "path": "tests/test_generic_intake_workflow.py",
+        "sha256": "0b0676ac54efc54eb0cf7dd85d4ecef563bd3bde277d62b7eca8d4d6d380f87c"
+      },
+      {
+        "path": "tests/test_identify_artifacts.py",
+        "sha256": "5c3febf402f062f51b32721f06430b42fcd6eeb95a508f7455b3c967a1a78e8a"
+      },
+      {
+        "path": "tests/test_identify_context.py",
+        "sha256": "851c3b8ca92b5a29af3fd26dde5d752885be05377a2dbd931e2c11e25fc247aa"
+      },
+      {
+        "path": "tests/test_identify_executor.py",
+        "sha256": "a31d3fffa86204efb8b8bc3bc3450aa3df303c88756bd60aed44c2106f1e12ff"
+      },
+      {
+        "path": "tests/test_identify_integration.py",
+        "sha256": "fe44df279da2e8b885433b5e79a19b1a320019687e0e92317443d1eb5fc10ee9"
+      },
+      {
+        "path": "tests/test_identify_output_contract.py",
+        "sha256": "a13c0c167e3d9e2e03a21c21919af69d0e92f80aa62373c24f4d9d90f363c8f6"
+      },
+      {
+        "path": "tests/test_identify_protocol.py",
+        "sha256": "c4f0813092577c92a724ec9740b929ab83b653cb664db6176dfb3e469069564c"
+      },
+      {
+        "path": "tests/test_identify_workflow.py",
+        "sha256": "c104ef9bb33097fa83d5927f2f1eb0cea01a2e136159245085ca2219edc2e903"
+      },
+      {
+        "path": "tests/test_intervention_engine.py",
+        "sha256": "67c4733f248f7fdfd63419f4213d50bcef9e0713428fb9734d5ea7efdf60aa8a"
+      },
+      {
+        "path": "tests/test_irm_colored_mnist.py",
+        "sha256": "64aad10058b4b50f9b60f749c232e0c1fb26442787ffc163ac7601b1a1f0362d"
+      },
+      {
+        "path": "tests/test_local_foreground.py",
+        "sha256": "9889b748725f467e36a4c304854a944ad34b5a0a1e3f0add672204575910e63e"
+      },
+      {
+        "path": "tests/test_metadata_profiler.py",
+        "sha256": "a96251f93fed8bb0db48998b74082a11e74f0ad23b57e8b61258aa11141143b1"
+      },
+      {
+        "path": "tests/test_model_reliance.py",
+        "sha256": "ee2c70ca08ee597957549462cf19531d26c46b29bc2808b0333d4728d2d03025"
+      },
+      {
+        "path": "tests/test_model_reliance_security.py",
+        "sha256": "4fabef151e3cde727f0d55227f95bb429395ecc0f36f08880e3c2b01d5659381"
+      },
+      {
+        "path": "tests/test_model_runtime_hardening.py",
+        "sha256": "46e7fdd1854f4511865ee041554d8e840f2bc872b9a8463b185bef4feb25475d"
+      },
+      {
+        "path": "tests/test_monitoring.py",
+        "sha256": "c61fdd9d9563c7b79bfc1ccb99a0e24966c552da8a297a055e81eb91b45c3210"
+      },
+      {
+        "path": "tests/test_ood_recipe_selection.py",
+        "sha256": "31532b8f0416732221c03a62ad8e4945a44697c47cd59bd14e3023c7553baacd"
+      },
+      {
+        "path": "tests/test_optional_real_provider_smoke.py",
+        "sha256": "c0caaf2d494d4ad6a5a3f834a9c2547eddeea2d82b60a181def37b0edc30b115"
+      },
+      {
+        "path": "tests/test_optional_real_sam_smoke.py",
+        "sha256": "7c641b318ae5de0034fbfc62be281dd7501dd8addcf53833f387395d13ce0e78"
+      },
+      {
+        "path": "tests/test_paired_confidence_sequence.py",
+        "sha256": "ae8ad2b94566d7f82a6e9f4b56cbca6c6ef115d5e988357486ca08ba805c0420"
+      },
+      {
+        "path": "tests/test_phase14_full_path.py",
+        "sha256": "54348af9778dd0f8068a8c853f08c6d06fff93e4a634daf4cf8ba69c1d49b556"
+      },
+      {
+        "path": "tests/test_phase14_truth_firewall.py",
+        "sha256": "749ac09ccfd9e1e2fb200fe2d57f57b7f484e22032d1af6f80fb957d4429c5c6"
+      },
+      {
+        "path": "tests/test_phase15_full_path.py",
+        "sha256": "d435be06799f56269269586a7a913546a4bf5051c3572a15aea040c13ec465cd"
+      },
+      {
+        "path": "tests/test_phase15_truth_firewall.py",
+        "sha256": "fc099ecaa61e4b5d6b202f970172e026d52957b50e6994f1af0ffbff0be92576"
+      },
+      {
+        "path": "tests/test_phase16_canary_lifecycle.py",
+        "sha256": "a2efff4b899de4caceb5c7414877e2b056c1c7008e9c48f0917d208f0fc50c76"
+      },
+      {
+        "path": "tests/test_phase16_credentials.py",
+        "sha256": "f5ee501f3ab78fd61234c447fcd68f86313c820e85852845b71e0690faf0c4ec"
+      },
+      {
+        "path": "tests/test_phase16_five_agent_contract_retry.py",
+        "sha256": "7d501261a70a58ab04ff3014843e0f6456dfbd6f89670e902e00365ac3c3e636"
+      },
+      {
+        "path": "tests/test_phase16_live_budget.py",
+        "sha256": "9be8ca994de4ccf0d7a77ba915cdb7c2c017d7ae127052cc8ba3d797ee1e0b9a"
+      },
+      {
+        "path": "tests/test_phase16_resume_stages.py",
+        "sha256": "8d6210e394c1ec4111aa74229750764b15cf5a2a59802ac6676236280e710cef"
+      },
+      {
+        "path": "tests/test_phase16_three_candidate_chain.py",
+        "sha256": "02778450f70e5cf00329bb0774f8f8752da2b139c6ae9aa8fde1f2144dfbab63"
+      },
+      {
+        "path": "tests/test_pipeline_mock.py",
+        "sha256": "e673aba0edf748a7822f15c511434305dfd81b82bb6a3bc6316752d1afb844f9"
+      },
+      {
+        "path": "tests/test_progress_renderer.py",
+        "sha256": "f6ff1541f74208f907d4232e9b07774c492ae7dec90a085425f9078fd17ac3fb"
+      },
+      {
+        "path": "tests/test_progress_state.py",
+        "sha256": "472a4c96e4a1923a9a66078132d7341dd52281bf7c686650c6ad5852f4ec499e"
+      },
+      {
+        "path": "tests/test_protocol.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tests/test_provider_persistence_security.py",
+        "sha256": "95d080b0c40f73a5ba3ae052eca569e11b4332d7a0c895c43d7cdf166438c122"
+      },
+      {
+        "path": "tests/test_qualitative_artifacts.py",
+        "sha256": "d6e7b475395a95dbb071ee852f05f606de3d8f5641ec4d8a1021f78f0b4379e4"
+      },
+      {
+        "path": "tests/test_qualitative_context.py",
+        "sha256": "11cc4ea87d2a2e717359b851d8b54bf20b952d4aabc54ed3da8639316f5c39b0"
+      },
+      {
+        "path": "tests/test_qualitative_executor.py",
+        "sha256": "9cf208f4e4ba2865a6a8102764921161f81862cfdc1e3f20942a5595b0806f32"
+      },
+      {
+        "path": "tests/test_qualitative_finalizer.py",
+        "sha256": "e1379ab795cef0aa762999612c379ffce146cf7dc4e5b641f533c84baaa10542"
+      },
+      {
+        "path": "tests/test_qualitative_image_client.py",
+        "sha256": "14d7167137207cf0922af89201334b1c63671b4e23d71e68a4d4fcf17d974315"
+      },
+      {
+        "path": "tests/test_qualitative_integration.py",
+        "sha256": "aa118cfb857c760828e8b3bd648be5e74f786465a0ff0581e460d1a039e57527"
+      },
+      {
+        "path": "tests/test_qualitative_invariant_retry.py",
+        "sha256": "b03a41c42711d34baa1274e5a6f66929dc564106a09f947f26a0263defa7e1d7"
+      },
+      {
+        "path": "tests/test_qualitative_protocol.py",
+        "sha256": "9b58fddf8775788cf891f1383e0ba3917d35727e8bebc65527c72304a1cae913"
+      },
+      {
+        "path": "tests/test_qualitative_workspace_contract.py",
+        "sha256": "e21cefe777851bd84640bef7bef03c606ab357cf2f63c4adaa7f91e2316d0a09"
+      },
+      {
+        "path": "tests/test_quantitative_backend_security.py",
+        "sha256": "aecd33cccda6728ce9dc574c978e494cfed17e942c0fabd5cabf6d4c95fc8028"
+      },
+      {
+        "path": "tests/test_quantitative_check_resolution.py",
+        "sha256": "5f2a3fe99c3fb08fb72dde4ee1c6ef85bf869a829ce9fdb7a8f35c614e19530b"
+      },
+      {
+        "path": "tests/test_quantitative_execution_obligation.py",
+        "sha256": "5f9550f84890a5afa9939ebc93ff1f2422c2a2448242144f56b93fd83711d29e"
+      },
+      {
+        "path": "tests/test_quantitative_experiment_plan.py",
+        "sha256": "08590f3cc8a61dd98df1184d0defa9af0b2a92225a02cfe71a62fe8c17896006"
+      },
+      {
+        "path": "tests/test_quantitative_finalizer.py",
+        "sha256": "b8bafe8179b50d0fcf52d3ddd15b3b6a40db019f05bccf0c43e5f490ea7d8259"
+      },
+      {
+        "path": "tests/test_quantitative_task_isolation.py",
+        "sha256": "c1a9b336617155cbe49cc7df0f41f1b21139b1e0c1b903b3f7ee59df6028d271"
+      },
+      {
+        "path": "tests/test_real_blind_pilot.py",
+        "sha256": "96fc521019fe2385ab3a94b38fd1332e7b812dfd4cd792851cfb9928cdf85e20"
+      },
+      {
+        "path": "tests/test_real_experiment_executor.py",
+        "sha256": "70fe317e6551add77bdf3fd025f1e2176e7c50ecb292157057194d4ec28ded92"
+      },
+      {
+        "path": "tests/test_real_qualitative_backend.py",
+        "sha256": "5d75a6bba7076bb1157b4baaff1eb55747cd254d11cba09115e6d41ecb586bf9"
+      },
+      {
+        "path": "tests/test_real_qualitative_workflow.py",
+        "sha256": "f4bddfddf1e8dd3b943971ff811dbe2f8e80b867e792cbbae16c91f96682fa4b"
+      },
+      {
+        "path": "tests/test_real_quantitative_workflow.py",
+        "sha256": "5d07745ecf821424b9438ee1ea53416676bab06ceaec1a1fd454d8dd8c2bcedc"
+      },
+      {
+        "path": "tests/test_repeated_blind_audit.py",
+        "sha256": "e5afa8b7d3001a537bf4f096a149124de986f82d0504304ffd19a54234625d6e"
+      },
+      {
+        "path": "tests/test_runner.py",
+        "sha256": "6185d70a828e2da51d85a80b3a2e8acd8b72368129282b923e30d2b4ce720e78"
+      },
+      {
+        "path": "tests/test_sample_selector.py",
+        "sha256": "9261f4e6243eecc484a6405723f79c76cde848b389efff6c4f75d6e6551411d8"
+      },
+      {
+        "path": "tests/test_schema_contract.py",
+        "sha256": "746b3615bfd95e2311524e676f4892164a294c631ad2ffe7b10e9579cf02a302"
+      },
+      {
+        "path": "tests/test_semantic_provider.py",
+        "sha256": "45df29f40c3644fd77cdded8902d86b000a9dabce00e38960a09cda1631563fe"
+      },
+      {
+        "path": "tests/test_staged_validation.py",
+        "sha256": "6647671ad5e666cfd168c9b891a9b6255fe2c8a2a223e46439cb87279663673e"
+      },
+      {
+        "path": "tests/test_storage.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tests/test_tool_call_draft.py",
+        "sha256": "f669ad1bd73b2b0134d3be741c0fd26da2f727a4fc126c731bc86a2b12b1af18"
+      },
+      {
+        "path": "tests/test_tool_runtime.py",
+        "sha256": "0c0c366e7654c8524e27cacf5a0d30061e8b008fdf085f9235f4f8167b0c75a0"
+      },
+      {
+        "path": "tests/test_visual_discovery.py",
+        "sha256": "0d40ca0d243e85d2a1537c8d19e56858ef59919fe46d74ecf449d2050c71590b"
+      },
+      {
+        "path": "tests/test_visual_discovery_workflow.py",
+        "sha256": "d630757d371cdd3ea34571d6f42786e8c0703b620362661df533a06210045c9c"
+      },
+      {
+        "path": "tests/test_waterbirds_background_validation.py",
+        "sha256": "6d97d4c8ab02004c879e97e074b8d3da4004496a3114ff2edca77f2a28cdd39b"
+      },
+      {
+        "path": "tests/test_waterbirds_paper.py",
+        "sha256": "33e0e913060bfde516288f238d83ab47484662c70f83d0eafacd081509e9bf7b"
+      },
+      {
+        "path": "tests/test_workflow.py",
+        "sha256": "b454cd3e5f3b7fae4c6202b1770b43a9213ee04fc33d603f7e9bb1da7b427a78"
+      },
+      {
+        "path": "tests/test_workspace_consistency.py",
+        "sha256": "6def06e9c480b9cbfffdcde8b3d2a4a6097e21b64afa5436e79cc2e50081ef2a"
+      },
+      {
+        "path": "tools/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tools/common/__init__.py",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "tools/common/dataset_info.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tools/common/dataset_inspector.py",
+        "sha256": "15104350645138d4e66be4bf36b856f56e4652ac77e194300ccea4876b7f8b70"
+      },
+      {
+        "path": "tools/common/file_io.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tools/common/metadata_profiler.py",
+        "sha256": "f6494a67e30e1cec9e8c90cec0a28a7b7256a3cf0f366aa36be3ca3e85f2892c"
+      },
+      {
+        "path": "tools/common/sample_selector.py",
+        "sha256": "215b42acb6026df3bbbf2e7eebc5842b20ae97be4503e3e1e143a6c73fc73ea6"
+      },
+      {
+        "path": "tools/qualitative/evidence_builder.py",
+        "sha256": "3cfaa0e4bedb82b1b38532b9622a761aac066c5e526ed157a174426b7e209575"
+      },
+      {
+        "path": "tools/qualitative/image_sampler.py",
+        "sha256": "2f376d0f83af144d0a3fa0236cc2d950ba207a61a73bf78f85a006c9c00766ce"
+      },
+      {
+        "path": "tools/qualitative/metadata_inspector.py",
+        "sha256": "b67871a545bc988344d709e274d2fb419758f0c19746afbf3949c3d8d0263fdd"
+      },
+      {
+        "path": "tools/quantitative/association.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tools/quantitative/evaluation.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      },
+      {
+        "path": "tools/quantitative/statistics.py",
+        "sha256": "c9c09a63723e40367784d75f0bc2ecaa6b9210bf3ff010ef6692c82652a9929d"
+      }
+    ],
+    "hash_exclusions": [
+      "ignored files",
+      ".env*",
+      "configs/environment/*"
+    ]
+  },
+  "environment_hashes": {
+    "requirements.txt": "28a71df26821d3378dc7921ffb6b0712f8970fe85c501ce536f1f75d861401f2",
+    "requirements/core.in": "e0b7e134eaf2e405d1fde03c891e893384d7333e26591a22a1e239c2834d785f",
+    "pyproject.toml": "fd88b56e2381b87599ae62a19921619ebafdc4c4f3b37937731602a56ee90e22",
+    "requirements/formal-win64-py311.lock": "87d60e6fc391b9fd021ea9f3f6878bb29a154d0784eb93e7c39971efe98b2138",
+    "requirements/build-tools-win64.lock": "de76d79fb2e38a26c42609f8a277c05bb739a5bb234d3209965f6f830a255a8e",
+    "requirements/conda-win64.explicit.txt": "cfd6b894465c89af1968277f90a06e12b55ca0762266f32fc4bb4dfca0c71d5c",
+    "scripts/formal_environment.py": "90b939746617a8125cffd08b570de6c2e9d9fa32f95749e0b497dfbe80c4c2de",
+    "scripts/formal_environment_lock.py": "10498f52116ee0f25d71f0b2d58f79d589409cafbe56223d06a2f51ce443477c",
+    "scripts/phase17_progress_acceptance.py": "531f3104d70698b6f1cf8e46f56151b5ee1f1e32decbdd5db97afb2b1fc1db66",
+    "docs/formal-experiment-environment.md": "58dce8247105ba8184a7ec0771c881ac43bf525db2b627f78e3503bfbca14773",
+    "docs/deployment.md": "fc97c7b9f4eb7baffad5caedb3067dc6d327b18d6bc797f1bd2f67e7cffed362",
+    "README.md": "b69e2a7a60c91e5a92e7b48ead9151a8ae309284b4672730d14fcd160b7e51be"
+  },
+  "config_hashes": {
+    "configs/base.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/datasets/colored_mnist.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/datasets/synthetic_patch.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/datasets/waterbirds.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/experiments/colored-mnist-irm-shortcutminer-adaptive-v1.json": "ded5345dd35b79f760c87b47777ff7ceed8bf23a978dc73f61aaeadf810b7566",
+    "configs/experiments/colored-mnist-irm-shortcutminer-memory-v2.json": "f2849cac61e5e6051b046bbf8f7dee2daefe7ae415ccee25e385aa415d623a28",
+    "configs/experiments/colorized-mnist-shortcutminer-adaptive-v2.json": "cbd3734a6fc5603c6ad31ba1f0d113aa365ed0fa93ac47b6fd3a959a4b43b5ac",
+    "configs/experiments/colorized-mnist-shortcutminer-formal.json": "f83e6a489541df2c5633cd7565b7f41589a5d5073bb86047c97a13c5d14f9b72",
+    "configs/experiments/generic_intake.example.yaml": "21914944c56fc8197e86e64c8a603037a1cc72e3396b2b5a91ebe3c720b74b0f",
+    "configs/experiments/icdm_main.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/experiments/real_blind_pilot.example.yaml": "8707af4517a42ced927bed9488018d3e6a63c79d3e88df9a8a53f6e9b37591c0",
+    "configs/experiments/real_blind_pilot.phase16_readiness_r2.yaml": "807460e861706f25cbb790ca697a546bdd36412757eafafd4b57b29f30889328",
+    "configs/experiments/real_blind_pilot.phase16_readiness_r3.yaml": "a637e4dd37408f6d7d3047648b2ab8e2445603abc962b0ea4e285d8729d94edc",
+    "configs/experiments/real_blind_pilot.v13.yaml": "ae351c3e7720023e5c2fcc56ba3456f13e28727d1bc16163aef4bb7b9b4b6fcf",
+    "configs/experiments/real_blind_pilot.v14.yaml": "724bf5fd883c09d8f9a31f59492a2e8ad52d0bcfb847eb687bb3071385a94044",
+    "configs/experiments/real_blind_pilot.v15.yaml": "df614eac970cbcb3fb9b0cf27ae3b7333ffe851e3b93d3d93f16279198713194",
+    "configs/experiments/real_blind_pilot.v16.yaml": "5589c21afe3d9288797b971442c3a1e1efcb2216268ac35caa86060e4af572f4",
+    "configs/experiments/smoke_test.yaml": "cc1bb305ce05bc918c0ea28d1be21a515b55c649cfa041f84570f817b19ece32",
+    "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v1.json": "bab034cb851ea29593cdef7b5d3c107980478c0b8d3926f75f0dab551656b49b",
+    "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v2.json": "3a9ad4a514927e895c390d4339c5f288f57b835e2667cc81daab6f123f84c871",
+    "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v3.json": "3a8b1a8fdd9a9822df720e8951df8f417efbae057c5f4fbe3c98795bed1c5ad8",
+    "configs/experiments/synthetic-corner-patch-shortcutminer-memory-v4.json": "70e13797476a78c8ea7e798c025825e23dd29738f7f2a7dc0afbc08c6c4b232d",
+    "configs/experiments/waterbirds-paper-v1.json": "ad89e779e08b97fb3a876e7a898fc9debef6b3f8e67c648b9cf5a743d9131fdd",
+    "configs/experiments/waterbirds-paper-validation.proposal.json": "d7871be4a3af3d4f4f0b923c1792a3a58a7398d1284852781663a5bd68c29a07",
+    "configs/experiments/waterbirds-shortcutminer-background-formal.json": "ce98f4c248542a84cec8d0e01082354b802e278bca54d5af8a881dff76d4183f",
+    "configs/experiments/waterbirds-shortcutminer-formal.json": "c155631b162422ed5e1d7fe626de500aa3412bb020654b6ab531ea465c7e6b98",
+    "configs/experiments/waterbirds-shortcutminer-memory-v2.json": "a69e6d449ffeb83489033e84fb9a9b5e8e809e8931827793543517af017e0462",
+    "configs/experiments/waterbirds-shortcutminer-memory-v3.json": "bc1458f065e45980c8e3d020c3d9598cea0ecb014a9943149b566927401bfee4",
+    "configs/models/model_a.yaml": "bddaf05bfaffc4005f6a4ed57ab890ee3a5fc0c7d819c7f344416432c01c3456",
+    "configs/models/model_b.yaml": "69c3d2e99497f31c21bc02784472ec47c8741a23c37ea715406019559a77de38",
+    "configs/models/model_c.yaml": "8b00048d49562da5e5fbf3a3d89b4c942c66c6aca0e4517b201bbd97a897a5d9",
+    "configs/models/pilot_text.example.yaml": "86f59d2bc0f278e8ff0bee2c08344d664c20a8bd8d6c099b190b199b7db8cd42",
+    "configs/models/pilot_vlm.example.yaml": "e6038c51994ce1e59546471f0807f6a46671107b5ff82671d09ca244c2f5ff5b",
+    "configs/models/semantic_vlm.example.yaml": "2cee1a65088163bbdb00252a6aaf6bc14e7c3ee67a922d516cd5cdca64caef82",
+    "configs/models/shared_per_agent.example.yaml": "0521eb19b1874c61a7cfe0db66afb3af72b17055aef0aa4f7711a643b1a11f93"
+  },
+  "acceptance": {
+    "dependency_consistency": "PASS",
+    "gpu": "PASS",
+    "fake_provider_smoke": "PASS",
+    "real_provider_calls": 0,
+    "pytest": {
+      "status": "PASS",
+      "passed": 881,
+      "skipped": 11,
+      "warnings": 15,
+      "seconds": 166.6,
+      "skips": "Windows symlink privilege unavailable and explicit real-provider/SAM opt-in disabled"
+    },
+    "evidence": {
+      "pytest.log": {
+        "path": "runs/environment-freeze-windows-20261004/pytest.log",
+        "sha256": "fd8edd2006fa9b72094640f0498cf0b9fc475e987b289c8071fd8485f51416c4"
+      },
+      "smoke.log": {
+        "path": "runs/environment-freeze-windows-20261004/smoke.log",
+        "sha256": "1ec70dfd4416640bb060a9a5c005018592f6ba4a7c5607a19519901d9bf1ed13"
+      },
+      "gpu-acceptance.json": {
+        "path": "runs/environment-freeze-windows-20261004/gpu-acceptance.json",
+        "sha256": "93e9fadabb692936081926da5252ea43e77dab9596219a09fed97ab97fe541b7"
+      },
+      "torch-wheel-validation.json": {
+        "path": "runs/environment-freeze-windows-20261004/torch-wheel-validation.json",
+        "sha256": "d61f9b0c7c1030c4a33b6ab3f5360c86cbcc86b5245c1e0731838bb0d59521a0"
+      },
+      "installed-environment.json": {
+        "path": "runs/environment-freeze-windows-20261004/installed-environment.json",
+        "sha256": "f04287f08633161d86bb6cf41b6aab264e2b2b7a614ef625943da3c5d0e57d5f"
+      },
+      "thread-benchmark.json": {
+        "path": "runs/environment-freeze-windows-20261004/thread-benchmark.json",
+        "sha256": "59fa8a98900eab7d883472aaeda5a89ab9513bcd911bcafb43ddee0353755321"
+      },
+      "api-env-loader-tests.log": {
+        "path": "runs/environment-freeze-windows-20261004/api-env-loader-tests.log",
+        "sha256": "e9710cebc5fdb678c4c969ab67eb32c131caa189db61710cb2e53ba6180f0a5f"
+      },
+      "api-env-loader-smoke.log": {
+        "path": "runs/environment-freeze-windows-20261004/api-env-loader-smoke.log",
+        "sha256": "e174edb44dcf6ddba6f32557b3bbbdee32dd8361b527ec8255bc9b73e0f0051c"
+      },
+      "contract-diagnostics-tests.log": {
+        "path": "runs/environment-freeze-windows-20261004/contract-diagnostics-tests.log",
+        "sha256": "0580afa5740436ad22c673c4ced4b74407a266c43b7370d0bd60353960acb3b1"
+      },
+      "contract-diagnostics-smoke.log": {
+        "path": "runs/environment-freeze-windows-20261004/contract-diagnostics-smoke.log",
+        "sha256": "706f8fcc54fe42458d5c1468567b0ba9df26d6d1c3e2d6cddd7c16450e536bd8"
+      }
+    },
+    "standalone_requirements_validation": {
+      "status": "PASS",
+      "requirements_file": "E:\\ShortcutMiner-github\\requirements.txt",
+      "standalone": true,
+      "packages": 71,
+      "versions_and_hashes_match_windows_locks": true,
+      "installed_versions_match": true,
+      "packages_changed": false,
+      "supported_shells": [
+        "CMD",
+        "PowerShell"
+      ]
+    },
+    "api_env_loader_tests": {
+      "status": "PASS",
+      "passed": 68,
+      "real_provider_calls": 0
+    },
+    "api_credential_presence": {
+      "SHORTCUTMINER_TEXT_API_KEY": "SET",
+      "SHORTCUTMINER_VLM_API_KEY": "SET"
+    },
+    "api_env_loader_smoke": {
+      "status": "PASS",
+      "real_provider_calls": 0,
+      "formal_env_file_loading": false
+    },
+    "contract_diagnostics": {
+      "status": "PASS",
+      "tests_passed": 96,
+      "fake_provider_smoke": "PASS",
+      "real_provider_calls": 0,
+      "validation_rules_changed": false,
+      "retry_policy_or_prompts_changed": false,
+      "historical_waterbirds_failure_reconstructed": false
+    }
+  },
+  "source_policy": {
+    "mode": "user_authorized_source_snapshot",
+    "authorization_date_local": "2026-10-04",
+    "authorization": "User explicitly revoked clean Git prerequisite and allowed current source snapshot",
+    "require_clean_git": false,
+    "automatic_commit": false,
+    "identity_requirements": [
+      "actual_git_HEAD",
+      "actual_dirty_status",
+      "source_tree_sha256",
+      "per_execution_source_archive_sha256"
+    ]
+  },
+  "workload_acceptance": {
+    "waterbirds_models": {
+      "status": "PASS",
+      "models": [
+        "resnet18",
+        "resnet50"
+      ],
+      "seeds": [
+        42,
+        43,
+        44
+      ],
+      "capacity_receipt": "runs/waterbirds-paper-capacity-20261004/capacity.json",
+      "completed_training_runs": 6,
+      "completed_background_evaluations": 6,
+      "results_root": "runs/waterbirds-shortcutminer-paired-20261005-v1",
+      "workload": "real_five_agent_paired_local_background_intervention",
+      "usable_pairs": 954,
+      "retired_results_deleted_by_user_request": true
+    },
+    "full_shortcutminer_E1_E5": "not_executed_by_this_model_validation"
+  },
+  "local_background_intervention": {
+    "config": "configs/experiments/waterbirds-shortcutminer-background-formal.json",
+    "automatic_smoke": "runs/local-segmentation-review-20261004/automatic-results.json",
+    "quantitative_acceptance": "runs/local-segmentation-review-20261004/quantitative-gpu-acceptance.json",
+    "formal_paired_experiment_completed": true,
+    "completed_run_id": "waterbirds-shortcutminer-paired-20261005-v1",
+    "completed_at_utc": "2026-10-04T18:54:15.027366+00:00",
+    "completed_at_local": "2026-10-05T02:54:15+08:00",
+    "usable_pairs": 954,
+    "failed_pairs": 5,
+    "fresh_trained_models": 6,
+    "independent_verification": "PASS",
+    "verification_reference": "runs/waterbirds-shortcutminer-paired-20261005-v1/paired-verification.json",
+    "verification_sha256": "45de7748d8d3cf17691efebee0c77fc34ba831f81b0accb496ed717eec5f5146",
+    "config_sha256": "ce98f4c248542a84cec8d0e01082354b802e278bca54d5af8a881dff76d4183f",
+    "source_snapshot_sha256": "d44305d187980daee69c9edea7bef465c0158ec191a2204c4922ba3ee1cb0aa7",
+    "intervention_manifest_sha256": "57d3bb46e95576837f104077ba1ff70cc04a554609710ee3d455d9176456410b",
+    "summary_reference": "runs/waterbirds-shortcutminer-paired-20261005-v1/summarize/result.json",
+    "summary_sha256": "a7c8583a5692a5678f22a417689e6bdc3f4ea664e0c29f894d1795fd78888eda",
+    "limitations": [
+      "Predicted segmentation has not been independently validated over the entire sample set.",
+      "Protected-region preservation does not guarantee complete true-foreground or semantic-label preservation.",
+      "One gray background condition; no natural background swap or stronger causal claim is established."
+    ],
+    "cleanup": {
+      "status": "PASS",
+      "receipt": "runs/waterbirds-shortcutminer-paired-20261005-v1/cleanup-receipt.json",
+      "receipt_sha256": "368cd3e134f352bf52b9c207ca7941d4e97a97a4f9d47229b57217d47c177f83",
+      "retained_original_files": 2034,
+      "all_original_file_hashes_unchanged": true,
+      "removed_directories": 14,
+      "removed_logs": 15
+    }
+  }
+}

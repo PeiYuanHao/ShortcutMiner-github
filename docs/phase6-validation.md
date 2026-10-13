@@ -1,3 +1,6 @@
+> Historical phase record. Current deployment uses native Windows conda `shortcutminer`;
+> follow `deployment.md` and `formal-experiment-environment.md` for current commands.
+
 # Phase 6 local container acceptance
 
 Date: 2026-09-04. Status: **PHASE 6: PASS**.

@@ -1,3 +1,6 @@
+> Historical phase record. Current deployment uses native Windows conda `shortcutminer`;
+> follow `deployment.md` and `formal-experiment-environment.md` for current commands.
+
 # Phase 16 readiness audit
 
 This audit was performed before adding the Phase 16 pilot layer. “Current resolution” records

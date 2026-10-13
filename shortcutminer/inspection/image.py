@@ -27,6 +27,11 @@ DESCRIPTOR_DEFINITION_VERSION = "image_descriptor_v1"
 DESCRIPTOR_DEFINITIONS: dict[str, Any] = {
     "definition_version": DESCRIPTOR_DEFINITION_VERSION,
     "intensity_scale": "grayscale and RGB values normalized to [0, 1]",
+    "luminance_y": {
+        "definition_version": "ycbcr_y_v1",
+        "method": "Pillow RGB-to-YCbCr Y channel; mean and population standard deviation",
+        "scale": "uint8 Y in [0, 255]; distinct from legacy normalized intensity",
+    },
     "entropy": {
         "method": "Shannon entropy of a 256-bin grayscale histogram",
         "bin_count": 256,
@@ -309,11 +314,14 @@ def inspect_image_file(
     if "dimensions" in requested:
         descriptors["dimensions"] = dimensions
     if "intensity" in requested:
+        y = np.asarray(Image.fromarray(rgb_uint8).convert('YCbCr'))[:,:,0].astype(float)
         descriptors["intensity"] = {
             "mean": _number(np.mean(gray)),
             "std": _number(np.std(gray)),
             "brightness": _number(np.mean(gray)),
             "contrast": _number(np.std(gray)),
+            "luminance_y_mean": _number(y.mean()),
+            "luminance_y_std": _number(y.std()),
         }
     if "rgb_stats" in requested:
         pixels = rgb.reshape(-1, 3)
@@ -403,7 +411,7 @@ def flatten_image_descriptors(
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             values[name] = float(value)
     intensity = descriptors.get("intensity", {})
-    for name in ("mean", "std", "brightness", "contrast"):
+    for name in ("mean", "std", "brightness", "contrast", "luminance_y_mean", "luminance_y_std"):
         value = intensity.get(name)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             output_name = f"intensity_{name}" if name in {"mean", "std"} else name

@@ -1,8 +1,8 @@
 run_id: generic-intake-example
-runs_root: runs
+runs_root: E:/ShortcutMiner-github/runs
 dataset_info:
   name: my_dataset
-  root: /data/my_dataset
+  root: E:/ShortcutMiner-Experiments/my_dataset
   metadata_file: metadata.csv
 task_input:
   type: classification

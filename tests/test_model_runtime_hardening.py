@@ -37,6 +37,102 @@ class SequenceTransport:
         return value
 
 
+@pytest.mark.parametrize("rule,field", [
+    ("candidate_budget_exceeded", "candidates"),
+    ("duplicate_metadata_field_selector", "candidates"),
+    ("metadata_unavailable", "candidates.0.evidence_sources"),
+    ("sample_inspection_unavailable", "candidates.1.evidence_sources"),
+    ("image_statistics_unavailable", "candidates.2.evidence_sources"),
+    ("invalid_metadata_field_selector", "candidates.0.metadata_field_ref"),
+    ("metadata_selector_without_source", "candidates.1.metadata_field_ref"),
+])
+def test_contract_rule_and_field_are_persisted_without_values(tmp_path, rule, field):
+    from shortcutminer.tooling.agent_loop import ProviderContractValidationError
+    rejected = {"private_value": "rejected-value-marker"}
+    client = OpenAICompatibleClient(config(model_call_budget={"max_schema_retries": 0}),
+        api_key="credential-marker", transport=SequenceTransport(response(rejected)), runs_root=tmp_path)
+    def validator(_output):
+        raise ProviderContractValidationError(rule, field)
+    with pytest.raises(ModelRuntimeError) as failure:
+        client.invoke_agent_validated("identify", {"run_id": "safe-contract-diagnostic"},
+                                      system_prompt="policy", validator=validator)
+    record = client.invocations[0]
+    issue = record.schema_diagnostics.issues[0]
+    assert (issue.error_type, issue.field_path) == (rule, field)
+    assert record.status == "protocol_schema_failed" and record.retryable is False
+    assert rule in str(failure.value) and field in str(failure.value)
+    saved = "\n".join(p.read_text(encoding="utf-8") for p in tmp_path.rglob("*.json"))
+    assert "credential-marker" not in saved and "rejected-value-marker" not in saved
+    events = [json.loads(line) for line in (tmp_path / "safe-contract-diagnostic/events.jsonl").read_text().splitlines()]
+    event = next(item for item in events if item["event"] == "MODEL_INVOCATION_FAILED")
+    assert event["details"]["schema_diagnostics"]["issues"][0] == issue.model_dump()
+
+
+def test_contract_diagnostic_preserves_retry_budget_and_scientific_request():
+    from shortcutminer.tooling.agent_loop import ProviderContractValidationError
+    transport = SequenceTransport(response({"rejected": True}), response({"accepted": True}))
+    client = OpenAICompatibleClient(config(), api_key="dummy", transport=transport)
+    def validator(value):
+        if value.get("rejected"):
+            raise ProviderContractValidationError("invalid_metadata_field_selector", "candidates.0.metadata_field_ref")
+    assert client.invoke_agent_validated("identify", {"run_id": "same-retry-policy"},
+                                        system_prompt="policy", validator=validator) == {"accepted": True}
+    assert len(transport.calls) == 2
+    correction = transport.calls[1]["body"]["messages"][-1]["content"]
+    assert "candidates.0.metadata_field_ref: invalid_metadata_field_selector" in correction
+    assert "Correct only protocol conformance." in correction
+    assert transport.calls[1]["body"]["messages"][:-1] == transport.calls[0]["body"]["messages"]
+    assert client.invocations[0].schema_diagnostics.issues[0].error_type == "invalid_metadata_field_selector"
+    assert client.invocations[1].schema_diagnostics is None
+
+
+@pytest.mark.parametrize("error", [ValueError("private-marker"), TypeError("private-marker")])
+def test_generic_validator_errors_record_only_their_type(error):
+    client = OpenAICompatibleClient(config(model_call_budget={"max_schema_retries": 0}),
+        api_key="dummy", transport=SequenceTransport(response({"ok": True})))
+    def validator(_value):
+        raise error
+    with pytest.raises(ModelRuntimeError) as failure:
+        client.invoke_agent_validated("identify", {"run_id": "generic-validator"},
+                                      system_prompt="policy", validator=validator)
+    issue = client.invocations[0].schema_diagnostics.issues[0]
+    assert issue.error_type in {"validator_value_error", "validator_type_error"}
+    assert issue.field_path == "<root>"
+    assert "private-marker" not in str(failure.value)
+
+
+def test_unrecognized_contract_metadata_is_redacted():
+    from shortcutminer.tooling.agent_loop import ProviderContractValidationError
+    from shortcutminer.runtime.openai_compatible import _safe_contract_diagnostics
+    error = ProviderContractValidationError("private_category_marker", "candidates.private_field_marker")
+    issue = _safe_contract_diagnostics(error).issues[0]
+    assert issue.error_type == "provider_contract_rejected"
+    assert issue.field_path == "<field>"
+
+
+def test_actual_identify_validator_still_rejects_label_as_metadata_selector(tmp_path):
+    from test_identify_executor import _create_test_dataset, _create_request, _valid_draft
+    from shortcutminer.experiment.identify_executor import execute_identify, IdentifyExecutionError
+    _create_test_dataset(tmp_path)
+    draft = _valid_draft()
+    draft["candidates"][0]["metadata_field_ref"] = "label"
+    transport = SequenceTransport(response(draft))
+    client = OpenAICompatibleClient(config(model_call_budget={"max_schema_retries": 0}),
+        api_key="dummy", transport=transport)
+    with pytest.raises(IdentifyExecutionError, match="invalid_metadata_field_selector"):
+        execute_identify(_create_request(tmp_path), seed=42, client=client)
+    issue = client.invocations[0].schema_diagnostics.issues[0]
+    assert (issue.error_type, issue.field_path) == ("invalid_metadata_field_selector", "candidates.0.metadata_field_ref")
+    from shortcutminer.experiment.identify_executor import _public_metadata_fields
+    from shortcutminer.experiment.identify_context import build_identify_context
+    request = _create_request(tmp_path)
+    expected = sorted(_public_metadata_fields(request, build_identify_context(request, seed=42)))
+    prompt = transport.calls[0]["body"]["messages"][0]["content"]
+    assert json.loads(prompt.rsplit("\n", 1)[1]) == expected
+    assert "label" not in expected
+    assert "Non-metadata cue families must use null" in prompt
+
+
 def response(value, *, usage=None):
     envelope = {"choices": [{"message": {"content": json.dumps(value)}}]}
     if usage is not None:
@@ -500,6 +596,16 @@ def test_explicit_non_thinking_request_omits_reasoning_effort_and_changes_snapsh
         build_runtime_snapshot(enabled).snapshot_id
         != build_runtime_snapshot(disabled).snapshot_id
     )
+
+
+def test_explicit_dashscope_thinking_wire_format():
+    configured = config(reasoning={"mode": "disabled", "wire_format": "enable_thinking"},
+                        capabilities={"supports_reasoning_config": True})
+    transport = SequenceTransport(response({"ok": True}))
+    client = OpenAICompatibleClient(configured, api_key="secret", transport=transport)
+    client.invoke_agent("identify", {"run_id": "dashscope-wire"})
+    assert transport.calls[0]["body"]["enable_thinking"] is False
+    assert "thinking" not in transport.calls[0]["body"]
 
 
 def test_invalid_provider_json_envelope_has_explicit_category():

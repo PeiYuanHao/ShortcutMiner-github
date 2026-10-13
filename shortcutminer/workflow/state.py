@@ -22,6 +22,7 @@ class IdentifyWorkflowConfig(TypedDict, total=False):
     runs_root: NotRequired[str]
     workspace_dir: NotRequired[str]
     visual_discovery: NotRequired[dict[str, Any]]
+    candidate_screening: NotRequired[dict[str, Any]]
 
 
 class ExecutiveWorkflowConfig(TypedDict, total=False):
@@ -72,11 +73,18 @@ class ShortcutMinerState(TypedDict, total=False):
     visual_discovery: NotRequired[dict[str, Any]]
     identify_context: NotRequired[dict[str, Any]]
     identify_result: NotRequired[dict[str, Any]]
+    screening_result: NotRequired[dict[str, Any]]
+    audit_capabilities: NotRequired[dict[str, Any]]
     executive_request: NotRequired[dict[str, Any]]
     executive_result: NotRequired[dict[str, Any]]
     quantitative_execution_requirements: NotRequired[dict[str, dict[str, Any]]]
     quantitative_experiment_plans: NotRequired[dict[str, dict[str, Any]]]
     quantitative_result: NotRequired[dict[str, Any]]
+    validation_stage_plan: NotRequired[dict[str, Any]]
+    stage1_quantitative_result: NotRequired[dict[str, Any]]
+    stage1_qualitative_result: NotRequired[dict[str, Any]]
+    promotion_result: NotRequired[dict[str, Any]]
+    stage2_validation: NotRequired[dict[str, Any]]
     qualitative_result: NotRequired[dict[str, Any]]
     evidence_ledger: NotRequired[dict[str, Any]]
     summarize_request: NotRequired[dict[str, Any]]

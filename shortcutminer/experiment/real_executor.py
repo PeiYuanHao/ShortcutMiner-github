@@ -1101,6 +1101,11 @@ class RealExperimentExecutor:
 
     backend_name = "real_cpu_v1"
 
+    @property
+    def supported_experiment_types(self) -> tuple[str, ...]:
+        """Declare installed local backends; no experiment is executed."""
+        return tuple(sorted(BACKEND_REGISTRY))
+
     def execute(
         self,
         request: ExperimentExecutionRequest,
@@ -1144,7 +1149,7 @@ class RealExperimentExecutor:
                 artifact_reference, *getattr(evidence, "artifact_references", [])
             ])),
             metadata={
-                "backend": self.backend_name,
+                "backend": evidence.details.get("execution_backend", self.backend_name),
                 "experiment_type": request.experiment_type,
                 "warnings": evidence.warnings,
                 "limitations": evidence.limitations,
@@ -1161,7 +1166,7 @@ class RealExperimentExecutor:
             candidate_id=request.candidate_id,
             task_id=request.task_id,
             experiment_type=request.experiment_type,
-            backend=self.backend_name,
+            backend=evidence.details.get("execution_backend", self.backend_name),
             parameters=request.parameters.model_dump(mode="json"),
             seed=_seed(request.parameters),
             outcome=output.outcome,

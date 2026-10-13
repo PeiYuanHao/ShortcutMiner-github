@@ -1,5 +1,145 @@
 # ShortcutMiner
 
+## Dataset audit entrance (Phase 17 Step 1)
+
+Use the native Windows conda environment `shortcutminer` and install the standalone
+`requirements.txt` with `python -m pip install --no-deps -r requirements.txt`.
+Configure the text model once using an existing model-runtime JSON/YAML file; API
+credentials are loaded automatically from repository-root `.env.formal` into the
+current CLI process only. No Windows system environment setup is needed:
+
+```powershell
+$env:SHORTCUTMINER_MODEL_CONFIG = "configs/models/pilot_text.example.yaml"
+shortcutminer audit ./dataset
+```
+
+The equivalent module command is `python -m shortcutminer audit ./dataset`.
+No experiment configuration, shortcut name, metadata-field list, or task JSON is
+required. `--model-config` can override the model settings for an invocation.
+Optional inputs include `--description`, `--metadata-file` (relative to the dataset
+root), `--label-column` (an exact column), or `--label-source class_directory` /
+`--label-source split_class_directory`. `--runs-root`, `--run-id`, `--progress`, and
+`--semantic-model-config` reuse existing execution facilities.
+
+The entry builds an `AuditRequest`, performs bounded local intake, constructs the
+existing `RunRequest`, and calls the existing Runner/LangGraph. It never constructs
+AnalysisTask, ExperimentPlan, or quantitative/qualitative tasks. Identify and
+Executive retain discovery and task-generation ownership. Other CLI commands remain
+available for internal runs, pilots, regression tests, and recovery.
+
+Intake inspects at most 10,000 filesystem entries, records at most eight metadata
+files, and reads at most 65,536 bytes plus one truncation sentinel for a selected
+CSV header. Symlink directories are not followed. A unique CSV source with one
+conventional `label`, `target`, or `class` column can be bound automatically; multiple
+sources/label columns and incomplete scans remain unresolved unless the user supplies
+an exact source. Other table formats are discovered but the existing workflow reader
+supports CSV only. Image, tabular, text, mixed, and unknown layouts are recorded.
+
+Complete `class/image` and `split/class/image` layouts are recorded as directory
+label sources; generic image folders and inconsistent layouts remain unresolved.
+This records observed conventions, not a claim about the intended scientific target.
+Step 1 does not synthesize directory-label metadata: the existing profiler still
+needs CSV labels. This boundary is recorded as `directory_labels_not_bound`. Without
+a resolved CSV label column, metadata remains recorded in AuditRequest but is not
+passed as executable metadata, because the existing profiler requires a label column.
+An internal unavailable-label marker satisfies TaskSpec without guessing a real field.
+Intake limitations enter the task description, Executive context, and run metadata.
+
+Each CLI audit persists `runs/<run_id>/audit_request.json` and the existing run
+manifest, checkpoints, evidence, and `final_result.json`. Existing resume uses those
+persisted inputs. Step 3 adds automatic validation capabilities below;
+`audit_report.json` / `audit_report.md` remain later steps. Step 1 does not claim that
+an entry-only run validated shortcuts. No changes to the five Agent workspaces or
+Phase 16 evidence/tool contracts are required.
+
+## Candidate Screening Gate (Phase 17 Step 2)
+
+The Step 2 graph runs `Identify -> Screening -> Executive -> Feasibility ->
+(Quantitative || Qualitative) -> EvidenceCalibration -> Summarize`. Screening is a
+deterministic Python controller, not a sixth Agent. It makes no model/tool calls and
+does not read dataset files, hidden truth, or future validation results. Its inputs
+are the original CandidateReport, public DatasetProfile, and optional public initial
+confidence/cost signals. Relative cost units estimate initial inspection work;
+they are not API prices, training plans, or predicted runtimes.
+
+The default v1 policy screens out candidates with known initial confidence below
+0.5, unavailable required metadata, or insufficient public sample/evidence access.
+Missing confidence stays `null`: the current Identify contract has no confidence
+field, and priority is never converted into a probability. Defaults do not impose
+an additional candidate/cost cap. Optional internal `identify_config.candidate_screening`
+contains only `policy` and `signals`; no additional CLI inputs are required.
+Policy can set `min_confidence`, `min_samples`, `max_promoted`, `max_candidate_cost`,
+and `max_total_cost`. Signals accept `confidence_by_candidate` and
+`cost_by_candidate` from public pre-validation observations only. Future experiment
+results cannot be supplied as screening inputs. Candidate confidence generation
+and automatic experiment planning are outside Step 2.
+
+Original Candidate IDs and hypotheses remain unchanged. Executive receives only
+`promote` candidates. When none are promoted, Python uses the existing Executive
+finalizer to produce an empty plan, without Executive/validation provider calls.
+The full original candidate report remains available to evidence aggregation and
+Summarize. `screened_out` means validation was deferred under the current policy;
+it never means contradicted, rejected, or confirmed. Scientific assessments still
+require the existing evidence checks.
+
+Decisions and categorical reasons (`weak_signal`, `insufficient_metadata`,
+`insufficient_samples`, `unsupported_validation`, `resource_budget`) persist in
+`runs/<run_id>/screening/result.json`. Canonical input/result hashes and v1 policy
+identity allow matching decisions to be reused after interruption; changed inputs,
+foreign IDs, and corrupt hashes are rejected. Checkpointed stages are not rerun.
+An older checkpoint resuming at Executive passes through the same controller if
+screening state is absent; already-executed legacy stages are not retroactively changed.
+
+The final `SummaryReport` in `final_result.json` includes a Python-owned
+`payload.candidate_screening` section with `candidates_generated`, `promoted`,
+`screened_out`, and all per-candidate reasons. Screened-out candidates retain empty
+evidence records and an evidence-based `insufficient_evidence` finding; their
+separate screening decision explains why validation did not run. No Agent workspace,
+CandidateReport, ToolCall, EvidenceLedger, or quantitative/qualitative result contract
+changes are needed.
+
+## Automatic audit capabilities (Phase 17 Step 3)
+
+The same graph now runs `Identify -> Screening -> Capabilities -> Executive ->
+Feasibility -> (Quantitative || Qualitative) -> EvidenceCalibration -> Summarize`.
+Capabilities is a deterministic Python controller, not an Agent or a second
+workflow. Legacy configured run/pilot requests pass through it unchanged. For
+`shortcutminer audit DATASET_PATH`, it derives Executive input from completed
+AuditRequest intake, the bounded public DatasetProfile, promoted candidates,
+registered tool permissions, and configured backend declarations. No user field
+list, requested checks, AnalysisTask JSON, or experiment configuration is needed.
+
+Executive receives promoted hypotheses, a public DatasetProfile, and generated
+ExecutiveCapabilities: exact available metadata fields, sample/image access,
+available validation methods, supported executable experiment types, and explicit
+limitations. It still emits ExecutiveAgentDraft; the existing Python finalizer
+alone produces canonical candidate/task IDs, scientific field bindings, and
+runtime constraints. Registered `run_experiment` without an installed executor
+does not advertise quantitative validation.
+
+Metadata authority is the intersection of intake-confirmed exact headers and
+bounded profile columns. Reserved private truth fields are excluded; arbitrary
+workflow metadata, hidden evaluator files, runtime histories, and future results
+never authorize fields. Label, ID, path, and split columns remain addressing/control
+inputs, excluded from scientific candidate binding. An unambiguous conventional
+ID/path column can supply execution addressing; ambiguous columns remain unbound
+with a limitation. Candidate prose never invents a field such as `site_device_batch`.
+
+Resolved CSV labels and scientific metadata can enable association, subgroup,
+metadata-probe, and metadata-intervention checks on installed CPU backends.
+Image/text sample access enables existing qualitative inspection; metadata-free
+datasets use the existing bounded random sampling path. Directory labels remain
+recorded intake facts without synthesizing a label table. Model training and
+structured OOD/counterfactual checks are not advertised without verified model
+inputs and scientific specifications. These limitations propagate to Executive
+and the final evidence report; no unsupported validation is manufactured.
+
+Generated authority and public input/result hashes are checkpointed and persisted
+as `runs/<run_id>/capabilities/result.json`. Recovery revalidates dataset, candidate,
+tool/backend authority and hashes, then reuses matching context. A changed backend
+or corrupt cached context fails explicitly. Building capabilities makes no tool,
+provider, or source-data calls and creates no validation tasks.
+
 Phase 16 development now includes a provider-neutral real API blind-pilot protocol with separate
 text and semantic-VLM runtimes, strict preflight, immutable snapshots, a six-challenge hidden-truth
 suite, global budgets, resumable sequential execution, and reporting. This is code readiness only;
@@ -46,7 +186,16 @@ Generic Dataset Intake
        Identify
           |
           v
+       Screening
+          |
+          v
+     Capabilities
+          |
+          v
       Executive
+          |
+          v
+      Feasibility
        /      \
       v        v
 Quantitative  Qualitative
@@ -61,13 +210,20 @@ Quantitative  Qualitative
      SummaryReport
 ```
 
-Runner and Orchestrator are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph provides the typed execution graph: Executive fans out to Quantitative and Qualitative. At the join, deterministic evidence calibration builds a threshold-free `EvidenceLedger` before Summarize runs; it is infrastructure, not a sixth Agent.
+Runner, Orchestrator, Candidate Screening, and Capability Builder are deterministic control components, not agents. ShortcutMiner has exactly five research agents. LangGraph builds audit capability context for promoted candidates before Executive, then checks task feasibility before fan-out to Quantitative and Qualitative. At the join, deterministic evidence calibration builds a threshold-free `EvidenceLedger` before Summarize runs.
 
 The production control path accepts user-provided local datasets through a generic intake contract; dataset names are not selected from a benchmark whitelist. Intake performs bounded, deterministic inspection of supported local structures and CSV metadata, emits a strict `DatasetProfile`, and gives that factual profile to Identify as untrusted evidence. It does not infer or rank shortcut candidates. Unknown or unsupported structures are reported through warnings and limitations rather than being treated as a known benchmark.
 
 For image or mixed datasets, Identify can also receive a real `VisualDiscoveryProfile`: safely decoded low-level descriptors, explicit coverage, and label-aware descriptive summaries produced by bounded CPU infrastructure. Metadata-free image folders use deterministic bounded sampling without inferring labels from directory names. Descriptor ranking is only screening salience, never statistical validation or a shortcut verdict. Optional provider-backed semantic vision adds strictly scoped visible observations while leaving candidate generation with Identify. See [Visual Discovery](docs/visual-discovery.md) and [Semantic Vision](docs/semantic-vision.md).
 
 See [Architecture](docs/architecture.md) for component boundaries and persistence behavior.
+
+Audit and audit resume enable progress by default; use `--no-progress` to disable it.
+Add `--progress` to CLI `run` or `mock` commands for the same monitor. TTY uses Rich
+Live; redirected output uses plain structured lines. Candidates, screening reasons,
+tasks, PlanSteps, five-Agent status, and recorded telemetry are reconstructed from
+existing events, artifacts, and read-only checkpoints. See
+[Runtime progress monitoring](docs/runtime-progress.md) for usage and replay behavior.
 
 ## Five Agents
 
@@ -144,7 +300,7 @@ run_id: my-audit
 runs_root: runs
 dataset_info:
   name: my_dataset
-  root: /data/my_dataset
+  root: E:/ShortcutMiner-Experiments/my_dataset
   metadata_file: metadata.csv  # optional
 task_input:
   type: classification
@@ -226,8 +382,7 @@ ShortcutMiner-github/
 │   ├── experiments/              # Research and local-run configurations
 │   └── models/                   # Explicit model endpoint configurations
 ├── data/                         # Dataset-mount guidance; no raw datasets
-├── docs/                         # Architecture, protocol, tools, and Docker docs
-├── infrastructure/docker/        # Container image definition
+├── docs/                         # Architecture, protocol, tools, and deployment docs
 ├── scripts/                      # Acceptance helpers and future research entry points
 ├── shortcutminer/
 │   ├── experiment/               # Stage executors and experiment boundary
@@ -242,10 +397,8 @@ ShortcutMiner-github/
 │   └── runner.py
 ├── tests/                        # Unit, contract, security, and workflow tests
 ├── tools/                        # Reusable bounded data/evidence operations
-├── .dockerignore
 ├── .env.example
 ├── .gitignore
-├── docker-compose.yml
 ├── pyproject.toml
 └── requirements.txt
 ```
@@ -274,65 +427,27 @@ AGENTS -> IDENTITY -> SOUL -> USER -> TOOLS -> MEMORY -> HEARTBEAT
 
 These documents define ShortcutMiner's own stable Agent behavior, responsibilities, evidence limits, and tool policy. They are loaded explicitly by the workspace loader and are included in consistency tests.
 
-## Docker: Recommended Validation Path
+## Windows Local Experiment Environment
 
-The current supported environment is local Docker Desktop or Docker Engine. From the repository root:
+Formal experiments use native Windows AMD64 and the conda environment `shortcutminer`,
+Python 3.11.16. Commands below work in both CMD and PowerShell from the repository
+root. `requirements.txt` is a standalone file containing all 71 exact package versions
+and Windows wheel hashes; the separate `requirements` folder contains provenance locks.
 
-```bash
-docker compose build
-docker compose run --rm shortcutminer pytest -q
+```powershell
+conda activate shortcutminer
+python -m pip install --require-hashes --no-deps -r requirements.txt
+python scripts/formal_environment.py check
+python scripts/formal_environment.py pytest
+python scripts/formal_environment.py smoke
 ```
 
-Run the complete offline synthetic five-Agent workflow:
-
-```bash
-docker compose run --rm shortcutminer python -m shortcutminer mock --run-id local-smoke --runs-root /runs
-docker compose run --rm shortcutminer python scripts/container_acceptance.py local-smoke
-```
-
-The default Compose network mode is `none`. The mock workflow requires no credentials, real dataset, model API, or external network. Build-time access is needed only to obtain the base image and Python dependencies.
-
-Real API commands explicitly add `docker-compose.api.yml`, which enables bridge networking and
-loads credentials from the local Git-ignored `.env.phase16` file. Do not pass API keys through
-CLI arguments or `docker compose run -e`. The safe readiness command reports only whether each
-configured credential variable is `SET` or `MISSING`; see [Real API blind pilot](docs/real-blind-pilot.md).
-
-Compose mounts its named run volume at `/runs`, `./data` read-only at `/data`, and `./configs` read-only at `/config`. Do not use `docker compose down -v` unless deleting the local run volume is intentional.
-
-See [Local Docker Usage](docs/deployment.md) for persistence and resume checks.
-
-## Optional Local Python Development
-
-Python 3.11 or newer is required. Conda and `venv` are both suitable:
-
-```bash
-python -m venv .venv
-# Activate the environment using the command appropriate for your shell.
-python -m pip install -r requirements.txt
-python -m pip install -e .
-python -m pytest -q
-```
-
-## Current Development Validation
-
-Run the current Phase 10 validation with:
-
-```bash
-python -m pytest -q
-docker compose build
-docker compose run --rm shortcutminer pytest -q
-```
-
-Latest verified results:
-
-```text
-Host:   406 passed, 6 skipped
-Docker: 412 passed
-```
-
-Automatic tests use deterministic mock Agent clients plus synthetic data for the
-real quantitative and qualitative backends. They do not call real LLM APIs or run
-expensive training.
+The standalone requirements and supplementary Windows locks include exact versions
+and SHA-256 hashes. Scientific direct versions remain
+in `requirements/core.in`. See [deployment](docs/deployment.md) and the
+[formal environment manifest](docs/formal-experiment-environment.md) for paths, resources,
+credentials, and the clean-commit/capacity gates before E1. Acceptance uses fake providers;
+it never starts E1–E5 or contacts a real provider.
 
 ## Project Status
 
@@ -348,7 +463,7 @@ Implemented and tested:
   descriptor comparisons, contact sheets, and resume reuse;
 - run, artifact, event, and final-report storage;
 - SQLite checkpoint and resume behavior;
-- local Docker build, mock execution, and container tests.
+- native Windows conda environment, mock execution, and local acceptance checks.
 
 Not yet implemented as production research capability:
 
@@ -359,10 +474,18 @@ Not yet implemented as production research capability:
 
 ## Datasets and Research Assets
 
-Large raw datasets are not committed to GitHub. Waterbirds, Camelyon17, Colorized-MNIST, and other real datasets must be stored locally and supplied through a configured dataset root, normally as a read-only Docker volume. Small synthetic fixtures used by tests remain in the repository where appropriate.
+Large raw datasets are not committed to GitHub. Waterbirds, Camelyon17, Colorized-MNIST, and other real datasets must be stored locally and supplied through a configured dataset root, under `E:/ShortcutMiner-Experiments`; treat source datasets as read-only. Small synthetic fixtures used by tests remain in the repository where appropriate.
 
 Run outputs, checkpoints, raw artifacts, credentials, and local dataset directories are ignored by Git. Research and experiment assets may be maintained separately in the future; no external asset repository is declared yet.
 
 ## Development Scope
 
 The repository is currently focused on validating the local research architecture before beginning full experiments. Contributions should preserve the separation between Agent reasoning, structured contracts, deterministic execution, tool permissions, and durable evidence. Large-scale research claims should only be added after their corresponding real backends and evaluations exist.
+
+### Final audit reports (Phase17 Step5)
+
+Completed `shortcutminer audit DATASET_PATH` runs automatically export `audit_report.json` and `audit_report.md`, preserving the original `final_result.json`. The Python report builder aggregates persisted scientific results and runtime parameters without additional Agent or model calls. See [Audit report schema and reproducibility](docs/audit-report.md).
+
+### Evidence promotion (Phase17 Step6)
+
+Audit runs execute bounded Stage-1 checks before an evidence-only promotion controller can authorize expensive Stage-2 checks. The same five Agents and existing execution contracts are reused. The default policy has no scientific thresholds and defers expensive validation; a formal experiment policy must be determined and frozen separately. See [classification, policy, recovery and offline acceptance](docs/evidence-promotion.md).

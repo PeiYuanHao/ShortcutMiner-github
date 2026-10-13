@@ -46,7 +46,7 @@ SUPPORTED_TEXT_SUFFIXES = {".json", ".jsonl", ".md", ".txt"}
 
 def _request_fingerprint(request: QualitativeRequest) -> str:
     canonical = json.dumps(
-        request.model_dump(mode="json"),
+        request.model_dump(mode="json", exclude={"inspection_scope"} if request.inspection_scope is None else set()),
         ensure_ascii=True,
         allow_nan=False,
         sort_keys=True,
@@ -424,10 +424,12 @@ def _artifact_locations(
     runs_root: str | Path,
     run_id: str,
     task_id: str,
+    scope: str | None = None,
 ) -> tuple[Path, str, Path, str]:
     configured_root = Path(runs_root).resolve(strict=False)
     run_root = (configured_root / run_id).resolve(strict=False)
-    directory = (run_root / "qualitative" / task_id).resolve(strict=False)
+    relative_directory = f"qualitative/{task_id}" + (f"/{scope}" if scope else "")
+    directory = (run_root / relative_directory).resolve(strict=False)
     try:
         run_root.relative_to(configured_root)
         directory.relative_to(run_root)
@@ -435,8 +437,8 @@ def _artifact_locations(
         raise QualitativeInspectionError(
             "Qualitative artifact path escapes the approved run root."
         ) from exc
-    inspection_reference = f"qualitative/{task_id}/inspection.json"
-    contact_reference = f"qualitative/{task_id}/contact_sheet.png"
+    inspection_reference = f"{relative_directory}/inspection.json"
+    contact_reference = f"{relative_directory}/contact_sheet.png"
     return (
         directory / "inspection.json",
         inspection_reference,
@@ -455,6 +457,7 @@ def load_reusable_inspection(
         runs_root,
         request.run_id,
         request.task.task_id,
+        request.inspection_scope,
     )
     if not inspection_path.is_file():
         return None
@@ -528,7 +531,7 @@ def create_inspection_artifact(
             inspection_reference,
             contact_path,
             contact_reference,
-        ) = _artifact_locations(runs_root, request.run_id, request.task.task_id)
+        ) = _artifact_locations(runs_root, request.run_id, request.task.task_id, request.inspection_scope)
         created, contact_warnings = create_contact_sheet(
             request.task.inputs.dataset_reference,
             samples,

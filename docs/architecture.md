@@ -180,4 +180,4 @@ observation-only.
 
 ## Runtime scope
 
-The validated operating target is local Docker Desktop or Docker Engine with a persistent run volume and read-only dataset/configuration mounts. No web service, distributed queue, remote control plane, or GPU runtime is part of the current architecture.
+The operating target is native Windows conda `shortcutminer`, with persistent local run artifacts and datasets/configs treated as read-only. Deployment and exact dependency identity are described in `deployment.md` and `formal-experiment-environment.md`. GPU runtime installation does not change the existing CPU scientific backends.

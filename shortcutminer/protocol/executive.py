@@ -1,6 +1,7 @@
 from typing import Annotated, Literal
 
-from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator, model_serializer
+from shortcutminer.protocol.dataset_profile import DatasetProfile
 
 from shortcutminer.protocol.identify import (
     Candidate,
@@ -53,6 +54,15 @@ def _reject_duplicates(values: list[str], field_name: str) -> list[str]:
 
 
 class ExecutiveAuditOptions(StrictProtocolModel):
+    qualitative_metadata_policy: Literal["legacy-v1", "candidate-bound-v2"] = "legacy-v1"
+
+    @model_serializer(mode='wrap')
+    def preserve_legacy_serialization(self, handler):
+        result = handler(self)
+        if 'qualitative_metadata_policy' not in self.model_fields_set:
+            result.pop('qualitative_metadata_policy', None)
+        return result
+
     validation_depth: ValidationDepth = "standard"
     max_tasks: int = Field(default=10, ge=1, le=1_998)
     max_samples_per_task: int = Field(default=40, ge=1)
@@ -61,6 +71,7 @@ class ExecutiveAuditOptions(StrictProtocolModel):
     )
     requested_outputs: list[NonEmptyText] = Field(default_factory=list)
     runtime_constraints: list[RuntimeConstraint] = Field(default_factory=list)
+    required_quantitative_checks: list[NonEmptyText] = Field(default_factory=list)
 
     @field_validator(
         "allowed_targets",
@@ -73,6 +84,15 @@ class ExecutiveAuditOptions(StrictProtocolModel):
 
 
 class ExecutiveCapabilities(StrictProtocolModel):
+    visual_measurement_bindings: dict[CandidateId, NonEmptyText] = Field(default_factory=dict)
+
+    @model_serializer(mode='wrap')
+    def preserve_old_visual_contract(self, handler):
+        result = handler(self)
+        if 'visual_measurement_bindings' not in self.model_fields_set:
+            result.pop('visual_measurement_bindings', None)
+        return result
+
     available_targets: list[ValidationTarget] = Field(default_factory=list)
     available_metadata_fields: list[NonEmptyText] = Field(
         default_factory=list
@@ -82,7 +102,12 @@ class ExecutiveCapabilities(StrictProtocolModel):
     quantitative_checks: list[NonEmptyText] = Field(default_factory=list)
     qualitative_checks: list[NonEmptyText] = Field(default_factory=list)
     model_capabilities: list[ModelCapability] = Field(default_factory=list)
+    structured_intervention_fields: list[NonEmptyText] = Field(default_factory=list)
     sample_access: bool = False
+    image_access: bool = False
+    available_validation_methods: list[NonEmptyText] = Field(default_factory=list)
+    supported_experiment_types: list[NonEmptyText] = Field(default_factory=list)
+    limitations: list[NonEmptyText] = Field(default_factory=list)
     external_services: bool = False
     available_output_types: list[NonEmptyText] = Field(default_factory=list)
 
@@ -95,6 +120,9 @@ class ExecutiveCapabilities(StrictProtocolModel):
         "qualitative_checks",
         "model_capabilities",
         "available_output_types",
+        "available_validation_methods",
+        "supported_experiment_types",
+        "limitations",
     )
     @classmethod
     def validate_unique_lists(cls, values: list[str], info) -> list[str]:
@@ -106,6 +134,7 @@ class ExecutiveRoutingContext(StrictProtocolModel):
     run_id: SafeRunId
     dataset: DatasetSpec
     task: TaskSpec
+    dataset_profile: DatasetProfile | None = None
     audit_options: ExecutiveAuditOptions = Field(
         default_factory=ExecutiveAuditOptions
     )

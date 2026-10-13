@@ -1,0 +1,24 @@
+# This file may be used to create an environment using:
+# $ conda create --name <env> --file <this file>
+# platform: win-64
+@EXPLICIT
+https://repo.anaconda.com/pkgs/main/win-64/ca-certificates-2026.8.13-haa95532_0.conda#4f009edb3dfadbb5db5203a13eadb846
+https://repo.anaconda.com/pkgs/main/noarch/tzdata-2026c-he532380_0.conda#448fc60cd3fb615bf69e242f8aa22914
+https://repo.anaconda.com/pkgs/main/win-64/ucrt-10.0.22621.0-haa95532_0.conda#15e1b10231d7d236520501fcfb440f31
+https://repo.anaconda.com/pkgs/main/win-64/vc14_runtime-14.44.35208-h4927774_12.conda#061ea1cc93ee2dd574defcaa4e93c4e5
+https://repo.anaconda.com/pkgs/main/win-64/vc-14.3-h2df5915_12.conda#6737bfee92a331a876eadd8a2af7bc09
+https://repo.anaconda.com/pkgs/main/win-64/vs2015_runtime-14.44.35208-ha6b5a95_12.conda#74783ea081af58781a57cf9ec9b09008
+https://repo.anaconda.com/pkgs/main/win-64/bzip2-1.0.8-h2bbff1b_6.conda#33e784123d565c38e68945f07b461282
+https://repo.anaconda.com/pkgs/main/win-64/libexpat-2.8.2-hd7fb8db_1.conda#2fcb5f1e5c28132066701a82ee8728df
+https://repo.anaconda.com/pkgs/main/win-64/libffi-3.4.8-h42d73b9_3.conda#8e18977967bec00d09d85778525d661b
+https://repo.anaconda.com/pkgs/main/win-64/libzlib-1.3.2-h1c6eee0_0.conda#ffdad8ab74f765222bdf2e3473e12c76
+https://repo.anaconda.com/pkgs/main/win-64/openssl-3.5.8-hbb43b14_0.conda#5bb9e80e2b74c21e8ef015e1219f4664
+https://repo.anaconda.com/pkgs/main/win-64/sqlite-3.53.2-hee5a0db_0.conda#634ebe3c8c7aec8cf083913191b75bd1
+https://repo.anaconda.com/pkgs/main/win-64/xz-5.8.2-h53af0af_0.conda#70e604035b6c97b915114912f047fb2a
+https://repo.anaconda.com/pkgs/main/win-64/zlib-1.3.2-h1c6eee0_0.conda#5885e2a4e16e0ba2f1792f3d61ef41f9
+https://repo.anaconda.com/pkgs/main/win-64/tk-8.6.15-hf199647_0.conda#ddff7b6a72958ef802f40a735e505474
+https://repo.anaconda.com/pkgs/main/win-64/python-3.11.16-hb00fc5c_0.conda#29e1fba60a44b019288b6bc72c752568
+https://repo.anaconda.com/pkgs/main/win-64/packaging-26.3-py311haa95532_0.conda#2878b2d7b0e37b4bc29e7225773bb6ba
+https://repo.anaconda.com/pkgs/main/win-64/setuptools-83.0.0-py311haa95532_0.conda#b0323245dde21df9e22e3e4159ff9948
+https://repo.anaconda.com/pkgs/main/win-64/wheel-0.47.0-py311haa95532_0.conda#7b23413af5d472741ed48a407f8d072d
+https://repo.anaconda.com/pkgs/main/noarch/pip-26.2.1-pyhc872135_0.conda#786f51293908e5aee1a57518e298d346

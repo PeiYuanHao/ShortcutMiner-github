@@ -48,7 +48,7 @@ def test_model_and_intervention_sources_have_no_dynamic_execution_or_downloads()
         assert not imports & forbidden_imports
         assert not calls & forbidden_calls
         assert "pickle.load" not in path.read_text(encoding="utf-8")
-    assert set(TASK_MODEL_REGISTRY) == {"reference_image_linear"}
+    assert set(TASK_MODEL_REGISTRY) == {"reference_image_linear", "torchvision_resnet_matrix"}
 
 
 def test_model_reliance_backend_has_no_magic_verdict_thresholds():
@@ -63,8 +63,14 @@ def test_model_reliance_backend_has_no_magic_verdict_thresholds():
     "field",
     ["python_file", "module_path", "entrypoint", "command", "shell", "checkpoint_url"],
 )
-def test_arbitrary_model_configuration_is_rejected(field: str):
+@pytest.mark.parametrize("backend", ["reference_image_linear", "torchvision_resnet_matrix"])
+def test_arbitrary_model_configuration_is_rejected(field: str, backend: str):
     parameters = training_parameters()
+    parameters["model_backend"] = backend
+    ExperimentExecutionRequest.model_validate({
+        "run_id": "phase15-run", "candidate_id": "C001", "task_id": "TASK-C001-QT",
+        "experiment_type": "task_model_training", "parameters": parameters,
+    })
     parameters[field] = "malicious"
     with pytest.raises(ValidationError):
         ExperimentExecutionRequest.model_validate({
