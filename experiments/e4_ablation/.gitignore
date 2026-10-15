@@ -1,0 +1,14 @@
+# Keep accidental runtime outputs out of the experiment code backup.
+runs/
+outputs/
+reports/
+models/
+weights/
+datasets/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.npz
+.env
+.env.*

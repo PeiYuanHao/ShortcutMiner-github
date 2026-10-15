@@ -1,0 +1,194 @@
+{
+  "schema_version": "1.0",
+  "artifact_kind": "curated_evidence_summary_not_full_run_bundle",
+  "run_id": "case-e3-representative-v1",
+  "scope": "Development recheck on previously inspected data; not independent first-time blind confirmation.",
+  "dataset": "Oxford-IIIT Pet",
+  "task": "37-class breed classification",
+  "dataset_identity_supplied_to_agents": false,
+  "split_counts": {
+    "train": 3311,
+    "val": 369,
+    "id": 3669
+  },
+  "numeric_training_images": 3311,
+  "semantic_training_images": 148,
+  "candidate_assessments": {
+    "C001": "inconclusive",
+    "C002": "inconclusive",
+    "C003": "partially_supported",
+    "C004": "inconclusive",
+    "C005": "insufficient_evidence"
+  },
+  "validated_candidate": {
+    "id": "C003",
+    "cue": "texture and edge complexity",
+    "operation": {
+      "type": "frequency_filter",
+      "mode": "low_pass",
+      "cutoff": 0.15
+    }
+  },
+  "reserved_probe_sources": 1500,
+  "observed_pilot_pairs": 256,
+  "independent_confirmation_pairs": 2169,
+  "probe_confirmation_source_id_overlap": 0,
+  "architecture_seed_profiles": [
+    {
+      "profile": "resnet18-seed42",
+      "pair_count": 2169,
+      "original_accuracy": 0.8778238819732596,
+      "counterfactual_accuracy": 0.8054402950668511,
+      "accuracy_drop": 0.07238358690640849,
+      "prediction_flip_rate": 0.15721530659289995,
+      "prediction_flip_count": 341,
+      "original_true_class_margin_mean": 2.6878558735849674,
+      "counterfactual_true_class_margin_mean": 1.8954501799765051,
+      "logit_margin_delta": -0.7924056936084619,
+      "true_class_margin_decreased_fraction": 0.7136929460580913
+    },
+    {
+      "profile": "resnet18-seed43",
+      "pair_count": 2169,
+      "original_accuracy": 0.8893499308437067,
+      "counterfactual_accuracy": 0.8151221761180267,
+      "accuracy_drop": 0.07422775472568004,
+      "prediction_flip_rate": 0.16044260027662519,
+      "prediction_flip_count": 348,
+      "original_true_class_margin_mean": 3.067336113909633,
+      "counterfactual_true_class_margin_mean": 2.102319047888917,
+      "logit_margin_delta": -0.965017066020716,
+      "true_class_margin_decreased_fraction": 0.7349008759797142
+    },
+    {
+      "profile": "resnet18-seed44",
+      "pair_count": 2169,
+      "original_accuracy": 0.8861226371599815,
+      "counterfactual_accuracy": 0.8165053019824804,
+      "accuracy_drop": 0.06961733517750116,
+      "prediction_flip_rate": 0.15767634854771784,
+      "prediction_flip_count": 342,
+      "original_true_class_margin_mean": 3.7357469856732175,
+      "counterfactual_true_class_margin_mean": 2.6498595742193607,
+      "logit_margin_delta": -1.0858874114538568,
+      "true_class_margin_decreased_fraction": 0.7173812816966344
+    },
+    {
+      "profile": "resnet50-seed42",
+      "pair_count": 2169,
+      "original_accuracy": 0.92577224527432,
+      "counterfactual_accuracy": 0.8635315813739051,
+      "accuracy_drop": 0.06224066390041494,
+      "prediction_flip_rate": 0.119870908252651,
+      "prediction_flip_count": 260,
+      "original_true_class_margin_mean": 5.063299556298429,
+      "counterfactual_true_class_margin_mean": 3.6700565361462054,
+      "logit_margin_delta": -1.393243020152224,
+      "true_class_margin_decreased_fraction": 0.7740894421392347
+    },
+    {
+      "profile": "resnet50-seed43",
+      "pair_count": 2169,
+      "original_accuracy": 0.9220839096357769,
+      "counterfactual_accuracy": 0.8579990779160903,
+      "accuracy_drop": 0.06408483171968649,
+      "prediction_flip_rate": 0.11756569847856155,
+      "prediction_flip_count": 255,
+      "original_true_class_margin_mean": 4.49141796212214,
+      "counterfactual_true_class_margin_mean": 3.2860290359975335,
+      "logit_margin_delta": -1.2053889261246065,
+      "true_class_margin_decreased_fraction": 0.7694790225910558
+    },
+    {
+      "profile": "resnet50-seed44",
+      "pair_count": 2169,
+      "original_accuracy": 0.9276164130935916,
+      "counterfactual_accuracy": 0.8556938681420009,
+      "accuracy_drop": 0.07192254495159059,
+      "prediction_flip_rate": 0.12632549562010142,
+      "prediction_flip_count": 274,
+      "original_true_class_margin_mean": 4.759975946268325,
+      "counterfactual_true_class_margin_mean": 3.425752279823994,
+      "logit_margin_delta": -1.3342236664443314,
+      "true_class_margin_decreased_fraction": 0.7611802674043338
+    }
+  ],
+  "architecture_summary": {
+    "resnet18": {
+      "original_accuracy": {
+        "mean": 0.8844321499923159,
+        "std": 0.005946071038006158
+      },
+      "counterfactual_accuracy": {
+        "mean": 0.8123559243891195,
+        "std": 0.006028905869350841
+      },
+      "accuracy_drop": {
+        "mean": 0.07207622560319656,
+        "std": 0.0023205269510590894
+      },
+      "prediction_flip_rate": {
+        "mean": 0.15844475180574766,
+        "std": 0.0017454766699862624
+      }
+    },
+    "resnet50": {
+      "original_accuracy": {
+        "mean": 0.9251575226678961,
+        "std": 0.002817012875337835
+      },
+      "counterfactual_accuracy": {
+        "mean": 0.8590748424773321,
+        "std": 0.0040280751258894455
+      },
+      "accuracy_drop": {
+        "mean": 0.066082680190564,
+        "std": 0.00514084176538427
+      },
+      "prediction_flip_rate": {
+        "mean": 0.12125403411710466,
+        "std": 0.004540736653663485
+      }
+    }
+  },
+  "aggregate_uncertainty": [
+    {
+      "metric": "accuracy_delta",
+      "method": "percentile_bootstrap",
+      "confidence_level": 0.95,
+      "lower": -0.07886122637159981,
+      "upper": -0.05531350852927616,
+      "standard_error": 0.006511048499893084,
+      "bootstrap_iterations": 200,
+      "seed": 42,
+      "resampling_unit": "counterfactual_pair",
+      "available": true,
+      "reason_unavailable": null
+    }
+  ],
+  "source_identity": {
+    "source": {
+      "git_commit": "34c3e34ad8d249fad933f373c01a9bb998799276",
+      "dirty": true,
+      "source_tree_sha256": "5417a3bd41f189ea8cd4108752780227b3035014b08a9d771a7dfc5df77b39eb"
+    },
+    "archive_sha256": "099ed360460a2748f2952916eabb85bc27d4da54cb0c403a6ea4ca258f5cacdb"
+  },
+  "canonical_report_sha256": {
+    "audit_report.md": "6eb2acf77586419d91ea722e67aa8a0aaf47541548498f9bee428354fe6c9670",
+    "audit_report.technical.md": "82339912dd34ffb6b91d266aaf8782a6d103e21112995e9d96715db53dbd6b52",
+    "audit_report.json": "b41c7e2b3e9bed98da420829e761bc8913b7f35e230689fdca5d3fa759575b06",
+    "summarize/result.json": "1a632223d45994914f665d09f7a375cfa52d4ec29edcea273378638504a019e4"
+  },
+  "runtime_protocol_adapter": {
+    "adapter_sha256": "49b1495ece791eae188b446c8dc33529f97b56885926b1df70e85145d3eee784",
+    "hint_sha256": "b6111e5b7522f2c43cd7765e413106afd870fc31f2e1b49f5fddef8de9515b25",
+    "scope": "Protocol encoding only; no result/status/threshold coercion"
+  },
+  "limitations": [
+    "One deterministic smoothing intervention does not isolate nuisance background texture from legitimate breed texture or generic perturbation sensitivity.",
+    "Architecture/seed profiles reuse the same held-out images and do not multiply the independent sample count.",
+    "Dataset/source snapshots, weights, full predictions and image artifacts remain local; this file is not their public release.",
+    "The canonical SummaryReport inherits some earlier-stage limitations; completed execution facts were checked against final artifacts."
+  ]
+}
