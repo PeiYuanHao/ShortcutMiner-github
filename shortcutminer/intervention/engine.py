@@ -17,6 +17,7 @@ from shortcutminer.intervention.protocol import (
     CompressionTransform,
     FactorTransform,
     LuminanceTransform,
+    ChannelRatioTransform,
     RotationTransform,
     FrequencyTransform,
     GlobalColorTransform,
@@ -96,6 +97,12 @@ def _fill(array: np.ndarray, mask: np.ndarray, spec: SpatialTransform) -> np.nda
 
 
 def _transform_basic(array: np.ndarray, spec: ImageInterventionSpec) -> np.ndarray:
+    if spec.type == 'bounded_channel_ratio':
+        from shortcutminer.intervention.bounded_color import transform
+        return transform(array,spec)
+    if isinstance(spec, ChannelRatioTransform):
+        from shortcutminer.intervention.channel_ratio import transform
+        return transform(array,spec)
     if isinstance(spec, CornerPatchTransform):
         from shortcutminer.intervention.corner_patch import transform
         return transform(array, spec)

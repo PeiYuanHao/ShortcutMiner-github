@@ -14,7 +14,7 @@ from shortcutminer.protocol.identify import (
 )
 
 
-VisualSamplingStrategy = Literal["auto", "class_balanced", "random"]
+VisualSamplingStrategy = Literal["auto", "class_balanced", "random", "class_representative_v1"]
 EffectiveVisualSamplingStrategy = Literal["class_balanced", "random"]
 VisualInspectionStatus = Literal["completed", "limited", "failed"]
 VisualDescriptorName = Literal[
@@ -63,7 +63,7 @@ class VisualDiscoveryOptions(StrictProtocolModel):
             "spatial_stats",
         ]
     )
-    max_samples: int = Field(default=40, ge=1, le=100)
+    max_samples: int = Field(default=40, ge=1, le=10_000)
     max_file_bytes: int = Field(default=25_000_000, ge=1, le=100_000_000)
     max_pixels: int = Field(default=20_000_000, ge=1, le=100_000_000)
     max_frames: int = Field(default=1, ge=1, le=100)

@@ -1,8 +1,14 @@
 # Audit report export (schema 1.0)
 
-Every completed dataset audit automatically writes `audit_report.json` and
-`audit_report.md` beside the existing `final_result.json`. JSON is canonical;
-Markdown renders that same validated report. The CLI keeps its JSON stdout
+Every completed dataset audit automatically writes `audit_report.json`,
+`audit_report.md` and `audit_report.technical.md` beside the existing
+`final_result.json`. JSON is canonical; both Markdown views render that same
+validated report. The default `audit_report.md` is a concise English reader-facing
+view: conclusion counts, candidate status, actually completed checks, paired
+accuracy changes and recorded uncertainty, plus material completion limitations.
+It does not expand prediction arrays, per-image references or repeated limitations.
+Common cue names have plain-English display labels; unknown names remain unchanged.
+No new model call or scientific assessment is introduced. The CLI keeps its JSON stdout
 events and prints the report locations to stderr, including with `--no-progress`.
 
 The builder is a Python controller after the existing five Agent workflow.
@@ -30,7 +36,7 @@ risk upgrades, or new shortcut verdicts.
 | `artifacts` | Safe run-relative references, without embedded file contents |
 
 `screened_out` is a controller decision, separate from `contradicted` or any
-other SummaryReport assessment. The Markdown prominently explains:
+other SummaryReport assessment. The technical Markdown prominently explains:
 
 > Screened-out candidates were not experimentally disproved; they were terminated before expensive validation under the configured screening policy.
 
@@ -49,7 +55,7 @@ An example shape (values abbreviated):
 }
 ```
 
-The Markdown has Run Summary, Dataset, Shortcut Candidate Discovery, Candidate
+The technical Markdown retains the previous full rendering: Run Summary, Dataset, Shortcut Candidate Discovery, Candidate
 Screening, Validation Plan, Quantitative Evidence, Qualitative Evidence, Evidence
 Synthesis, Final Findings, Runtime and Cost, Model Runtime, Limitations,
 Reproducibility, and Artifact Index sections. Records retain their identifiers:
@@ -57,7 +63,13 @@ candidate → task → PlanStep/measurement → EvidenceRecord → SummaryFindin
 
 ## Availability and safety
 
-Missing values are JSON null / Markdown N/A. The builder does not query git,
+Missing values are JSON null / technical Markdown N/A; the concise view says
+unrecorded rather than inventing a value. Planned checks do not count as executed
+checks in the concise view. An executed probe with no final confirmation is
+explicitly labelled; duplicate planned operations across paired candidates are
+flagged as non-independent mechanism validation. "Supported" is displayed as
+evidence support, never upgraded to a claim of model-reliant shortcut confirmation.
+The builder does not query git,
 re-read datasets, hash the full dataset, capture a new environment snapshot,
 infer model configuration from current environment variables, estimate savings,
 or invent seeds. Historical git/version/environment/tool-budget information not
@@ -84,11 +96,13 @@ are excluded. No secret environment values are read.
 ```python
 from shortcutminer.experiment.audit_report import (
     build_audit_report, export_audit_report, render_audit_markdown,
+    render_audit_technical_markdown,
 )
 
 report = build_audit_report("runs", "audit-example")  # Read-only
-export_audit_report("runs", "audit-example")  # Replaces the two exports atomically per file
+export_audit_report("runs", "audit-example")  # Replaces the three exports atomically per file
 markdown = render_audit_markdown(report)  # Reads only the canonical model
+technical = render_audit_technical_markdown(report)
 ```
 
 Completed-run resume rebuilds missing or existing reports using persisted
@@ -97,6 +111,12 @@ byte-identical when those artifacts are unchanged. If report I/O fails after
 scientific completion, the finalized completed run remains recoverable; retry
 completed-run resume or the export API after resolving the I/O problem.
 Partial failed-run reports are outside this step.
+
+Historical reports are not migrated automatically. To preview the concise view
+without changing retained scientific evidence, load the existing canonical JSON
+as `AuditReport`, render it to `audit_report.readable.md`, and point its technical
+link to the historical `audit_report.md`. This adds a display derivative only;
+the old Markdown, canonical JSON, SummaryReport and source snapshot stay intact.
 
 ## Offline manual acceptance
 

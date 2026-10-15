@@ -14,18 +14,20 @@ from PIL import Image,ImageDraw
 from pydantic import Field,model_validator
 from shortcutminer.protocol.identify import StrictProtocolModel,CandidateId,NonEmptyText
 from shortcutminer.protocol.model_runtime import ModelImageInput
-from shortcutminer.intervention.protocol import AutonomousImageTransform,GlobalColorTransform,LuminanceTransform
+from shortcutminer.intervention.protocol import AutonomousImageTransform,LegacyAutonomousImageTransform,GlobalColorTransform,LuminanceTransform,ChannelRatioTransform
+from shortcutminer.experiment.channel_ratio_calibration import ChannelRatioCalibrationChoice,calibrate_channel_ratio
 from shortcutminer.intervention.engine import InterventionEngine
 from shortcutminer.inspection.image import load_rgb_image_file
 from shortcutminer.experiment.luminance_calibration import LuminanceCalibrationChoice,calibrate_luminance,training_images
 from shortcutminer.experiment.agent_workspace import load_agent_workspace_prompt
 from shortcutminer.experiment.shortcut_knowledge import load_shortcut_knowledge
+from shortcutminer.experiment.construction_quality import POLICY as REVIEW_POLICY, BoundedRatioChoice
 
 class ConstructionProposal(StrictProtocolModel):
     status:Literal['selected','deferred']
     candidate_id:CandidateId
     descriptor_key:NonEmptyText
-    transformation:AutonomousImageTransform|GlobalColorTransform|None=None
+    transformation:LegacyAutonomousImageTransform|GlobalColorTransform|None=None
     luminance_calibration:LuminanceCalibrationChoice|None=None
     rationale:NonEmptyText
     intended_invariants:list[NonEmptyText]=Field(min_length=1)
@@ -39,6 +41,42 @@ class ConstructionProposal(StrictProtocolModel):
             raise ValueError('Use training calibration for normalization or reflection, not guessed target/pivot values')
         return self
 
+
+class AlignedConstructionProposal(ConstructionProposal):
+    transformation:AutonomousImageTransform|GlobalColorTransform|None=None
+    channel_ratio_calibration:ChannelRatioCalibrationChoice|None=None
+
+    @model_validator(mode='after')
+    def one_recipe(self):
+        n=sum(v is not None for v in (self.transformation,self.luminance_calibration,self.channel_ratio_calibration))
+        if n!=(1 if self.status=='selected' else 0):raise ValueError('Selected: exactly one recipe; deferred: no recipe')
+        if isinstance(self.transformation,ChannelRatioTransform):
+            raise ValueError('Use channel_ratio_calibration, not guessed ratio centers')
+        if isinstance(self.transformation,LuminanceTransform) and self.transformation.mode!='offset':
+            raise ValueError('Use luminance_calibration, not guessed target/pivot values')
+        return self
+
+
+class ScalarChromaticityProposal(AlignedConstructionProposal):
+    """Expose only executable color operations for a non-ratio primary target."""
+    transformation:GlobalColorTransform|None=None
+    luminance_calibration:None=None
+    channel_ratio_calibration:None=None
+
+
+class ReviewedConstructionProposal(AlignedConstructionProposal):
+    channel_ratio_calibration:BoundedRatioChoice|None=None
+    mechanism_scope:Literal['global_illumination','global_color_cast','background','foreground','spatial_artifact','texture','acquisition','other']
+    mechanism_test:NonEmptyText
+    remaining_confounds:list[NonEmptyText]=Field(min_length=1)
+    training_selection_criteria:NonEmptyText
+
+
+class ReviewedScalarProposal(ReviewedConstructionProposal):
+    transformation:GlobalColorTransform|None=None
+    luminance_calibration:None=None
+    channel_ratio_calibration:None=None
+
 class VisualConstructionReview(StrictProtocolModel):
     status:Literal['supported','unverified','failed']
     reviewed_pair_ids:list[NonEmptyText]=Field(min_length=1)
@@ -51,6 +89,13 @@ class ConstructionDecision(StrictProtocolModel):
     decision:Literal['accept','revise','defer']
     rationale:NonEmptyText
     limitations:list[NonEmptyText]=Field(min_length=1)
+
+
+class VisualConstructionReviewV2(VisualConstructionReview):
+    mechanism_specificity:Literal['targeted','partial','unsupported']
+    task_preservation:Literal['supported','uncertain','damaged']
+    recommended_action:Literal['accept_scoped','revise','defer']
+    preservation_risks:list[NonEmptyText]=Field(min_length=1)
 
 def _hash(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,allow_nan=False).encode()).hexdigest()
@@ -72,11 +117,15 @@ def _freeze(path,value):
     _write(path,value)
     return value
 
-def preview_construction(operation,resources,root,directory,*,limit=12):
+def preview_construction(operation,resources,root,directory,*,limit=12,quality_policy=None):
     """Persist actual training pairs and report changes without semantic pass claims."""
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     records=[];pictures=[]
-    for index,(ref,path) in enumerate(training_images(resources,root,limit=limit)):
+    sources=training_images(resources,root,limit=limit)
+    if quality_policy is not None:
+        from shortcutminer.experiment.construction_quality import preview_sources
+        sources=preview_sources(operation,resources,root)
+    for index,(ref,path) in enumerate(sources):
         before=load_rgb_image_file(path).rgb
         suffix='.jpg' if operation.type=='compression' else '.png'
         changed_path=directory/(f'pair-{index:03d}-changed'+suffix)
@@ -97,6 +146,10 @@ def preview_construction(operation,resources,root,directory,*,limit=12):
             centered_y_mean_absolute_difference=float(np.abs(centered_a-centered_b).mean()),
             spatial_y_correlation=float(np.corrcoef(centered_a.ravel(),centered_b.ravel())[0,1])
                 if centered_a.std()>0 and centered_b.std()>0 else None)
+        if quality_policy is not None:
+            from shortcutminer.experiment.construction_quality import pixel_diagnostics
+            records[-1].update(pixel_diagnostics(before,after))
+            records[-1]['preview_selection']='seeded_random' if index<8 else 'training_target_extreme'
         pictures.append((Image.fromarray(before),Image.fromarray(after)))
     if not records or not all(r['same_dimensions'] for r in records):raise ValueError('No valid training pairs')
     if not any(r['changed_pixel_fraction']>0 for r in records):raise ValueError('Proposed transform is a no-op on training previews')
@@ -110,9 +163,11 @@ def preview_construction(operation,resources,root,directory,*,limit=12):
     return records,sheet_path
 
 def select_autonomous_construction(client,vision_client,*,run_id,candidates,observations,descriptor_keys,
-        resources,root,receipt_path,task_description,training_diagnostics=None,max_revisions=2):
+        resources,root,receipt_path,task_description,training_diagnostics=None,max_revisions=2,measurement_binding=None,quality_policy=None):
     """Quantitative selects; Qualitative sees paired pixels; Executive authorizes."""
     if max_revisions not in {0,1,2}:raise ValueError('Construction revisions bounded to 0..2')
+    if quality_policy not in {None,REVIEW_POLICY}:raise ValueError('Unknown construction quality policy')
+    if quality_policy and measurement_binding is None:raise ValueError('Reviewed construction requires a frozen measurement')
     receipt_path=Path(receipt_path)
     # Resume validates data, proposal inputs and all saved preview pixels before reusing authority.
     source_hashes={ref:hashlib.sha256(path.read_bytes()).hexdigest() for ref,path in training_images(resources,root)}
@@ -131,9 +186,36 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
            'reporting':'Prediction-margin changes are auxiliary sensitivity diagnostics, never a substitute for the frozen accuracy-drop certification.'},
        'training_input_hash':_hash(source_hashes),'training_sample_count':len(source_hashes),
        'construction_metadata_sha256':hashlib.sha256(metadata_path.read_bytes()).hexdigest()}
+    contract=None
+    proposal_schema=ConstructionProposal
+    if measurement_binding is not None:
+        from shortcutminer.experiment.intervention_alignment import binding_contract
+        contract=binding_contract(measurement_binding)
+        proposal_schema=AlignedConstructionProposal
+        if contract['measurement_axis']=='chromaticity' and 'channel_ratio' not in contract['eligible_operation_types']:
+            proposal_schema=ScalarChromaticityProposal
+        base['response_schema']=proposal_schema.model_json_schema()
+        if 'channel_ratio' in (contract['eligible_operation_types'] or []):
+            base['recipe_encoding']['calibrated_channel_ratio']={'transformation':None,'luminance_calibration':None,
+                'channel_ratio_calibration':{'mode':'normalize_mean or reflect_log_ratio','strategy':'pooled_median or pooled_mean'},
+                'scope':'Only a frozen ratio of RGB channel means. Channels come from the measurement; Python fits the center from positive pooled training means in log space. Never send identity channel scales as placeholders for calibration.'}
+        elif contract['measurement_axis']=='chromaticity':
+            base['primary_chromaticity_guidance']='The primary measurement is not an RGB mean ratio. channel_ratio_calibration is unavailable for this binding: leave it null. For saturation_mean, supported global_color desaturate/grayscale operations can directly change saturation. Select a supported mode and complete its parameters, subject to actual paired visual review; do not substitute a different measured axis.'
+        base['recipe_encoding']['rule']='Choose exactly one recipe branch. Photometry normalization/reflection uses luminance_calibration; RGB channel-ratio normalization/reflection uses channel_ratio_calibration. Numeric centers are fitted by Python from training pixels only. Other operations require a complete supported transform.'
+        base['measurement_intervention_contract']=contract
+        base['primary_target_guidance']='Select an operation eligible for the frozen measured axis. Luminance normalization is not a primary chromaticity test. A global pixel change is insufficient: the frozen primary descriptor must change on training previews. Invalid proposals receive training-only revision feedback within the existing budget. Defer unsupported targets; do not change the frozen measurement or use predictions to choose.'
+    if quality_policy:
+        proposal_schema=ReviewedScalarProposal if proposal_schema is ScalarChromaticityProposal else ReviewedConstructionProposal
+        base['response_schema']=proposal_schema.model_json_schema()
+        base['construction_quality_policy']=quality_policy
+        base['mechanism_scope_guidance']='Specify the mechanism tested, remaining confounds and training-only selection criteria. Global illumination, global color cast, natural subject color and background color are distinct. Whole-image transforms do not isolate background/foreground. A frozen scalar measurement tests only part of a broad hypothesis. Do not relabel subject coloration as a proven nuisance. Background-only hypotheses require an authorized segmentation-backed tool; none is silently substituted in this generic entry, so defer unsupported isolation.'
+        base['training_preview_policy']='8 fixed-seed random training images + 4 primary-target extremes; no labels, held-out pixels or model outcomes select previews. Qualitative must examine all pairs for lost details, severe color casts and clipping. Revise damaged/unsupported constructions within the existing 3 attempts; do not select the strongest corruption.'
+        if 'channel_ratio' in (contract['eligible_operation_types'] or []):
+            base['recipe_encoding']['calibrated_channel_ratio']['channel_ratio_calibration']['max_log_shift']='Agent-selected positive bound <= log(4), justified from training appearance; no outcome tuning'
+            base['recipe_encoding']['calibrated_channel_ratio']['scope']+=' In this version the executable operator is bounded_channel_ratio: per-pixel luminance-preserving chroma change with gamut compression, not the legacy reciprocal clipped RGB operator. Target may be partial; actual preview measurement required.'
     identity=_hash(base)
     if receipt_path.exists():
-        saved=json.loads(receipt_path.read_text())
+        saved=json.loads(receipt_path.read_text(encoding='utf-8'))
         if saved.get('receipt_hash')!=_hash({k:v for k,v in saved.items() if k!='receipt_hash'}):
             raise ValueError('Frozen construction receipt changed')
         if saved['input_hash']!=identity:raise ValueError('Frozen construction identity changed')
@@ -144,7 +226,7 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
     feedback=[];remaining=list(candidates)
     for attempt in range(max_revisions+1):
         payload={**base,'frozen_candidates':remaining,'feedback':feedback}
-        proposal=_invoke_typed(client,'quantitative',payload,ConstructionProposal,
+        proposal=_invoke_typed(client,'quantitative',payload,proposal_schema,
           load_agent_workspace_prompt('quantitative')+' ConstructionProposal JSON only. Select a currently evidenced nuisance hypothesis and supported recipe. Numeric Y targets/pivots must be fitted by luminance_calibration. A lack of perfect semantic proof alone is not a reason to abandon a scoped diagnostic; disclose uncertainty. Do not guess task labels or certify content preservation.')
         if proposal.candidate_id not in {c['candidate_id'] for c in remaining}:raise ValueError('Proposal changed frozen candidate identity')
         if proposal.descriptor_key not in descriptor_keys:raise ValueError('Unavailable measured descriptor')
@@ -154,20 +236,60 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
             feedback.append({'candidate_deferral':proposal.model_dump(mode='json')})
             if remaining:continue
             break
+        if contract is not None:
+            from shortcutminer.experiment.intervention_alignment import validate_operation
+            ratio_choice=getattr(proposal,'channel_ratio_calibration',None)
+            symbolic_operation=({'type':'channel_ratio','numerator_channel':contract['descriptor_key'].removeprefix('rgb_mean_'),
+                'denominator_channel':(contract.get('denominator_key') or '').removeprefix('rgb_mean_')}
+                if ratio_choice is not None else {'type':'luminance'} if proposal.luminance_calibration is not None
+                else proposal.transformation.model_dump(mode='json'))
+            try:
+                validate_operation(contract,proposal.candidate_id,proposal.descriptor_key,symbolic_operation)
+            except ValueError as error:
+                feedback.append({'measurement_alignment_error':str(error),'prior_proposal':proposal.model_dump(mode='json')})
+                continue
         calibration=None;operation=proposal.transformation
         if proposal.luminance_calibration is not None:
             calibration=calibrate_luminance(proposal.luminance_calibration,resources,root)
             operation=LuminanceTransform.model_validate(calibration['transformation'])
+        if getattr(proposal,'channel_ratio_calibration',None) is not None:
+            try:
+                if quality_policy:
+                    from shortcutminer.experiment.construction_quality import calibrate_bounded_ratio
+                    from shortcutminer.intervention.protocol import BoundedChannelRatioTransform
+                    calibration=calibrate_bounded_ratio(proposal.channel_ratio_calibration,contract,resources,root)
+                    operation=BoundedChannelRatioTransform.model_validate(calibration['transformation'])
+                else:
+                    calibration=calibrate_channel_ratio(proposal.channel_ratio_calibration,contract,resources,root)
+                    operation=ChannelRatioTransform.model_validate(calibration['transformation'])
+            except ValueError as error:
+                feedback.append({'construction_error':str(error),'prior_proposal':proposal.model_dump(mode='json')})
+                continue
         try:
-            records,sheet=preview_construction(operation,resources,root,receipt_path.parent/f'preview-{attempt}')
+            records,sheet=preview_construction(operation,resources,root,receipt_path.parent/f'preview-{attempt}',quality_policy=quality_policy)
         except ValueError as error:
             feedback.append({'construction_error':str(error),'prior_proposal':proposal.model_dump(mode='json')})
             continue
+        target_check=None
+        if contract is not None:
+            from shortcutminer.experiment.intervention_alignment import measure_preview_target
+            target_check=measure_preview_target(contract,records,Path(root),sheet.parent)
+            _write(receipt_path.parent/f'measurement-check-{attempt}.json',target_check)
+            if target_check['status']!='measured_change':
+                feedback.append({'measurement_alignment_error':'The primary target did not measurably change on training previews. Revise the operation or defer; this is not absence of a shortcut.',
+                                 'target_measurement_check':target_check,'prior_proposal':proposal.model_dump(mode='json')})
+                continue
+        visual_schema=VisualConstructionReviewV2 if quality_policy else VisualConstructionReview
         visual_input={'run_id':run_id,'mode':'construction_visual_review','task':task_description,'candidate_id':proposal.candidate_id,
            'candidate':next(c for c in candidates if c['candidate_id']==proposal.candidate_id),
            'transformation':operation.model_dump(mode='json'),'training_pairs':records,
-           'response_schema':VisualConstructionReview.model_json_schema(),
+           'response_schema':visual_schema.model_json_schema(),
            'display':'Pairs in row order, original left and changed right. Labels/padding are display annotations, not image evidence.'}
+        if target_check is not None:
+            visual_input['target_measurement_check']=target_check
+        if quality_policy:
+            visual_input['mechanism_contract']={k:proposal.model_dump(mode='json')[k] for k in ('mechanism_scope','mechanism_test','remaining_confounds','training_selection_criteria')}
+            visual_input['quality_review_instruction']='Review every pair including target extremes. Distinguish nuisance changes from legitimate subject/scene colors. Severe color casts, lost task details or unsupported mechanism isolation require revise/defer. Uncertain semantics may support only a limited scoped diagnostic, never causality. Pixel diagnostics are descriptive; no new scientific threshold is applied.'
         if isinstance(operation,LuminanceTransform):
             means=np.asarray([[r['original_mean_y'],r['changed_mean_y']] for r in records])
             visual_input['cue_execution_check']={'scope':'training_preview_only_no_model_outcomes',
@@ -179,18 +301,23 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
         with Image.open(sheet) as decoded:width,height=decoded.size
         image_input=ModelImageInput(sample_id='construction-training-pairs',sample_reference=sheet.name,
             image_sha256=hashlib.sha256(data).hexdigest(),mime_type='image/png',width=width,height=height)
-        visual=VisualConstructionReview.model_validate(vision_client.invoke_multimodal(run_id=run_id,agent_name='qualitative',
+        visual=visual_schema.model_validate(vision_client.invoke_multimodal(run_id=run_id,agent_name='qualitative',
             payload_for_hash=visual_input,system_prompt=load_agent_workspace_prompt('qualitative')+' In construction_visual_review mode return only VisualConstructionReview JSON. Inspect actual original/changed pairs. Report whether the candidate cue was changed and task content remains visible, including clipping, borders and missing structure. A global pixel change fraction is not evidence that semantics were destroyed. Visual judgment is not ground truth; use unverified when uncertain.',
             content_parts=[{'type':'text','text':json.dumps(visual_input)},
               {'type':'image_url','image_url':{'url':'data:image/png;base64,'+base64.b64encode(data).decode(),'detail':'high'}}],
-            validator=lambda v:VisualConstructionReview.model_validate(v),image_inputs=[image_input]))
+            validator=lambda v:visual_schema.model_validate(v),image_inputs=[image_input]))
         if len(set(visual.reviewed_pair_ids))!=len(visual.reviewed_pair_ids) or not set(visual.reviewed_pair_ids).issubset({r['pair_id'] for r in records}):
             raise ValueError('Visual review cites unavailable pairs')
+        if quality_policy and (set(visual.reviewed_pair_ids)!={r['pair_id'] for r in records} or visual.task_preservation=='damaged' or visual.mechanism_specificity=='unsupported' or visual.recommended_action!='accept_scoped'):
+            feedback.append({'quality_review_requires_revision':visual.model_dump(mode='json'),'prior_proposal':proposal.model_dump(mode='json')})
+            continue
         decision_input={'run_id':run_id,'mode':'construction_semantic_review','task':task_description,'proposal':proposal.model_dump(mode='json'),
           'fitted_transformation':operation.model_dump(mode='json'),'visual_review':visual.model_dump(mode='json'),
           'pixel_diagnostics':records,'response_schema':ConstructionDecision.model_json_schema(),
           'scope':'Training-only diagnostic authorization; no task-model predictions or held-out outcomes'}
         decision_input['cue_execution_check']=visual_input.get('cue_execution_check')
+        if target_check is not None:
+            decision_input['target_measurement_check']=target_check
         decision=_invoke_typed(client,'executive',decision_input,ConstructionDecision,
            load_agent_workspace_prompt('executive')+' ConstructionDecision JSON only. Use the actual Qualitative paired-image review and pixel diagnostics. Global changes are expected for a global cue; never reject solely because most pixels changed. Consider lost class evidence, clipping, cue specificity and scope. An unverified semantic status can authorize a limited dependence diagnostic with retained limitations; it cannot authorize a causal claim. A failed visual review must not be accepted.')
         _write(receipt_path.parent/f'construction-review-{attempt}.json',{'visual':visual.model_dump(mode='json'),'executive':decision.model_dump(mode='json'),'input':decision_input})
@@ -203,6 +330,8 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
                 'training_source_hashes':source_hashes,
                 'construction_metadata_sha256':base['construction_metadata_sha256'],
                 'preview_file_hashes':{p.relative_to(receipt_path.parent).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sheet.parent.iterdir() if p.is_file()}}
+            if target_check is not None: saved['measurement_alignment']=target_check
+            if quality_policy:saved['construction_quality_policy']=quality_policy
             return _freeze(receipt_path,saved)
         feedback.append({'visual_review':visual.model_dump(mode='json'),'executive_review':decision.model_dump(mode='json'),
                          'prior_proposal':proposal.model_dump(mode='json')})

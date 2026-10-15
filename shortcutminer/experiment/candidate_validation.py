@@ -151,6 +151,14 @@ def prepare_candidate_complete_view(plan_receipt, constructions, *, discovery_ro
                 plan_receipt['training_source_hashes'].get(ref) != h for ref,h in receipt['training_source_hashes'].items()):
             raise ValueError('Construction and measurement planning used different training inputs')
         spec = next(s for s in plan.measurements if s.candidate_id == candidate)
+        if receipt.get('measurement_alignment') is not None:
+            from shortcutminer.experiment.intervention_alignment import binding_contract, validate_operation
+            check=receipt['measurement_alignment']; expected=binding_contract(spec.model_dump(mode='json'))
+            if check.get('binding')!=expected or check.get('status')!='measured_change' or not any(
+                    p.get('before') is not None and p.get('after') is not None and p['before']!=p['after']
+                    for p in check.get('pairs', [])):
+                raise ValueError('Intervention target check does not match the frozen measurement')
+            validate_operation(expected,candidate,receipt['proposal']['descriptor_key'],receipt['transformation'])
         if (receipt['status'] != 'selected' or receipt.get('truth_seen') or receipt.get('heldout_seen') or
             receipt['proposal']['candidate_id'] != candidate or receipt['proposal']['descriptor_key'] != spec.measurement_key or
             plan_receipt['resolutions'][candidate]['status'] != 'ready_for_cheap_checks'):

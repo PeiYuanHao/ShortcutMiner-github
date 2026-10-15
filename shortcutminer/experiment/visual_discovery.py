@@ -94,13 +94,13 @@ def _metadata_records(
         profile.labels.validity == "valid"
         and request.task.label_column in loaded.dataframe.columns
     )
-    if options.sampling_strategy == "class_balanced" and not label_available:
+    if options.sampling_strategy in {"class_balanced", "class_representative_v1"} and not label_available:
         raise VisualDiscoveryError(
             "class_balanced visual sampling requires an available label column"
         )
     strategy = (
         "class_balanced"
-        if options.sampling_strategy in {"auto", "class_balanced"} and label_available
+        if options.sampling_strategy in {"auto", "class_balanced", "class_representative_v1"} and label_available
         else "random"
     )
     if not label_available:
@@ -383,10 +383,11 @@ def _semantic_status(
         samples=samples,
     )
     try:
-        returned = inspector.inspect(
-            dataset_root=request.dataset.root,
-            request=semantic_request,
-        )
+        if options.sampling_strategy == 'class_representative_v1':
+            from shortcutminer.experiment.representative_discovery import inspect_representative
+            returned = inspect_representative(inspector, request, observations)
+        else:
+            returned = inspector.inspect(dataset_root=request.dataset.root, request=semantic_request)
         parsed = [
             item if isinstance(item, SemanticObservation) else SemanticObservation.model_validate(item)
             for item in returned

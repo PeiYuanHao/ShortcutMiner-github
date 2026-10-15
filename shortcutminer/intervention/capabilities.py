@@ -1,5 +1,5 @@
 """Shared renderer/paired-runtime capability checks, never shortcut conclusions."""
-GENERAL_IMAGE_TYPES = frozenset({'brightness','contrast','luminance','rotation','frequency_filter','blur','noise','compression','resolution'})
+GENERAL_IMAGE_TYPES = frozenset({'brightness','contrast','luminance','channel_ratio','bounded_channel_ratio','rotation','frequency_filter','blur','noise','compression','resolution'})
 LEGACY_COLOR_MODES = frozenset({'cycle_rgb','swap_red_green','grayscale_max'})
 
 def general_image_constructor(spec):

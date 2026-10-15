@@ -95,6 +95,27 @@ class RotationTransform(StrictProtocolModel):
     padding: Literal['reflect'] = 'reflect'
 
 
+class ChannelRatioTransform(StrictProtocolModel):
+    """Frozen training center; per-image gains act on the selected channel ratio."""
+    type: Literal['channel_ratio']
+    mode: Literal['normalize_mean','reflect_log_ratio']
+    numerator_channel: Literal['red','green','blue']
+    denominator_channel: Literal['red','green','blue']
+    center_ratio: float = Field(gt=0, allow_inf_nan=False)
+
+    @model_validator(mode='after')
+    def distinct_channels(self):
+        if self.numerator_channel==self.denominator_channel:
+            raise ValueError('Channel ratio needs distinct channels')
+        return self
+
+
+class BoundedChannelRatioTransform(ChannelRatioTransform):
+    """Opt-in luminance-preserving, gamut-compressed chromatic diagnostic."""
+    type: Literal['bounded_channel_ratio']
+    max_log_shift: float = Field(gt=0, le=1.3862943611198906)
+
+
 class FrequencyTransform(StrictProtocolModel):
     type: Literal['frequency_filter']
     mode: Literal['low_pass', 'high_pass']
@@ -219,6 +240,8 @@ ImageInterventionSpec: TypeAlias = Annotated[
     | FactorTransform
     | LuminanceTransform
     | RotationTransform
+    | ChannelRatioTransform
+    | BoundedChannelRatioTransform
     | FrequencyTransform
     | BlurTransform
     | NoiseTransform
@@ -234,10 +257,11 @@ ImageInterventionSpec: TypeAlias = Annotated[
 
 # Image-only deterministic constructors usable by the autonomous paired path.
 # Segmentation and external-pair recipes retain their separate authority checks.
-AutonomousImageTransform: TypeAlias = (
+LegacyAutonomousImageTransform: TypeAlias = (
     SpatialTransform | FactorTransform | LuminanceTransform | RotationTransform |
     FrequencyTransform | BlurTransform | NoiseTransform | CompressionTransform | ResolutionTransform
 )
+AutonomousImageTransform: TypeAlias = LegacyAutonomousImageTransform | ChannelRatioTransform
 
 
 class InterventionQuality(StrictProtocolModel):

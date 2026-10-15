@@ -68,6 +68,9 @@ def execute(request,text_client,vision_client,root,runs_root,vlm_config,identify
     clients=dict(agent_client=text_client,identify_client=identify or text_client,
         qualitative_client=QualitativeMultimodalClient(vision_client,root,max_images=40,contact_sheet=True,runs_root=runs_root),tool_runtimes=tools,
         semantic_inspector=OpenAICompatibleSemanticVisualInspector(vision_client))
+    if request.identify_config.get('visual_discovery',{}).get('sampling_strategy')=='class_representative_v1':
+        clients['semantic_inspector'].coverage_client=text_client
+        clients['semantic_inspector'].coverage_runs_root=runs_root
     if resume:resume_run(request.run_id,runs_root=runs_root,**clients)
     else:run(request,**clients)
     if json.loads((directory/'run.json').read_text())['status']!='COMPLETED':raise RuntimeError('Audit did not complete; inspect saved run diagnostics')

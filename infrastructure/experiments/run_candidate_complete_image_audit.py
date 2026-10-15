@@ -18,6 +18,7 @@ from shortcutminer.protocol.audit import AuditRequest
 from shortcutminer.protocol.model import ModelRuntimeConfigSet
 from shortcutminer.protocol.run import RunRequest
 from shortcutminer.runtime.evidence_context import EvidenceContextClient
+from shortcutminer.experiment.intervention_alignment import VERSION as ALIGNMENT_POLICY
 
 
 def main():
@@ -31,6 +32,7 @@ def main():
     parser.add_argument('--vlm-max-tokens', type=int, default=8192)
     parser.add_argument('--isolated-discovery', action='store_true')
     parser.add_argument('--validation', action='store_true', required=True)
+    parser.add_argument('--representative-review', action='store_true', help='Opt in to class-representative-v1 observation and training-construction-review-v2; legacy defaults unchanged')
     args = parser.parse_args()
     if not 2048 <= args.vlm_max_tokens <= 32768:
         parser.error('VLM output budget must be2048..32768')
@@ -55,6 +57,11 @@ def main():
             'visual_discovery':{'enabled':True,'sample_id_column':'img_id','sample_path_column':'img_filename','split_column':'split','selected_split':'train','max_samples':40,'semantic_enabled':True},
             'research_policy':knowledge['research']}
         value['qualitative_config'] = label_group_preparation('y')
+        if args.representative_review:
+            if len(public)>10000:raise ValueError('Representative discovery exceeds the 10,000-image numeric budget')
+            value['identify_config']['budget']['max_samples']=len(public)
+            value['identify_config']['visual_discovery'].update(sampling_strategy='class_representative_v1',
+                max_samples=len(public),max_total_inspection_bytes=500_000_000)
         request = RunRequest.model_validate(value)
         initial = legacy.execute(request, client, vision, args.input, args.runs_root, vlm)
         report = json.loads((initial/'identify/output.json').read_text(encoding='utf-8'))
@@ -80,7 +87,9 @@ def main():
                 candidates=[candidate], observations=[o for o in observations if o.get('candidate_id')==cid],
                 descriptor_keys=[spec.measurement_key], resources=resources, root=args.input,
                 receipt_path=control/cid/'construction.json', task_description=args.task,
-                training_diagnostics={'measurement':spec.model_dump(mode='json'), 'resolution':resolution})
+                training_diagnostics={'measurement':spec.model_dump(mode='json'), 'resolution':resolution},
+                measurement_binding=spec.model_dump(mode='json'),
+                quality_policy='training-construction-review-v2' if args.representative_review else None)
             outcomes[cid] = {'status':receipt['status'],'receipt_hash':receipt['receipt_hash'],
                 'reason':receipt.get('reason','Training-only paired review accepted.')}
             if receipt['status']=='selected': accepted[cid] = receipt
@@ -109,10 +118,14 @@ def main():
             'qualitative_metadata_policy':'candidate-bound-v2','required_quantitative_checks':['association_test']}}
         value['metadata'].update(knowledge_policy=knowledge['learning'],promotion_policy=profile['promotion_policy'],
             source_policy='user_authorized_current_source_snapshot',candidate_validation_policy=POLICY,
+            measurement_alignment_policy=ALIGNMENT_POLICY,
             measurement_plan_hash=plan_receipt['record_hash'],construction_outcomes=outcomes,
             discovery_report_sha256=legacy.sha(initial/'identify/output.json'),data_view_input_hash=legacy.sha(view/'binding_manifest.json'),
             paper_protocol={'confirmatory_blind_evidence':False,'isolated_discovery':args.isolated_discovery,'hidden_truth_used':False,
                 'intervention_owner':'quantitative_agent','actual_paired_visual_review':True})
+        if args.representative_review:
+            value['metadata'].update(discovery_coverage_policy='class-representative-v1',
+                construction_quality_policy='training-construction-review-v2')
         request = RunRequest.model_validate(value)
         raw = json.loads((initial/'identify/raw_output.json').read_text(encoding='utf-8'))
         directory = legacy.execute(request,client,vision,view,args.runs_root,vlm,legacy.FrozenIdentifyReplay(raw))

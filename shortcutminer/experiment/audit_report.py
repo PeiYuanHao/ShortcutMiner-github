@@ -349,6 +349,12 @@ def build_audit_report(runs_root: str | Path, run_id: str) -> AuditReport:
 
 
 def render_audit_markdown(report: AuditReport) -> str:
+    """Render the bounded reader-facing default from canonical evidence."""
+    from shortcutminer.experiment.audit_readable import render_readable_audit
+    return render_readable_audit(report)
+
+
+def render_audit_technical_markdown(report: AuditReport) -> str:
     """Render only the canonical report; never read other artifacts."""
     data = report.model_dump(mode="json")
     sections = ["# ShortcutMiner Audit Report", "", "Scientific authority: EvidenceLedger + SummaryReport.", ""]
@@ -393,19 +399,21 @@ def export_audit_report(runs_root: str | Path, run_id: str) -> AuditReport:
     """Idempotently write JSON and Markdown from one validated canonical model."""
     report = build_audit_report(runs_root, run_id)
     root = get_run_dir(runs_root, run_id)
-    for name in ("audit_report.json", "audit_report.md"):
+    for name in ("audit_report.json", "audit_report.md", "audit_report.technical.md"):
         if _relative(root, name) is None:
             raise AuditReportError("Unsafe report output path")
     atomic_write_json(root / "audit_report.json", report.model_dump(mode="json"), error_type=AuditReportError)
-    temp = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=root, suffix=".tmp", delete=False) as file:
-            temp = Path(file.name)
-            file.write(render_audit_markdown(report))
-            file.flush()
-            os.fsync(file.fileno())
-        os.replace(temp, root / "audit_report.md")
-    finally:
-        if temp is not None:
-            temp.unlink(missing_ok=True)
+    for name, render in (("audit_report.md", render_audit_markdown),
+                         ("audit_report.technical.md", render_audit_technical_markdown)):
+        temp = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=root, suffix=".tmp", delete=False) as file:
+                temp = Path(file.name)
+                file.write(render(report))
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp, root / name)
+        finally:
+            if temp is not None:
+                temp.unlink(missing_ok=True)
     return report

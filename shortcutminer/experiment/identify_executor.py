@@ -129,6 +129,16 @@ def build_identify_agent_payload(
     }
     if context.visual_discovery is not None:
         payload["hypothesis_coverage_context"] = hypothesis_coverage_context(context.visual_discovery)
+        if context.visual_discovery.options.sampling_strategy == 'class_representative_v1':
+            visual = payload['discovery_context']['visual_discovery']
+            rows = visual.pop('sample_observations')
+            semantic_ids = {o['sample_id'] for o in visual['semantic']['observations']}
+            visual['sample_observations'] = [
+                {k:v for k,v in r.items() if k not in {'descriptors','warnings','limitations'}}
+                for r in rows if r['sample_id'] in semantic_ids]
+            visual['numeric_context_delivery'] = {
+                'policy':'class-representative-v1', 'numeric_decoded_count':context.samples_inspected,
+                'instruction':'All decoded training images contribute to group means/stds and descriptor differences. Per-image numeric rows remain in the canonical artifact. Semantic observations cover only the explicitly sampled subset, not every numerically scanned image. State candidate support counts and distinguish scene/subject variation from nuisance mechanisms. Do not infer a shortcut from descriptive differences alone.'}
     return payload
 
 

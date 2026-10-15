@@ -20,6 +20,40 @@ Recorded: 2026-10-08. The user explicitly requested preserving these changes for
 
 ## Evidence available versus still needed
 
+- Retained complete E3 development recheck:
+  `runs/e3-representative-20261014/case-e3-representative-v1`. The actual Summarize
+  Agent gives the new texture/edge C003 **partially_supported**. Conditional
+  expansion completed ResNet18/ResNet50 at seeds 42/43/44; 2,169 final pairs are
+  disjoint from reserved probe IDs. Architecture mean drops are 7.21 ± 0.23 pp
+  and 6.61 ± 0.51 pp (seed SD, shared samples). This demonstrates scoped
+  intervention dependence, not clean nuisance-texture causality or independent
+  blind confirmation. See the retained execution-review and corrected readable
+  report before quoting numbers. The raw SummaryReport also inherits some
+  discovery-stage limitations; completed model/prediction facts must be checked
+  against the actual final artifacts rather than those stale phase statements.
+
+- Added opt-in class-representative-v1 observation (full bounded training numeric
+  scan and Agent-budgeted 4/8/12 semantic images per class), plus training-only
+  construction-review-v2 with random/extreme paired previews, explicit mechanism
+  scope, artifact diagnostics and damage/unsupported-operation rejection. A
+  separate bounded color-ratio operator preserves float RGB luminance and
+  compresses chroma into gamut. This is implementation evidence, not a confirmed
+  shortcut or a claim of improved discovery rates. Scientific gates and adaptive
+  model budgets remain unchanged. See
+  `representative-discovery-and-construction-review.md` for limits and opt-in use.
+
+- Added opt-in primary measurement/intervention alignment after E3 exposed a
+  chromaticity candidate receiving a luminance operation. The new check binds
+  the frozen descriptor axis to an eligible operation and measures actual
+  training-preview target changes before training, with bounded Agent revision
+  and unchanged legacy callers. See `intervention-measurement-alignment.md`.
+  This is an execution-quality improvement, not evidence that new shortcuts
+  were confirmed; old E3 results remain inconclusive and retain their artifacts.
+  A training-fitted channel-ratio neutralization/log-reflection constructor now
+  closes the corresponding chromaticity calibration gap. Real E3 training-only
+  acceptance narrowed the measured ratio range and passed scoped paired visual
+  review; it did not train a new model or certify shortcut reliance.
+
 - Literature/validation changes were checked with related offline regression suites: 297 unique relevant passing tests and two Windows symlink skips across the recorded batches. Retrieval/learning changes had a broad 141-test passing batch plus subsequent targeted checks. Counts overlap across batches and must not be added into a single claimed suite total.
 - A live public arXiv retrieval succeeded. These checks did not run real dataset audits or real text/VLM providers and are not E2 scientific results.
 - The latest EuroSAT repairs and new learning capability still require an actual framework run and independent outcome review. Previous erroneous reports are not automatically repaired by code changes.

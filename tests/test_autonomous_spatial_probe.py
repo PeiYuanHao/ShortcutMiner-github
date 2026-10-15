@@ -4,12 +4,12 @@ import pandas as pd
 import pytest
 from PIL import Image
 from shortcutminer.experiment.adaptive_screening import prepare_probe
-from shortcutminer.intervention.protocol import SpatialTransform, FactorTransform, GlobalColorTransform
+from shortcutminer.intervention.protocol import SpatialTransform, FactorTransform, GlobalColorTransform, ChannelRatioTransform
 from shortcutminer.protocol.model_reliance import AdaptivePairedScreeningOptions
 from shortcutminer.protocol.quantitative import QuantitativeExecutionResources
 
 
-@pytest.mark.parametrize('operation',['spatial','exterior','brightness','channel_scale','desaturate','luminance','rotation','frequency','blur','noise','compression','resolution'])
+@pytest.mark.parametrize('operation',['spatial','exterior','brightness','channel_scale','desaturate','luminance','rotation','frequency','blur','noise','compression','resolution','channel_ratio'])
 def test_generated_spatial_probe_keeps_pixels_and_reserves_confirmation(tmp_path,operation):
     spec=SpatialTransform(type='spatial_mask',region='custom',custom_box={'x0':.5,'y0':.5,'x1':1,'y1':1},fill='constant') if operation=='spatial' else FactorTransform(type='brightness',factor=.5)
     if operation=='exterior':
@@ -20,6 +20,8 @@ def test_generated_spatial_probe_keeps_pixels_and_reserves_confirmation(tmp_path
         spec=GlobalColorTransform(type='global_color',mode='desaturate',desaturation_factor=0)
     from shortcutminer.intervention.protocol import LuminanceTransform,RotationTransform,FrequencyTransform,BlurTransform,NoiseTransform,CompressionTransform,ResolutionTransform
     additional={
+        'channel_ratio':ChannelRatioTransform(
+            type='channel_ratio',mode='normalize_mean',numerator_channel='red',denominator_channel='blue',center_ratio=1),
         'luminance':LuminanceTransform(type='luminance',mode='normalize_mean',target_mean=110),
         'rotation':RotationTransform(type='rotation',angle_degrees=10),
         'frequency':FrequencyTransform(type='frequency_filter',mode='low_pass',cutoff=.2),

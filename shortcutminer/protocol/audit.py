@@ -6,7 +6,7 @@ from pydantic import Field, model_validator, model_serializer
 
 from shortcutminer.protocol.identify import NonEmptyText, SafeRelativePath, StrictProtocolModel
 from shortcutminer.protocol.model_reliance import TorchvisionTrainingOptions, DatasetShiftSpec, AdaptivePairedScreeningOptions
-from shortcutminer.intervention.protocol import BackgroundReplaceTransform, GlobalColorTransform, CornerPatchTransform, ProvidedPairTransform, AutonomousImageTransform
+from shortcutminer.intervention.protocol import BackgroundReplaceTransform, GlobalColorTransform, CornerPatchTransform, ProvidedPairTransform, AutonomousImageTransform, BoundedChannelRatioTransform
 from shortcutminer.protocol.ood_recipe import OODRecipeSelectionPolicy
 
 
@@ -35,7 +35,7 @@ class AuditExecutionOptions(StrictProtocolModel):
     ood_recipe_selection: OODRecipeSelectionPolicy | None = None
     excluded_scientific_fields: list[NonEmptyText] = Field(default_factory=list)
     visual_measurement_bindings: dict[NonEmptyText, NonEmptyText] = Field(default_factory=dict)
-    visual_ood_specs: dict[NonEmptyText, ProvidedPairTransform | AutonomousImageTransform] = Field(default_factory=dict)
+    visual_ood_specs: dict[NonEmptyText, ProvidedPairTransform | AutonomousImageTransform | BoundedChannelRatioTransform] = Field(default_factory=dict)
 
     @model_serializer(mode='wrap')
     def preserve_old_visual_contract(self, handler):
