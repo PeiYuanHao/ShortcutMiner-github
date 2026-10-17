@@ -117,12 +117,16 @@ def _freeze(path,value):
     _write(path,value)
     return value
 
-def preview_construction(operation,resources,root,directory,*,limit=12,quality_policy=None):
+def preview_construction(operation,resources,root,directory,*,limit=12,quality_policy=None,seek_counterexamples=True):
     """Persist actual training pairs and report changes without semantic pass claims."""
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     records=[];pictures=[]
     sources=training_images(resources,root,limit=limit)
-    if quality_policy is not None:
+    if not seek_counterexamples:
+        import random
+        pool=training_images(resources,root)
+        sources=random.Random(2026).sample(pool,min(limit,len(pool)))
+    if quality_policy is not None and seek_counterexamples:
         from shortcutminer.experiment.construction_quality import preview_sources
         sources=preview_sources(operation,resources,root)
     for index,(ref,path) in enumerate(sources):
@@ -149,7 +153,7 @@ def preview_construction(operation,resources,root,directory,*,limit=12,quality_p
         if quality_policy is not None:
             from shortcutminer.experiment.construction_quality import pixel_diagnostics
             records[-1].update(pixel_diagnostics(before,after))
-            records[-1]['preview_selection']='seeded_random' if index<8 else 'training_target_extreme'
+            records[-1]['preview_selection']='seeded_random' if not seek_counterexamples or index<8 else 'training_target_extreme'
         pictures.append((Image.fromarray(before),Image.fromarray(after)))
     if not records or not all(r['same_dimensions'] for r in records):raise ValueError('No valid training pairs')
     if not any(r['changed_pixel_fraction']>0 for r in records):raise ValueError('Proposed transform is a no-op on training previews')
@@ -163,7 +167,8 @@ def preview_construction(operation,resources,root,directory,*,limit=12,quality_p
     return records,sheet_path
 
 def select_autonomous_construction(client,vision_client,*,run_id,candidates,observations,descriptor_keys,
-        resources,root,receipt_path,task_description,training_diagnostics=None,max_revisions=2,measurement_binding=None,quality_policy=None):
+        resources,root,receipt_path,task_description,training_diagnostics=None,max_revisions=2,measurement_binding=None,quality_policy=None,
+        disable_qualitative=False,seek_counterexamples=True):
     """Quantitative selects; Qualitative sees paired pixels; Executive authorizes."""
     if max_revisions not in {0,1,2}:raise ValueError('Construction revisions bounded to 0..2')
     if quality_policy not in {None,REVIEW_POLICY}:raise ValueError('Unknown construction quality policy')
@@ -213,6 +218,12 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
         if 'channel_ratio' in (contract['eligible_operation_types'] or []):
             base['recipe_encoding']['calibrated_channel_ratio']['channel_ratio_calibration']['max_log_shift']='Agent-selected positive bound <= log(4), justified from training appearance; no outcome tuning'
             base['recipe_encoding']['calibrated_channel_ratio']['scope']+=' In this version the executable operator is bounded_channel_ratio: per-pixel luminance-preserving chroma change with gamut compression, not the legacy reciprocal clipped RGB operator. Target may be partial; actual preview measurement required.'
+    if disable_qualitative:
+        base['ablation_qualitative_disabled']=True
+        base['training_preview_policy']='Deterministic training-pixel checks only. Semantic paired-image review is disabled; preservation and specificity remain unverified.'
+    if not seek_counterexamples:
+        base['ablation_active_counterexample_search']=False
+        base['training_preview_policy']='12 seeded random training images, no targeted extreme selection. Retain all incidentally observed failures and contradictions.'
     identity=_hash(base)
     if receipt_path.exists():
         saved=json.loads(receipt_path.read_text(encoding='utf-8'))
@@ -266,7 +277,8 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
                 feedback.append({'construction_error':str(error),'prior_proposal':proposal.model_dump(mode='json')})
                 continue
         try:
-            records,sheet=preview_construction(operation,resources,root,receipt_path.parent/f'preview-{attempt}',quality_policy=quality_policy)
+            preview_options={} if seek_counterexamples else {'seek_counterexamples':False}
+            records,sheet=preview_construction(operation,resources,root,receipt_path.parent/f'preview-{attempt}',quality_policy=quality_policy,**preview_options)
         except ValueError as error:
             feedback.append({'construction_error':str(error),'prior_proposal':proposal.model_dump(mode='json')})
             continue
@@ -301,39 +313,43 @@ def select_autonomous_construction(client,vision_client,*,run_id,candidates,obse
         with Image.open(sheet) as decoded:width,height=decoded.size
         image_input=ModelImageInput(sample_id='construction-training-pairs',sample_reference=sheet.name,
             image_sha256=hashlib.sha256(data).hexdigest(),mime_type='image/png',width=width,height=height)
-        visual=visual_schema.model_validate(vision_client.invoke_multimodal(run_id=run_id,agent_name='qualitative',
+        visual=None if disable_qualitative else visual_schema.model_validate(vision_client.invoke_multimodal(run_id=run_id,agent_name='qualitative',
             payload_for_hash=visual_input,system_prompt=load_agent_workspace_prompt('qualitative')+' In construction_visual_review mode return only VisualConstructionReview JSON. Inspect actual original/changed pairs. Report whether the candidate cue was changed and task content remains visible, including clipping, borders and missing structure. A global pixel change fraction is not evidence that semantics were destroyed. Visual judgment is not ground truth; use unverified when uncertain.',
             content_parts=[{'type':'text','text':json.dumps(visual_input)},
               {'type':'image_url','image_url':{'url':'data:image/png;base64,'+base64.b64encode(data).decode(),'detail':'high'}}],
             validator=lambda v:visual_schema.model_validate(v),image_inputs=[image_input]))
-        if len(set(visual.reviewed_pair_ids))!=len(visual.reviewed_pair_ids) or not set(visual.reviewed_pair_ids).issubset({r['pair_id'] for r in records}):
+        if visual is not None and (len(set(visual.reviewed_pair_ids))!=len(visual.reviewed_pair_ids) or not set(visual.reviewed_pair_ids).issubset({r['pair_id'] for r in records})):
             raise ValueError('Visual review cites unavailable pairs')
-        if quality_policy and (set(visual.reviewed_pair_ids)!={r['pair_id'] for r in records} or visual.task_preservation=='damaged' or visual.mechanism_specificity=='unsupported' or visual.recommended_action!='accept_scoped'):
+        if quality_policy and visual is not None and (set(visual.reviewed_pair_ids)!={r['pair_id'] for r in records} or visual.task_preservation=='damaged' or visual.mechanism_specificity=='unsupported' or visual.recommended_action!='accept_scoped'):
             feedback.append({'quality_review_requires_revision':visual.model_dump(mode='json'),'prior_proposal':proposal.model_dump(mode='json')})
             continue
         decision_input={'run_id':run_id,'mode':'construction_semantic_review','task':task_description,'proposal':proposal.model_dump(mode='json'),
-          'fitted_transformation':operation.model_dump(mode='json'),'visual_review':visual.model_dump(mode='json'),
+          'fitted_transformation':operation.model_dump(mode='json'),'visual_review':visual.model_dump(mode='json') if visual is not None else None,
           'pixel_diagnostics':records,'response_schema':ConstructionDecision.model_json_schema(),
           'scope':'Training-only diagnostic authorization; no task-model predictions or held-out outcomes'}
         decision_input['cue_execution_check']=visual_input.get('cue_execution_check')
         if target_check is not None:
             decision_input['target_measurement_check']=target_check
+        review_instruction=(' Qualitative is experimentally disabled: visual_review=null means NOT PERFORMED, never passed. Use only observed numerical diagnostics to authorize a scoped sensitivity test, or defer. Task preservation remains unverified; no semantic or causal certification is possible.' if disable_qualitative else ' Use the actual Qualitative paired-image review and pixel diagnostics. Global changes are expected for a global cue; never reject solely because most pixels changed. Consider lost class evidence, clipping, cue specificity and scope. An unverified semantic status can authorize a limited dependence diagnostic with retained limitations; it cannot authorize a causal claim. A failed visual review must not be accepted.')
         decision=_invoke_typed(client,'executive',decision_input,ConstructionDecision,
-           load_agent_workspace_prompt('executive')+' ConstructionDecision JSON only. Use the actual Qualitative paired-image review and pixel diagnostics. Global changes are expected for a global cue; never reject solely because most pixels changed. Consider lost class evidence, clipping, cue specificity and scope. An unverified semantic status can authorize a limited dependence diagnostic with retained limitations; it cannot authorize a causal claim. A failed visual review must not be accepted.')
-        _write(receipt_path.parent/f'construction-review-{attempt}.json',{'visual':visual.model_dump(mode='json'),'executive':decision.model_dump(mode='json'),'input':decision_input})
-        if decision.decision=='accept' and visual.status!='failed':
+           load_agent_workspace_prompt('executive')+' ConstructionDecision JSON only.'+review_instruction)
+        visual_record=visual.model_dump(mode='json') if visual is not None else None
+        _write(receipt_path.parent/f'construction-review-{attempt}.json',{'visual':visual_record,'executive':decision.model_dump(mode='json'),'input':decision_input})
+        if decision.decision=='accept' and (visual is None or visual.status!='failed'):
             saved={'status':'selected','input_hash':identity,'proposal':proposal.model_dump(mode='json'),
-                'transformation':operation.model_dump(mode='json'),'calibration':calibration,'visual_review':visual.model_dump(mode='json'),
+                'transformation':operation.model_dump(mode='json'),'calibration':calibration,'visual_review':visual_record,
                 'executive_review':decision.model_dump(mode='json'),'truth_seen':False,'heldout_seen':False,
                 'cue_execution_check':visual_input.get('cue_execution_check'),
                 'scope':'training_only_before_evaluation','semantic_preservation':'unverified',
                 'training_source_hashes':source_hashes,
                 'construction_metadata_sha256':base['construction_metadata_sha256'],
                 'preview_file_hashes':{p.relative_to(receipt_path.parent).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in sheet.parent.iterdir() if p.is_file()}}
+            if disable_qualitative:saved['qualitative_review_status']='not_performed_ablation'
+            if not seek_counterexamples:saved['active_counterexample_search']=False
             if target_check is not None: saved['measurement_alignment']=target_check
             if quality_policy:saved['construction_quality_policy']=quality_policy
             return _freeze(receipt_path,saved)
-        feedback.append({'visual_review':visual.model_dump(mode='json'),'executive_review':decision.model_dump(mode='json'),
+        feedback.append({'visual_review':visual_record,'executive_review':decision.model_dump(mode='json'),
                          'prior_proposal':proposal.model_dump(mode='json')})
         if decision.decision=='defer':
             remaining=[c for c in remaining if c['candidate_id']!=proposal.candidate_id]
