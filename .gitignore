@@ -38,6 +38,7 @@ runs/*
 artifacts/
 checkpoints/
 results/
+results_eswa_single/
 evaluation/pilots/*
 !evaluation/pilots/.gitkeep
 .docker-data/

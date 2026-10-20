@@ -11,6 +11,7 @@ remains in `shortcutminer/`, reusable research entry points in
 | Candidate-complete image audits | [Generic entry](../infrastructure/experiments/run_candidate_complete_image_audit.py), [E3 evidence summary](../docs/experiments/e3-texture-recheck.md) | Low-cost checks for measurable candidates, reviewed interventions and conditional model probes. |
 | E4 comparisons and ablations | [Dedicated workspace](e4_ablation/README.md), [current scope](e4_ablation/docs/reduced-recovery.md) | E2-A/B, five selected variants; historical Full references, eight retained cells and two protocol-repaired E2-A baseline reruns. Earlier larger matrix remains preserved. |
 | Controlled evaluation | [Blind evaluation](../docs/blind-evaluation.md), [repeated evaluation](../docs/repeated-evaluation.md) | Public/private truth separation, scoring and aggregation infrastructure. |
+| Bounded single-device ESWA harness | [Study code and prerequisites](eswa_20261019/README.md) | Frozen comparison, fixed-candidate ablation, evaluator diagnostics, conditional seeds and local evidence/cost export. Source publication does not distribute raw outcomes. |
 
 Use `runs/e4_ablation/<experiment-id>/` for E4 outputs. Other studies should use
 distinct, descriptive run roots and IDs. Do not move an old run to make it appear

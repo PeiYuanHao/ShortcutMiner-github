@@ -11,6 +11,25 @@ a deterministic execution layer built on LangGraph.
 [Reproducibility](docs/reproducibility.md) · [Documentation](docs/README.md) ·
 [Experiments](experiments/README.md)
 
+## Bounded single-device study harness
+
+The [ESWA study workspace](experiments/eswa_20261019/README.md) adds isolated,
+versioned code for matched Full/single-controller/fixed-pipeline audits,
+fixed-candidate feedback/routing checks, evaluator-only locality diagnostics,
+and conditional classifier-seed checks. It includes an offline test suite,
+usage accounting and evidence-export utilities. The dated scripts preserve a
+particular study protocol; they are not a claim that every audit completed or
+that the full framework outperformed its baselines.
+
+```powershell
+python -X utf8 -m pytest experiments/eswa_20261019 -q
+```
+
+Raw ESWA results, provider traces, model weights, predictions, private truth and
+delivery archives remain local under ignored `results_eswa_single/`. This public
+update distributes source code and protocol tooling, not those experiment
+outputs. Existing historical documentation retains its original scope.
+
 ## Method
 
 | Agent | Responsibility |
@@ -173,7 +192,7 @@ For a concrete example with six model/seed profiles, see the
 | `tools/` | Bounded data inspection and experiment tools. |
 | `configs/` and `requirements/` | Runtime examples, scientific profiles and dependency locks. |
 | `infrastructure/experiments/` | Shared image-audit research entry points. |
-| `experiments/` | Isolated experiment workspaces, including E4 ablations. |
+| `experiments/` | Isolated experiment workspaces, including E4 and the bounded single-device ESWA harness. |
 | `evaluation/` | Controlled evaluation and blind-scoring infrastructure. |
 | `tests/` | Contract, execution, security, statistical and recovery tests. |
 | `scripts/` | Dataset-specific runners, acceptance utilities and historical scaffolds. |
